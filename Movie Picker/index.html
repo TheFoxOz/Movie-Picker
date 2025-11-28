@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Movie Picker</title>
     
-    <!-- PWA Manifest & Theme -->
+    <!-- PWA Manifest & Theme (manifest.json path is correct relative to index.html) -->
     <link rel="manifest" href="./manifest.json">
     <meta name="theme-color" content="#f97316">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -732,7 +732,7 @@
             
             const message = `${action.toUpperCase()}: ${movieTitle}`;
             
-            // Changed onclick to a direct function call
+            // The undo button now uses a direct event listener attached below
             toast.innerHTML = `
                 <span class="text-sm">${message}</span>
                 <button id="undo-button"
@@ -744,7 +744,7 @@
             
             document.body.appendChild(toast);
             
-            // Attach listener for the undo button
+            // Attach listener for the undo button (CSP compliant)
             document.getElementById('undo-button').addEventListener('click', window.undoLastSwipe);
 
             // Fade in
@@ -909,7 +909,7 @@
                 <div class="flex justify-between items-center py-3 border-b border-gray-700 last:border-b-0">
                     <span class="text-gray-200">${w.label}</span>
                     <label class="toggle-switch" aria-label="Toggle ${w.label} warning">
-                        <!-- Removed inline onchange="..." to fix CSP unsafe-eval violation -->
+                        <!-- Removed inline onchange="..." in previous step -->
                         <input type="checkbox" data-setting-label="${w.label}" class="setting-toggle" ${w.enabled ? 'checked' : ''}>
                         <span class="slider"></span>
                     </label>
