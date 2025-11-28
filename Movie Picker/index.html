@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Movie Picker</title>
     
-    <!-- PWA Manifest & Theme: This path is now relative to the root, matching the fix. -->
+    <!-- PWA Manifest & Theme -->
     <link rel="manifest" href="./manifest.json">
     <meta name="theme-color" content="#f97316">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -42,22 +42,19 @@
 
                 // 1. Listen for auth state changes
                 onAuthStateChanged(auth, (user) => {
+                    // Only update and trigger initialization if the auth state change is meaningful (not just initial load)
                     if (user) {
                         window.userId = user.uid; // Make userId available globally
-                        window.db = db; // Make db available globally
-                        window.isAuthReady = true; // Flag for content loading
-                        if (!isAuthReady) {
-                             window.initializeAppContent(); // Run app initialization once ready
-                        }
                     } else {
-                        // If auth fails or user signs out, we still get an ID (anonymous/random)
+                        // Fallback ID for anonymous users
                         window.userId = 'guest-' + crypto.randomUUID().substring(0, 8);
-                        window.db = db; 
-                        window.isAuthReady = true;
-                        if (!isAuthReady) {
-                             window.initializeAppContent(); // Run app initialization
-                        }
                     }
+                    
+                    if (!window.isAuthReady) {
+                        window.isAuthReady = true; // Flag for content loading
+                        window.initializeAppContent(); // Run app initialization once ready
+                    }
+                    window.db = db; // Make db available globally
                 });
 
                 // 2. Perform initial sign-in
@@ -327,7 +324,8 @@
             }
             
             const movie = MOCK_SWIPE_MOVIES[currentMovieIndex];
-            const card = cardToSwipe || document.getElementById(`movie-card-${movie.id}`);
+            // Use the currently active card (which is always the one rendered by generateSwipeContent)
+            const card = cardToSwipe || document.querySelector('.swipe-card');
             
             if (!movie || !card) return;
 
@@ -510,6 +508,21 @@
             card.addEventListener('touchcancel', (e) => handleEnd(e, card));
         }
 
+        /**
+         * Attaches listeners to the swipe action buttons.
+         */
+        function setupSwipeButtonListeners() {
+            const buttons = document.querySelectorAll('.swipe-action-button');
+            buttons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const action = button.getAttribute('data-action');
+                    if (action) {
+                        handleSwipeAction(action);
+                    }
+                });
+            });
+        }
+
         // --- Content Generation Functions ---
 
         function generateWatchlistContent() {
@@ -649,18 +662,18 @@
                     <!-- The Core Swipe Card -->
                     ${cardHtml}
                     
-                    <!-- Swipe Action Buttons -->
+                    <!-- Swipe Action Buttons (No more inline onclick) -->
                     <div class="flex justify-center space-x-6 w-full max-w-sm">
                         
                         <!-- PASS Button (Left) -->
-                        <button onclick="handleSwipeAction('pass')" class="action-button bg-gray-600 text-white p-4 rounded-full hover:bg-gray-500 flex-shrink-0" aria-label="Pass on this movie">
+                        <button id="swipe-pass-btn" data-action="pass" class="action-button swipe-action-button bg-gray-600 text-white p-4 rounded-full hover:bg-gray-500 flex-shrink-0" aria-label="Pass on this movie">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-8 h-8">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                             </svg>
                         </button>
 
                         <!-- SUPER-LIKE / MUST-WATCH Button (Center) -->
-                        <button onclick="handleSwipeAction('superlike')" class="action-button bg-blue-600 text-white p-3 rounded-full hover:bg-blue-500 flex-shrink-0 border-4 border-blue-400" aria-label="Super-like this movie (Must Watch)">
+                        <button id="swipe-superlike-btn" data-action="superlike" class="action-button swipe-action-button bg-blue-600 text-white p-3 rounded-full hover:bg-blue-500 flex-shrink-0 border-4 border-blue-400" aria-label="Super-like this movie (Must Watch)">
                             <!-- Star Icon for Super-Like -->
                             <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24" class="w-10 h-10">
                                 <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
@@ -668,7 +681,7 @@
                         </button>
                         
                         <!-- LIKE Button (Right) -->
-                        <button onclick="handleSwipeAction('like')" class="action-button bg-primary text-white p-4 rounded-full hover:bg-orange-500 flex-shrink-0" aria-label="Like this movie">
+                        <button id="swipe-like-btn" data-action="like" class="action-button swipe-action-button bg-primary text-white p-4 rounded-full hover:bg-orange-500 flex-shrink-0" aria-label="Like this movie">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-8 h-8">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.054-4.312 2.655-.715-1.601-2.377-2.655-4.313-2.655C4.099 3.75 2 5.765 2 8.25c0 7.22 9 12 10 12s10-4.78 10-12z" />
                             </svg>
@@ -679,8 +692,11 @@
                 </div>
             `;
             
-            // Set the HTML and immediately setup the listeners for the card
-            setTimeout(() => setupSwipeGestureListeners(`movie-card-${movie.id}`), 0); 
+            // Set the HTML and immediately setup the listeners for the card and buttons
+            setTimeout(() => {
+                setupSwipeGestureListeners(`movie-card-${movie.id}`);
+                setupSwipeButtonListeners();
+            }, 0); 
             
             return pageHtml;
         }
@@ -716,9 +732,10 @@
             
             const message = `${action.toUpperCase()}: ${movieTitle}`;
             
+            // Changed onclick to a direct function call
             toast.innerHTML = `
                 <span class="text-sm">${message}</span>
-                <button onclick="undoLastSwipe()" 
+                <button id="undo-button"
                     class="bg-primary text-white text-xs font-bold py-1 px-3 rounded-lg hover:bg-orange-500 transition duration-150 ml-4"
                     aria-label="Undo last swipe action">
                     UNDO
@@ -727,6 +744,9 @@
             
             document.body.appendChild(toast);
             
+            // Attach listener for the undo button
+            document.getElementById('undo-button').addEventListener('click', window.undoLastSwipe);
+
             // Fade in
             setTimeout(() => { toast.style.opacity = 1; }, 50);
 
@@ -889,7 +909,8 @@
                 <div class="flex justify-between items-center py-3 border-b border-gray-700 last:border-b-0">
                     <span class="text-gray-200">${w.label}</span>
                     <label class="toggle-switch" aria-label="Toggle ${w.label} warning">
-                        <input type="checkbox" ${w.enabled ? 'checked' : ''} onchange="console.log('Toggle for ${w.label} changed')">
+                        <!-- Removed inline onchange="..." to fix CSP unsafe-eval violation -->
+                        <input type="checkbox" data-setting-label="${w.label}" class="setting-toggle" ${w.enabled ? 'checked' : ''}>
                         <span class="slider"></span>
                     </label>
                 </div>
@@ -921,7 +942,7 @@
 
                     <h2 class="text-xl font-semibold text-white mb-4">Trigger Warning Settings</h2>
                     <p class="text-sm text-gray-400 mb-4">Toggle sensitive topics you wish to filter or receive warnings for in recommendations.</p>
-                    <div class="bg-secondary rounded-xl p-4 shadow-xl mb-8 border border-gray-700">
+                    <div id="warning-settings-list" class="bg-secondary rounded-xl p-4 shadow-xl mb-8 border border-gray-700">
                         ${warningSettings}
                     </div>
                     
@@ -942,6 +963,22 @@
                     </button>
                 </div>
             `;
+        }
+        
+        /**
+         * Attaches listeners to the Profile tab's toggle switches.
+         */
+        function setupProfileListeners() {
+            const toggleSwitches = document.querySelectorAll('.setting-toggle');
+            toggleSwitches.forEach(toggle => {
+                // Attach the event listener (CSP compliant)
+                toggle.addEventListener('change', (e) => {
+                    const label = e.target.getAttribute('data-setting-label');
+                    const isChecked = e.target.checked;
+                    console.log(`Toggle for "${label}" changed to: ${isChecked}`);
+                    // In a real app, you would update Firestore here
+                });
+            });
         }
         
         // Add event listeners for navigation
@@ -977,6 +1014,7 @@
                     break;
                 case 'swipe':
                     contentArea.innerHTML = generateSwipeContent();
+                    // setupSwipeButtonListeners() is called inside generateSwipeContent()
                     break;
                 case 'matches':
                     contentArea.innerHTML = generateMatchesContent();
@@ -984,6 +1022,7 @@
                     break;
                 case 'profile':
                     contentArea.innerHTML = generateProfileContent();
+                    setupProfileListeners(); // Attach event listeners after content is loaded
                     break;
                 default:
                     contentArea.innerHTML = `<div class="p-4 text-center text-gray-500">Page not found.</div>`;
