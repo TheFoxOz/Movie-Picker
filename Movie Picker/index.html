@@ -16,6 +16,76 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.js"></script>
     
+    <!-- FIREBASE MODULE IMPORTS -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        // import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"; // Optional: Use for debugging
+
+        // Access global variables provided by the environment
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-movie-picker-app-id';
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let app, db, auth;
+        let userId = null;
+        let isAuthReady = false;
+
+        // Function to initialize Firebase and authenticate
+        async function setupFirebase() {
+            try {
+                // setLogLevel('debug'); // Uncomment to see Firebase logs
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                // 1. Listen for auth state changes
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        window.userId = user.uid; // Make userId available globally
+                        window.db = db; // Make db available globally
+                        window.isAuthReady = true; // Flag for content loading
+                        if (!isAuthReady) {
+                             window.initializeAppContent(); // Run app initialization once ready
+                        }
+                    } else {
+                        // If auth fails or user signs out, we still get an ID (anonymous/random)
+                        window.userId = 'guest-' + crypto.randomUUID().substring(0, 8);
+                        window.db = db; 
+                        window.isAuthReady = true;
+                        if (!isAuthReady) {
+                             window.initializeAppContent(); // Run app initialization
+                        }
+                    }
+                });
+
+                // 2. Perform initial sign-in
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (error) {
+                console.error("Firebase Initialization or Auth Failed:", error);
+                // Fallback to anonymous ID if auth fails completely
+                window.userId = 'guest-fail-' + crypto.randomUUID().substring(0, 8);
+                window.isAuthReady = true;
+                window.initializeAppContent();
+            }
+        }
+        
+        // Expose Firebase components to the main script block
+        window.setupFirebase = setupFirebase;
+        window.db = db; 
+        window.userId = userId;
+        window.isAuthReady = isAuthReady;
+        window.setDoc = setDoc;
+        window.doc = doc;
+        window.serverTimestamp = serverTimestamp;
+        window.appId = appId;
+    </script>
+    
     <!-- Tailwind Config -->
     <script>
         tailwind.config = {
@@ -71,7 +141,14 @@
         
         <!-- Main Content Area -->
         <div id="content-area" class="tab-content">
-            <!-- Content will be injected here by JS -->
+            <!-- Loading state before Firebase is ready -->
+            <div id="loading-spinner" class="flex flex-col items-center justify-center min-h-[500px] p-8">
+                <svg class="animate-spin h-10 w-10 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <p class="text-gray-400 mt-4">Initializing application...</p>
+            </div>
         </div>
 
         <!-- Fixed Bottom Navigation Bar -->
@@ -112,6 +189,9 @@
 
     </div>
     <script>
+        // --- Global Firebase References (Set in the module script) ---
+        // window.db, window.userId, window.isAuthReady, window.setDoc, window.doc, window.serverTimestamp, window.appId
+        
         // --- Mock Data ---
         const MOCK_WARNING_SETTINGS = [
             { label: "High Violence / Gore", enabled: true },
@@ -139,7 +219,7 @@
 
         const MOCK_SWIPE_MOVIES = [
             {
-                id: 1,
+                id: "void-walker-2024", // Changed ID to string for Firestore use
                 title: "The Void Walker",
                 year: 2024,
                 genre: "Sci-Fi / Mystery",
@@ -152,7 +232,7 @@
                 aiSummary: "The AI suggests this movie because you frequently rate high-concept Sci-Fi films and you recently enabled the 'Thrilling' mood filter. It shares narrative DNA with 'Inception' and 'Primer'."
             },
             {
-                id: 2,
+                id: "echoes-2023",
                 title: "Echoes of Tomorrow",
                 year: 2023,
                 genre: "Drama / Romance",
@@ -165,7 +245,7 @@
                 aiSummary: "This is a perfect 'Feel-good' match for your preference for short-duration, high-rated dramas available on your Prime Video account."
             },
             {
-                id: 3,
+                id: "crystal-king-2022",
                 title: "Crystal King",
                 year: 2022,
                 genre: "Fantasy / Adventure",
@@ -178,7 +258,7 @@
                 aiSummary: "Highest rated Fantasy film this year. The platform analysis shows this is available on Hulu, one of your connected services."
             },
             {
-                id: 4,
+                id: "rogue-protocol-2021",
                 title: "Rogue Protocol",
                 year: 2021,
                 genre: "Action / Thriller",
@@ -240,24 +320,53 @@
         const SWIPE_THRESHOLD = 100; // Pixels needed to trigger a swipe
 
         // Function to handle the actual swipe result (called by buttons OR gestures)
-        function handleSwipeAction(action, cardToSwipe = null) {
+        async function handleSwipeAction(action, cardToSwipe = null) {
+            if (!window.isAuthReady) {
+                showMockNotification("App is still initializing. Please wait.");
+                return;
+            }
+            
             const movie = MOCK_SWIPE_MOVIES[currentMovieIndex];
             const card = cardToSwipe || document.getElementById(`movie-card-${movie.id}`);
             
             if (!movie || !card) return;
 
-            // 1. Store action for potential undo
+            // 1. Save swipe action to Firestore
+            try {
+                const swipeData = {
+                    action: action, // 'like', 'pass', or 'superlike'
+                    timestamp: window.serverTimestamp(),
+                    movieTitle: movie.title,
+                    movieId: movie.id,
+                };
+                
+                // Firestore path: /artifacts/{appId}/users/{userId}/swipes/{movieId}
+                const swipeRef = window.doc(window.db, 
+                    'artifacts', window.appId, 
+                    'users', window.userId, 
+                    'swipes', movie.id
+                );
+
+                await window.setDoc(swipeRef, swipeData);
+                console.log(`Swipe saved: ${action} for ${movie.title}`);
+                
+            } catch (e) {
+                console.error("Error saving swipe to Firestore: ", e);
+                showMockNotification("Error saving swipe! Check console.");
+            }
+            
+            // 2. Store action for potential undo
             swipeHistory.push({ index: currentMovieIndex, movie, action });
 
-            // 2. Apply Haptic Feedback
+            // 3. Apply Haptic Feedback
             if (navigator.vibrate) {
                 navigator.vibrate(action === 'superlike' ? [50, 50, 50] : [30]);
             }
             
-            // 3. Start preloading the next card immediately after swipe starts (ZERO LAG)
+            // 4. Start preloading the next card immediately after swipe starts (ZERO LAG)
             preloadNextMovie();
 
-            // 4. Determine exit transform based on action
+            // 5. Determine exit transform based on action
             let exitTransform;
             if (action === 'pass') {
                 exitTransform = 'translateX(-200vw) rotate(-25deg)'; 
@@ -267,12 +376,12 @@
                 exitTransform = 'translateY(-200vw) scale(0.8)';
             }
             
-            // 5. Apply exit animation
+            // 6. Apply exit animation
             card.style.transition = 'transform 0.4s ease-in-out, opacity 0.4s ease-in-out';
             card.style.transform = exitTransform;
             card.style.opacity = 0;
 
-            // 6. Load next card and show toast after animation completes
+            // 7. Load next card and show toast after animation completes
             setTimeout(() => {
                 currentMovieIndex++;
                 setActiveTab('swipe'); 
@@ -290,6 +399,8 @@
             const lastSwipe = swipeHistory.pop();
             if (!lastSwipe) return;
 
+            // NOTE: For a real app, UNDO would also DELETE the swipe document from Firestore.
+            
             // 2. Restore the index
             currentMovieIndex = lastSwipe.index;
             
@@ -328,7 +439,7 @@
 
             // Apply opacity and rotation based on drag distance
             const opacity = Math.min(Math.abs(deltaX) / SWIPE_THRESHOLD * 2, 1); // Max 1 opacity
-            const rotateFactor = Math.abs(deltaX) / SWIPE_THRESHOLD * 5; // Subtle rotation on overlay
+            // const rotateFactor = Math.abs(deltaX) / SWIPE_THRESHOLD * 5; // Subtle rotation on overlay
 
             if (deltaX > 20) { // Dragging right (LIKE)
                 overlayLike.style.opacity = opacity;
@@ -407,7 +518,9 @@
                     <h1 class="text-3xl font-extrabold text-white tracking-tight pt-2 mb-6">My Watchlist</h1>
                     
                     <p class="text-gray-400 mb-6">Movies you've swiped right on or added manually. (${Math.floor(Math.random() * 5) + 8} items)</p>
-                    
+                    <p class="text-xs text-gray-500 mb-4 p-3 bg-card-bg rounded-lg border border-gray-700">
+                        NOTE: This is mock data. In a final version, this list would be loaded from your 'swipes' Firestore collection where action is 'like' or 'superlike'.
+                    </p>
                     <!-- Watchlist Items -->
                     <div class="space-y-3">
                         ${['The Void Walker (92% Match)', 'Rogue Protocol (85% Match)', 'Echo Chamber (90% Match)', 'The Crystal King (77% Match)'].map(title => `
@@ -449,7 +562,7 @@
 
                     <!-- Poster Section -->
                     <div class="swipe-card-poster">
-                        <img src="https://placehold.co/400x400/${movie.id % 2 === 0 ? '10b981' : 'ef4444'}/ffffff?text=${movie.title.split(' ').join('+')}" 
+                        <img src="https://placehold.co/400x400/${movie.id.length % 2 === 0 ? '10b981' : 'ef4444'}/ffffff?text=${movie.title.split(' ').join('+')}" 
                              onerror="this.onerror=null;this.src='https://placehold.co/400x400/10b981/ffffff?text=Poster';" 
                              alt="${movie.title} Poster" 
                              class="w-full h-full object-cover" 
@@ -497,6 +610,18 @@
         }
 
         function generateSwipeContent() {
+            if (!window.isAuthReady) {
+                return `
+                    <div class="flex flex-col items-center justify-center min-h-[500px] p-8">
+                        <svg class="animate-spin h-10 w-10 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <p class="text-gray-400 mt-4">Waiting for secure connection...</p>
+                    </div>
+                `;
+            }
+            
             const movie = MOCK_SWIPE_MOVIES[currentMovieIndex];
 
             if (!movie) {
@@ -781,6 +906,13 @@
                         <p class="text-sm text-gray-400">XP Level 14 | Horror Duo Badge</p>
                     </div>
 
+                    <div class="bg-secondary rounded-xl p-4 shadow-xl mb-8 border border-gray-700">
+                        <h2 class="text-xl font-semibold text-white mb-4">Authentication Details</h2>
+                        <p class="text-sm text-gray-400 mb-2">Your unique ID for grouping with friends:</p>
+                        <code class="block bg-gray-800 text-green-400 p-2 rounded-lg text-xs break-all">${window.userId || 'Loading...'}</code>
+                        <p class="text-xs text-gray-500 mt-2">Status: ${window.db ? 'Connected to Firebase' : 'Initializing'}</p>
+                    </div>
+
                     <h2 class="text-xl font-semibold text-white mb-4 mt-6">Associated Platforms</h2>
                     <p class="text-sm text-gray-400 mb-4">Connect streaming services to see shared matches and availability.</p>
                     <div class="bg-secondary rounded-xl p-4 shadow-xl mb-8 border border-gray-700">
@@ -857,12 +989,20 @@
                     contentArea.innerHTML = `<div class="p-4 text-center text-gray-500">Page not found.</div>`;
             }
         }
+        
+        // Final Initialization Function - Called ONLY when Firebase is ready
+        window.initializeAppContent = () => {
+             preloadNextMovie();
+             setActiveTab('swipe');
+        };
 
 
         // Initialization: Preload the first next card and start the app
         window.onload = () => {
-             preloadNextMovie(); // Preload the first card after the starting card (index 1)
-             setActiveTab('swipe');
+             // Start Firebase initialization and auth handshake
+             window.setupFirebase();
+             
+             // Initial render is the loading state defined in the HTML structure
         };
     </script>
 </body>
