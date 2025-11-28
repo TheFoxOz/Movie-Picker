@@ -10,6 +10,7 @@ import { SwipeTab } from './tabs/swipe.js';
 import { HomeTab } from './tabs/home.js';
 import { MatchesTab } from './tabs/matches.js';
 import { ProfileTab } from './tabs/profile.js';
+import { LibraryTab } from './tabs/library.js';
 
 // Mock movie data
 const MOCK_MOVIES = [
@@ -187,10 +188,10 @@ class App {
      */
     initTabs() {
         this.tabs.set('home', new HomeTab(this.contentArea));
+        this.tabs.set('library', new LibraryTab(this.contentArea));
         this.tabs.set('swipe', new SwipeTab(this.contentArea));
         this.tabs.set('matches', new MatchesTab(this.contentArea));
         this.tabs.set('profile', new ProfileTab(this.contentArea));
-        this.tabs.set('library', { render: () => this.renderLibrary() }); // Simple tab
     }
     
     /**
@@ -301,40 +302,6 @@ class App {
                 currentTab.render();
             }
         }
-    }
-    
-    /**
-     * Render library tab (simple implementation)
-     */
-    renderLibrary() {
-        const movies = store.get('movies');
-        
-        this.contentArea.innerHTML = `
-            <div class="container" style="padding: 1.5rem;">
-                <h1>Movie Library</h1>
-                <p style="color: var(--color-text-secondary); margin-bottom: 1.5rem;">
-                    ${movies.length} movies available
-                </p>
-                <div class="stagger-children">
-                    ${movies.map(movie => `
-                        <div class="card" style="margin-bottom: 1rem;">
-                            <div style="display: flex; gap: 1rem;">
-                                <div style="width: 80px; height: 120px; background: var(--color-border); border-radius: 0.5rem; flex-shrink: 0;"></div>
-                                <div style="flex: 1;">
-                                    <h3>${movie.title}</h3>
-                                    <p style="font-size: 0.875rem; color: var(--color-text-secondary);">
-                                        ${movie.year} • ${movie.genre}
-                                    </p>
-                                    <p style="font-size: 0.75rem; color: var(--color-text-muted); margin-top: 0.5rem;" class="line-clamp-2">
-                                        ${movie.synopsis}
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                    `).join('')}
-                </div>
-            </div>
-        `;
     }
     
     /**
