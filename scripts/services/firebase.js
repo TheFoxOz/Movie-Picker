@@ -81,21 +81,48 @@ export class FirebaseService {
      */
     async setupAuth(authToken) {
         return new Promise((resolve, reject) => {
+            // Set a 10-second timeout for auth
+            const timeout = setTimeout(() => {
+                console.warn('[Firebase] Auth timeout - continuing without authentication');
+                unsubscribe();
+                resolve(null); // Continue without auth
+            }, 10000);
+            
             // Listen for auth state changes
             const unsubscribe = onAuthStateChanged(this.auth, (user) => {
+                clearTimeout(timeout);
                 if (user) {
                     this.userId = user.uid;
                     console.log('[Firebase] Authenticated:', this.userId);
                     unsubscribe();
                     resolve(user);
+                } else {
+                    console.warn('[Firebase] No user - continuing as guest');
+                    unsubscribe();
+                    resolve(null);
                 }
-            }, reject);
+            }, (error) => {
+                clearTimeout(timeout);
+                console.error('[Firebase] Auth error:', error);
+                unsubscribe();
+                resolve(null); // Continue without auth instead of rejecting
+            });
             
             // Perform sign-in
             if (authToken) {
-                signInWithCustomToken(this.auth, authToken).catch(reject);
+                signInWithCustomToken(this.auth, authToken).catch((error) => {
+                    clearTimeout(timeout);
+                    console.error('[Firebase] Custom token sign-in failed:', error);
+                    unsubscribe();
+                    resolve(null); // Continue without auth
+                });
             } else {
-                signInAnonymously(this.auth).catch(reject);
+                signInAnonymously(this.auth).catch((error) => {
+                    clearTimeout(timeout);
+                    console.error('[Firebase] Anonymous sign-in failed:', error);
+                    unsubscribe();
+                    resolve(null); // Continue without auth
+                });
             }
         });
     }
