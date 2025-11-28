@@ -4,810 +4,1045 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Movie Picker</title>
-    <!-- PWA Manifest Link -->
-    <link rel="manifest" href="manifest.json">
-    <!-- Tailwind CSS CDN -->
+    
+    <!-- PWA Manifest & Theme (manifest.json path is correct relative to index.html) -->
+    <link rel="manifest" href="./manifest.json">
+    <meta name="theme-color" content="#f97316">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Movie Picker">
+
+    <!-- Load Tailwind + Confetti -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Inter Font -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.js"></script>
+    
+    <!-- FIREBASE MODULE IMPORTS -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        // import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"; // Optional: Use for debugging
+
+        // Access global variables provided by the environment
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-movie-picker-app-id';
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let app, db, auth;
+        let userId = null;
+        let isAuthReady = false;
+
+        // Function to initialize Firebase and authenticate
+        async function setupFirebase() {
+            try {
+                // setLogLevel('debug'); // Uncomment to see Firebase logs
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                // 1. Listen for auth state changes
+                onAuthStateChanged(auth, (user) => {
+                    // Only update and trigger initialization if the auth state change is meaningful (not just initial load)
+                    if (user) {
+                        window.userId = user.uid; // Make userId available globally
+                    } else {
+                        // Fallback ID for anonymous users
+                        window.userId = 'guest-' + crypto.randomUUID().substring(0, 8);
+                    }
+                    
+                    if (!window.isAuthReady) {
+                        window.isAuthReady = true; // Flag for content loading
+                        window.initializeAppContent(); // Run app initialization once ready
+                    }
+                    window.db = db; // Make db available globally
+                });
+
+                // 2. Perform initial sign-in
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (error) {
+                console.error("Firebase Initialization or Auth Failed:", error);
+                // Fallback to anonymous ID if auth fails completely
+                window.userId = 'guest-fail-' + crypto.randomUUID().substring(0, 8);
+                window.isAuthReady = true;
+                window.initializeAppContent();
+            }
+        }
+        
+        // Expose Firebase components to the main script block
+        window.setupFirebase = setupFirebase;
+        window.db = db; 
+        window.userId = userId;
+        window.isAuthReady = isAuthReady;
+        window.setDoc = setDoc;
+        window.doc = doc;
+        window.serverTimestamp = serverTimestamp;
+        window.appId = appId;
+    </script>
+    
+    <!-- Tailwind Config -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'primary': '#f97316',
+                        'secondary': '#1f2937',
+                        'card-bg': '#374151',
+                        'success': '#10b981',
+                        'nope': '#ef4444',
+                    },
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                }
+            }
+        }
+    </script>
     <style>
-        :root {
-            --primary-color: #f97316; /* Orange-600 */
-            --bg-color: #1f2937; /* Gray-800 */
-            --card-color: #374151; /* Gray-700 */
-        }
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: var(--bg-color);
-            color: #f3f4f6; /* Gray-100 */
-            height: 100vh;
-            overflow: hidden; /* Prevent body scroll, let content scroll if needed */
-        }
-        .container {
-            max-width: 420px; /* Mobile first design */
-            margin: auto;
-            height: 100%;
-            display: flex;
-            flex-direction: column;
-        }
-        .nav-link {
-            transition: all 0.2s;
-            cursor: pointer;
-        }
-        .nav-link.active {
-            border-bottom: 3px solid var(--primary-color);
-            color: var(--primary-color);
-            font-weight: 700;
-        }
-        /* Custom styles for the movie card stack and swiping */
-        #movie-stack {
-            flex-grow: 1;
-            position: relative;
-            /* Calculate height dynamically based on viewport minus header/padding */
-            height: calc(100vh - 170px); 
-            margin-top: 1rem;
-            padding: 0 1rem;
-        }
-        .movie-card {
-            position: absolute;
-            top: 0;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 95%;
-            max-width: 380px;
-            height: 100%; /* Takes up full height of #movie-stack */
-            max-height: 100%; /* Ensure it respects container limit */
-            background-color: var(--card-color);
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
-            border-radius: 1.5rem;
-            transition: transform 0.3s ease-out, opacity 0.3s ease-out;
-            touch-action: none; /* Required for mobile dragging */
-        }
-        .movie-card.loading {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.5rem;
-            text-align: center;
-        }
-        .movie-card-image {
-            height: 60%;
-            border-radius: 1.5rem 1.5rem 0 0;
-            background-size: cover;
-            background-position: center;
-        }
-        .movie-card-info {
-            padding: 1rem;
-            height: 40%;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-        }
-        /* Spinner for loading state */
-        .spinner {
-            border: 4px solid rgba(255, 255, 255, 0.3);
-            border-radius: 50%;
-            border-top-color: var(--primary-color);
-            width: 40px;
-            height: 40px;
-            animation: spin 1s ease-in-out infinite;
-        }
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
+        /* General Styles */
+        body { background-color: #111827; color: #f3f4f6; font-family: 'Inter', sans-serif; }
+        .app-container { max-width: 420px; margin: 0 auto; min-height: 100dvh; display: flex; flex-direction: column; box-shadow: 0 0 25px rgba(0,0,0,0.5); background-color: #1f2937; }
+        
+        /* Layout */
+        .tab-content { flex-grow: 1; overflow-y: auto; padding-bottom: 72px; }
+        .nav-bar { position: fixed; bottom: 0; left: 0; right: 0; max-width: 420px; margin: 0 auto; background-color: #111827; border-top: 1px solid #374151; height: 64px; z-index: 20; }
+        .nav-item.active { color: var(--primary-color); }
+        
+        /* Swipe Card */
+        .swipe-card { width: 100%; max-width: 380px; height: 550px; margin: 0 auto; position: relative; overflow: hidden; background-color: #374151; transition: transform 0.3s ease-out, opacity 0.3s ease-out; cursor: grab; touch-action: none; will-change: transform; }
+        .swipe-card-poster { height: 60%; position: relative; }
+        .swipe-card-details { height: 40%; overflow-y: auto; }
+
+        /* Overlays */
+        .swipe-overlay { position: absolute; top: 20px; z-index: 10; padding: 8px 16px; border-radius: 8px; font-size: 32px; font-weight: 800; text-transform: uppercase; letter-spacing: 2px; opacity: 0; transform: scale(0.8) rotate(0deg); transition: opacity 0.1s, transform 0.1s; }
+        .overlay-like { border: 5px solid #10b981; color: #10b981; left: 20px; transform: rotate(-25deg); }
+        .overlay-nope { border: 5px solid #ef4444; color: #ef4444; right: 20px; transform: rotate(25deg); }
+        .action-button { transition: all 0.1s ease-in-out; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
+        .action-button:active { transform: scale(0.95); }
+        #undo-toast { bottom: 80px; transition: transform 0.3s ease-out; }
+        
+        /* Toggle Switch (for Profile) */
+        .toggle-switch { position: relative; display: inline-block; width: 48px; height: 24px; }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #4b5563; transition: .4s; border-radius: 24px; }
+        .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: #f97316; }
+        input:checked + .slider:before { transform: translateX(24px); }
+
     </style>
 </head>
-<body>
+<body class="bg-gray-900">
+    <div class="app-container">
+        
+        <!-- Main Content Area -->
+        <div id="content-area" class="tab-content">
+            <!-- Loading state before Firebase is ready -->
+            <div id="loading-spinner" class="flex flex-col items-center justify-center min-h-[500px] p-8">
+                <svg class="animate-spin h-10 w-10 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <p class="text-gray-400 mt-4">Initializing application...</p>
+            </div>
+        </div>
 
-<div class="container">
-    <!-- Header/Navigation -->
-    <header class="bg-gray-900 shadow-lg p-4 sticky top-0 z-10 rounded-b-xl">
-        <h1 class="text-2xl font-bold text-center text-white">Movie Picker</h1>
-        <!-- Display User ID for debugging and matching purposes -->
-        <p id="user-display" class="text-xs text-center text-gray-500 mt-1 truncate">Loading User ID...</p>
-        <nav class="flex justify-around mt-4 text-gray-400 text-lg">
-            <span id="nav-swipe" class="nav-link active p-2" data-tab="swipe">Swipe</span>
-            <span id="nav-settings" class="nav-link p-2" data-tab="settings">Settings</span>
-            <span id="nav-list" class="nav-link p-2" data-tab="list">List</span>
-        </nav>
-    </header>
+        <!-- Fixed Bottom Navigation Bar -->
+        <div id="nav-bar" class="nav-bar flex justify-around items-center">
+            
+            <!-- Watchlist Tab Button -->
+            <button class="nav-item flex flex-col items-center p-2 text-gray-400 hover:text-primary transition" data-tab="watchlist" aria-label="Go to Watchlist">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z" />
+                </svg>
+                <span class="text-xs">Watchlist</span>
+            </button>
 
-    <!-- Main Content Area -->
-    <main class="flex-grow p-4 overflow-y-hidden flex flex-col">
+            <!-- Swipe Tab Button (Active Default) -->
+            <button class="nav-item flex flex-col items-center p-2 text-primary active transition" data-tab="swipe" aria-label="Start swiping for new movies">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 7.5l7.5 7.5m0-7.5l-7.5 7.5M10.5 6a7.5 7.5 0 100 15 7.5 7.5 0 000-15z" />
+                </svg>
+                <span class="text-xs">Swipe</span>
+            </button>
 
-        <!-- Swipe Tab -->
-        <section id="tab-swipe" class="tab-content h-full flex flex-col flex-grow">
-            <div id="movie-stack">
-                <!-- Movie cards will be inserted here by JavaScript -->
-                <div id="loading-card" class="movie-card loading z-50">
-                    <div class="text-center p-8">
-                        <div class="spinner mx-auto mb-4"></div>
-                        <p>Finding available movies...</p>
-                        <p class="text-sm text-gray-400 mt-2">Make sure your settings are saved!</p>
+            <!-- Matches Tab Button -->
+            <button class="nav-item flex flex-col items-center p-2 text-gray-400 hover:text-primary transition" data-tab="matches" aria-label="View group and couple matches">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.054-4.312 2.655-.715-1.601-2.377-2.655-4.313-2.655C4.099 3.75 2 5.765 2 8.25c0 7.22 9 12 10 12s10-4.78 10-12z" />
+                </svg>
+                <span class="text-xs">Matches</span>
+            </button>
+
+            <!-- Profile/Settings Tab Button -->
+            <button class="nav-item flex flex-col items-center p-2 text-gray-400 hover:text-primary transition" data-tab="profile" aria-label="View profile and settings">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 19.5a2.25 2.25 0 01-1.8-2.25v-.75a1.5 1.5 0 011.5-1.5h16.5a1.5 1.5 0 011.5 1.5v.75a2.25 2.25 0 01-1.8 2.25H4.501z" />
+                </svg>
+                <span class="text-xs">Profile</span>
+            </button>
+        </div>
+
+    </div>
+    <script>
+        // --- Global Firebase References (Set in the module script) ---
+        // window.db, window.userId, window.isAuthReady, window.setDoc, window.doc, window.serverTimestamp, window.appId
+        
+        // --- Mock Data ---
+        const MOCK_WARNING_SETTINGS = [
+            { label: "High Violence / Gore", enabled: true },
+            { label: "Needles / Injections", enabled: false },
+            { label: "Jump Scares", enabled: true },
+        ];
+        
+        const MOCK_PLATFORMS = [
+            { name: "Netflix", status: "Connected", icon: "N", color: "text-red-600" },
+            { name: "Hulu", status: "Connected", icon: "H", color: "text-green-500" },
+            { name: "Max (HBO)", status: "Disconnected", icon: "M", color: "text-blue-500" },
+        ];
+
+        const MOCK_GROUP_DATA = {
+            // Updated one match to 100% to demonstrate confetti
+            "Alex K. & Sarah J.": [
+                { movie: "Interstellar Journey", likes: ["Alex K.", "Sarah J."], totalMembers: 2, platform: "Netflix" },
+                { movie: "Perfect Match Movie", likes: ["Alex K.", "Sarah J."], totalMembers: 2, platform: "Hulu" }, 
+            ],
+            "The Squad (5 Members)": [
+                { movie: "Action Protocol 7", likes: ["You", "Tom", "Jess", "Mike"], totalMembers: 5, platform: "Hulu" },
+                { movie: "Echo Chamber", likes: ["You", "Tom", "Jess", "Mike", "Alex"], totalMembers: 5, platform: "Max (HBO)" },
+            ]
+        };
+
+        const MOCK_SWIPE_MOVIES = [
+            {
+                id: "void-walker-2024", // Changed ID to string for Firestore use
+                title: "The Void Walker",
+                year: 2024,
+                genre: "Sci-Fi / Mystery",
+                runtime: "128 min",
+                imdb: 8.4,
+                rt: 94,
+                platform: "Netflix",
+                mood: "Mind-blowing, Thrilling",
+                matchProb: 92,
+                aiSummary: "The AI suggests this movie because you frequently rate high-concept Sci-Fi films and you recently enabled the 'Thrilling' mood filter. It shares narrative DNA with 'Inception' and 'Primer'."
+            },
+            {
+                id: "echoes-2023",
+                title: "Echoes of Tomorrow",
+                year: 2023,
+                genre: "Drama / Romance",
+                runtime: "110 min",
+                imdb: 7.9,
+                rt: 88,
+                platform: "Prime Video",
+                mood: "Cozy, Feel-good",
+                matchProb: 85,
+                aiSummary: "This is a perfect 'Feel-good' match for your preference for short-duration, high-rated dramas available on your Prime Video account."
+            },
+            {
+                id: "crystal-king-2022",
+                title: "Crystal King",
+                year: 2022,
+                genre: "Fantasy / Adventure",
+                runtime: "145 min",
+                imdb: 8.1,
+                rt: 90,
+                platform: "Hulu",
+                mood: "Epic, Visual Spectacle",
+                matchProb: 95,
+                aiSummary: "Highest rated Fantasy film this year. The platform analysis shows this is available on Hulu, one of your connected services."
+            },
+            {
+                id: "rogue-protocol-2021",
+                title: "Rogue Protocol",
+                year: 2021,
+                genre: "Action / Thriller",
+                runtime: "98 min",
+                imdb: 7.5,
+                rt: 82,
+                platform: "Max (HBO)",
+                mood: "Fast-paced, Intense",
+                matchProb: 88,
+                aiSummary: "A quick-hit action thriller that aligns with your low runtime preference. High-octane fun for a weeknight."
+            }
+        ];
+        
+        let swipeHistory = []; // To store the history of swipes for undo functionality
+        let currentMovieIndex = 0;
+        let toastTimeoutId = null; // For the undo toast timer
+
+
+        // --- New Feature: Confetti Trigger (11/10 joy) ---
+        /**
+         * Triggers the confetti explosion for the 11/10 joy feature (on 100% group match).
+         */
+        const triggerConfetti = () => {
+            console.log("Confetti triggered!");
+            // Confetti explosion from the top center
+            confetti({
+                particleCount: 200,
+                spread: 120,
+                gravity: 0.8,
+                decay: 0.95,
+                scalar: 1.2,
+                zIndex: 1000,
+                origin: { y: 0.6 }
+            });
+        };
+        // --- End Confetti Trigger ---
+
+        // --- New Feature: Preloading (Zero Lag) ---
+        /**
+         * Preloads the next movie by ensuring its data is ready (simulated).
+         * This prevents lag when moving to the next card.
+         */
+        function preloadNextMovie() {
+            const nextIndex = currentMovieIndex + 1;
+            if (nextIndex < MOCK_SWIPE_MOVIES.length) {
+                console.log(`Preloading movie data for index ${nextIndex}: ${MOCK_SWIPE_MOVIES[nextIndex].title}`);
+                // Simulate network latency (200ms) for data fetching
+                return new Promise(resolve => setTimeout(resolve, 200));
+            }
+            return Promise.resolve();
+        }
+        // --- End Preloading ---
+
+
+        // --- Core Swipe Logic ---
+
+        let isDragging = false;
+        let startX = 0;
+        const SWIPE_THRESHOLD = 100; // Pixels needed to trigger a swipe
+
+        // Function to handle the actual swipe result (called by buttons OR gestures)
+        async function handleSwipeAction(action, cardToSwipe = null) {
+            if (!window.isAuthReady) {
+                showMockNotification("App is still initializing. Please wait.");
+                return;
+            }
+            
+            const movie = MOCK_SWIPE_MOVIES[currentMovieIndex];
+            // Use the currently active card (which is always the one rendered by generateSwipeContent)
+            const card = cardToSwipe || document.querySelector('.swipe-card');
+            
+            if (!movie || !card) return;
+
+            // 1. Save swipe action to Firestore
+            try {
+                const swipeData = {
+                    action: action, // 'like', 'pass', or 'superlike'
+                    timestamp: window.serverTimestamp(),
+                    movieTitle: movie.title,
+                    movieId: movie.id,
+                };
+                
+                // Firestore path: /artifacts/{appId}/users/{userId}/swipes/{movieId}
+                const swipeRef = window.doc(window.db, 
+                    'artifacts', window.appId, 
+                    'users', window.userId, 
+                    'swipes', movie.id
+                );
+
+                await window.setDoc(swipeRef, swipeData);
+                console.log(`Swipe saved: ${action} for ${movie.title}`);
+                
+            } catch (e) {
+                console.error("Error saving swipe to Firestore: ", e);
+                showMockNotification("Error saving swipe! Check console.");
+            }
+            
+            // 2. Store action for potential undo
+            swipeHistory.push({ index: currentMovieIndex, movie, action });
+
+            // 3. Apply Haptic Feedback
+            if (navigator.vibrate) {
+                navigator.vibrate(action === 'superlike' ? [50, 50, 50] : [30]);
+            }
+            
+            // 4. Start preloading the next card immediately after swipe starts (ZERO LAG)
+            preloadNextMovie();
+
+            // 5. Determine exit transform based on action
+            let exitTransform;
+            if (action === 'pass') {
+                exitTransform = 'translateX(-200vw) rotate(-25deg)'; 
+            } else if (action === 'like') {
+                exitTransform = 'translateX(200vw) rotate(25deg)';
+            } else { // superlike
+                exitTransform = 'translateY(-200vw) scale(0.8)';
+            }
+            
+            // 6. Apply exit animation
+            card.style.transition = 'transform 0.4s ease-in-out, opacity 0.4s ease-in-out';
+            card.style.transform = exitTransform;
+            card.style.opacity = 0;
+
+            // 7. Load next card and show toast after animation completes
+            setTimeout(() => {
+                currentMovieIndex++;
+                setActiveTab('swipe'); 
+                
+                // Show Undo Toast
+                showUndoToast(movie.title, action);
+            }, 400);
+        }
+        
+        // Function to reverse the last swipe
+        window.undoLastSwipe = function() {
+            if (swipeHistory.length === 0) return;
+            
+            // 1. Remove the last action from history
+            const lastSwipe = swipeHistory.pop();
+            if (!lastSwipe) return;
+
+            // NOTE: For a real app, UNDO would also DELETE the swipe document from Firestore.
+            
+            // 2. Restore the index
+            currentMovieIndex = lastSwipe.index;
+            
+            // 3. Show a notification and reload the swipe tab
+            showMockNotification(`Undo successful! ${lastSwipe.movie.title} is back.`);
+            setActiveTab('swipe'); 
+
+            // 4. Clear the undo toast since the action was reversed
+            clearTimeout(toastTimeoutId);
+            const toast = document.getElementById('undo-toast');
+            if (toast) toast.remove();
+        }
+
+        // Functions for handling touch/mouse events
+        function handleStart(e, card) {
+            isDragging = true;
+            startX = e.clientX || e.touches[0].clientX;
+            // Disable CSS transitions during drag for smooth, immediate feedback
+            card.style.transition = 'none';
+        }
+
+        function handleMove(e, card) {
+            if (!isDragging) return;
+            const currentX = e.clientX || e.touches[0].clientX;
+            const deltaX = currentX - startX;
+            
+            // Tilt calculation (max 15 degrees tilt for -300px to 300px range)
+            const rotation = (deltaX / 300) * 15; 
+            
+            // Apply transform
+            card.style.transform = `translateX(${deltaX}px) rotate(${rotation}deg)`;
+
+            // Handle Visual Overlays (LIKE/NOPE)
+            const overlayLike = card.querySelector('.overlay-like');
+            const overlayNope = card.querySelector('.overlay-nope');
+
+            // Apply opacity and rotation based on drag distance
+            const opacity = Math.min(Math.abs(deltaX) / SWIPE_THRESHOLD * 2, 1); // Max 1 opacity
+            // const rotateFactor = Math.abs(deltaX) / SWIPE_THRESHOLD * 5; // Subtle rotation on overlay
+
+            if (deltaX > 20) { // Dragging right (LIKE)
+                overlayLike.style.opacity = opacity;
+                overlayLike.style.transform = `rotate(-25deg) scale(${0.8 + 0.2 * opacity})`;
+                overlayNope.style.opacity = 0;
+            } else if (deltaX < -20) { // Dragging left (NOPE)
+                overlayNope.style.opacity = opacity;
+                overlayNope.style.transform = `rotate(25deg) scale(${0.8 + 0.2 * opacity})`;
+                overlayLike.style.opacity = 0;
+            } else { // Near center
+                overlayLike.style.opacity = 0;
+                overlayNope.style.opacity = 0;
+            }
+        }
+
+        function handleEnd(e, card) {
+            if (!isDragging) return;
+            isDragging = false;
+            
+            // Remove all overlays
+            card.querySelectorAll('.swipe-overlay').forEach(overlay => {
+                overlay.style.opacity = 0;
+                overlay.style.transform = 'scale(0.8) rotate(0deg)';
+            });
+
+            // Re-enable CSS transition for snap-back/exit animation
+            card.style.transition = 'transform 0.3s ease-out, opacity 0.3s ease-out';
+            
+            const eventData = e.changedTouches ? e.changedTouches[0] : e;
+            const deltaX = (eventData.clientX || eventData.screenX) - startX;
+
+            if (Math.abs(deltaX) > SWIPE_THRESHOLD) {
+                // Swipe detected
+                const action = deltaX > 0 ? 'like' : 'pass';
+                handleSwipeAction(action, card);
+            } else {
+                // Snap back to center
+                card.style.transform = 'translateX(0) rotate(0)';
+            }
+        }
+        
+        function setupSwipeGestureListeners(cardId) {
+            const card = document.getElementById(cardId);
+            if (!card) return;
+
+            // Mouse Listeners (for desktop demo)
+            card.addEventListener('mousedown', (e) => handleStart(e, card));
+            document.addEventListener('mousemove', (e) => handleMove(e, card));
+            document.addEventListener('mouseup', (e) => handleEnd(e, card));
+            
+            // Cleanup for mouse up outside the card
+            document.addEventListener('mouseleave', (e) => {
+                if(isDragging) handleEnd(e, card);
+            });
+
+
+            // Touch Listeners (for mobile/touch devices)
+            card.addEventListener('touchstart', (e) => { 
+                handleStart(e.touches[0], card); 
+            }, { passive: true }); 
+            
+            card.addEventListener('touchmove', (e) => { 
+                e.preventDefault(); 
+                handleMove(e.touches[0], card); 
+            }, { passive: false }); 
+            
+            card.addEventListener('touchend', (e) => handleEnd(e, card));
+            card.addEventListener('touchcancel', (e) => handleEnd(e, card));
+        }
+
+        /**
+         * Attaches listeners to the swipe action buttons.
+         */
+        function setupSwipeButtonListeners() {
+            const buttons = document.querySelectorAll('.swipe-action-button');
+            buttons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const action = button.getAttribute('data-action');
+                    if (action) {
+                        handleSwipeAction(action);
+                    }
+                });
+            });
+        }
+
+        // --- Content Generation Functions ---
+
+        function generateWatchlistContent() {
+            return `
+                <div class="p-4">
+                    <h1 class="text-3xl font-extrabold text-white tracking-tight pt-2 mb-6">My Watchlist</h1>
+                    
+                    <p class="text-gray-400 mb-6">Movies you've swiped right on or added manually. (${Math.floor(Math.random() * 5) + 8} items)</p>
+                    <p class="text-xs text-gray-500 mb-4 p-3 bg-card-bg rounded-lg border border-gray-700">
+                        NOTE: This is mock data. In a final version, this list would be loaded from your 'swipes' Firestore collection where action is 'like' or 'superlike'.
+                    </p>
+                    <!-- Watchlist Items -->
+                    <div class="space-y-3">
+                        ${['The Void Walker (92% Match)', 'Rogue Protocol (85% Match)', 'Echo Chamber (90% Match)', 'The Crystal King (77% Match)'].map(title => `
+                            <div class="flex items-center space-x-4 bg-card-bg p-3 rounded-xl shadow-lg border border-gray-700">
+                                <img src="https://placehold.co/80x120/4b5563/f3f4f6?text=Poster" onerror="this.onerror=null;this.src='https://placehold.co/80x120/4b5563/f3f4f6?text=P';" class="w-12 h-18 object-cover rounded-md flex-shrink-0">
+                                <div class="flex-grow">
+                                    <p class="text-lg font-semibold text-white truncate">${title.split('(')[0].trim()}</p>
+                                    <p class="text-sm text-green-400 font-medium">${title.match(/\(([^)]+)\)/)?.[1] || 'Added'}</p>
+                                </div>
+                                <button class="text-red-500 hover:text-red-400 transition" aria-label="Remove movie from watchlist">
+                                    <!-- Trash Icon for Removal -->
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.2 9m.358-4.5h5.5l-1.09-3.41-5.5 3.41zM21 6l-1.77 15.932A2 2 0 0117.29 23H6.71a2 2 0 01-1.94-2.068L3 6h18z" />
+                                    </svg>
+                                </button>
+                            </div>
+                        `).join('')}
                     </div>
                 </div>
-                <div id="no-movies-card" class="movie-card loading z-0 hidden">
-                    <p class="text-center p-8 text-white">
-                        No movies found matching your current filters. <br><br>
-                        Try adjusting your **Settings** or try again later.
-                    </p>
-                </div>
-            </div>
-        </section>
+            `;
+        }
 
-        <!-- Settings Tab (Scrollable) -->
-        <section id="tab-settings" class="tab-content hidden p-4 overflow-y-auto">
-            <h2 class="text-xl font-semibold mb-4 text-white">Your Viewing Preferences</h2>
-
-            <div id="auth-status" class="mb-4 text-sm text-gray-400">Loading authentication status...</div>
-
-            <!-- Country Code Setting -->
-            <div class="mb-6">
-                <label for="country-code" class="block text-sm font-medium text-gray-300 mb-2">Your Country (for streaming region):</label>
-                <input type="text" id="country-code" class="w-full p-2 rounded-lg bg-gray-700 border border-gray-600 text-white placeholder-gray-400" placeholder="e.g., US, FR, GB" maxlength="2" value="US">
-                <p class="text-xs text-gray-400 mt-1">Uses ISO 3166-1 2-letter code.</p>
-            </div>
-
-            <!-- Streaming Platform Selection -->
-            <div class="mb-6">
-                <h3 class="text-md font-medium text-gray-300 mb-2">Your Active Streaming Platforms:</h3>
-                <div id="platforms-container" class="space-y-2">
-                    <!-- Platforms checkboxes will be dynamically inserted here -->
-                </div>
-            </div>
-
-            <button id="save-settings-btn" class="w-full py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl transition duration-200 shadow-xl">
-                Save Preferences
-            </button>
-            <p id="save-message" class="mt-4 text-center text-sm hidden"></p>
-        </section>
-
-        <!-- List Tab (Scrollable) -->
-        <section id="tab-list" class="tab-content hidden p-4 overflow-y-auto">
-            <h2 class="text-xl font-semibold mb-4 text-white">Your Final Matches</h2>
-            <div id="final-list" class="space-y-4">
-                <p class="text-gray-400 text-center p-4" id="no-matches-msg">No matches yet. Start swiping!</p>
-            </div>
-        </section>
-
-    </main>
-</div>
-
-<!-- Firebase SDKs -->
-<script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore, doc, setDoc, getDoc, onSnapshot, collection, query, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-    import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-    // Set Firestore log level to debug for development
-    setLogLevel('Debug');
-
-    // --- GLOBAL CONSTANTS ---
-    const TMDB_API_KEY = 'fb172ed62b2cd58897d484ad8ba0cf60'; 
-    const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
-    const TMDB_IMAGE_BASE_URL = 'https://image.tmdb.org/t/p/w500';
-
-    const PROVIDER_MAP = [
-        { id: 8, name: "Netflix", logo: "https://placehold.co/40x40/e50914/ffffff?text=N" },
-        { id: 9, name: "Amazon Prime Video", logo: "https://placehold.co/40x40/00a8e1/ffffff?text=P" },
-        { id: 337, name: "Disney Plus", logo: "https://placehold.co/40x40/113ccf/ffffff?text=D+" },
-        { id: 384, name: "HBO Max", logo: "https://placehold.co/40x40/7300e5/ffffff?text=HBO" },
-        { id: 15, name: "Hulu", logo: "https://placehold.co/40x40/1ce783/ffffff?text=H" },
-        { id: 350, name: "Apple TV Plus", logo: "https://placehold.co/40x40/000000/ffffff?text=A+" },
-        { id: 30, name: "discovery+", logo: "https://placehold.co/40x40/000000/ffffff?text=D" }
-        // Add more common providers as needed
-    ];
-
-    // --- FIREBASE INITIALIZATION & STATE ---
-    const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
-    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-    const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
-    let app;
-    let auth;
-    let db;
-    let userId = null;
-    let isAuthReady = false;
-
-    let currentPreferences = {
-        countryCode: 'US',
-        platformIds: PROVIDER_MAP.map(p => p.id) // Default: Select all
-    };
-    let movieDeck = [];
-    let movieDeckMap = new Map(); // Store full movie data for easy lookup by ID
-    let currentMovieIndex = 0;
-    const movieStackEl = document.getElementById('movie-stack');
-    const loadingCardEl = document.getElementById('loading-card');
-    const noMoviesCardEl = document.getElementById('no-movies-card');
-    const authStatusEl = document.getElementById('auth-status');
-    const userDisplayEl = document.getElementById('user-display');
-    const finalListEl = document.getElementById('final-list');
-
-    // --- FIREBASE SETUP ---
-    async function initializeFirebase() {
-        try {
-            app = initializeApp(firebaseConfig);
-            db = getFirestore(app);
-            auth = getAuth(app);
-
-            if (initialAuthToken) {
-                await signInWithCustomToken(auth, initialAuthToken);
-            } else {
-                await signInAnonymously(auth);
+        function getSwipeCardHtml(movie) {
+            let platformIcon, platformColor;
+            switch(movie.platform) {
+                case 'Netflix': platformIcon = 'N'; platformColor = 'bg-red-600'; break;
+                case 'Prime Video': platformIcon = 'P'; platformColor = 'bg-sky-400'; break;
+                case 'Hulu': platformIcon = 'H'; platformColor = 'bg-green-500'; break;
+                case 'Max (HBO)': platformIcon = 'M'; platformColor = 'bg-blue-500'; break;
+                default: platformIcon = '?'; platformColor = 'bg-gray-500';
             }
-        } catch (error) {
-            console.error("Firebase initialization or sign-in failed:", error);
-            authStatusEl.textContent = `Error: ${error.message}`;
-        }
-    }
 
-    // Authentication State Listener
-    onAuthStateChanged(auth, (user) => {
-        if (user) {
-            userId = user.uid;
-            authStatusEl.textContent = `Authenticated User ID: ${userId}`;
-            userDisplayEl.textContent = `Your User ID: ${userId}`;
-            isAuthReady = true;
-            
-            // Load and then fetch after user is confirmed
-            loadUserPreferences();
-            // Start listening for matches immediately
-            listenForFinalList(); 
-        } else {
-            // Should not happen with the token/anonymous fallback, but good practice
-            userId = null;
-            isAuthReady = true;
-            console.log("Signed out or anonymous.");
-        }
-    });
-
-    // --- FIRESTORE PREFERENCES ---
-
-    function getPreferencesDocRef() {
-        if (!userId) return null;
-        // Path: /artifacts/{appId}/users/{userId}/preferences/settings
-        return doc(db, 'artifacts', appId, 'users', userId, 'preferences', 'settings');
-    }
-
-    // Load preferences from Firestore
-    async function loadUserPreferences() {
-        const docRef = getPreferencesDocRef();
-        if (!docRef) return;
-
-        try {
-            const docSnap = await getDoc(docRef);
-            if (docSnap.exists()) {
-                const data = docSnap.data();
-                currentPreferences = {
-                    countryCode: data.countryCode || 'US',
-                    platformIds: data.platformIds || PROVIDER_MAP.map(p => p.id)
-                };
-            } else {
-                // Save defaults if none exist
-                await saveUserPreferences(currentPreferences.countryCode, currentPreferences.platformIds, false);
-            }
-            updateSettingsUI();
-            fetchMovies();
-        } catch (error) {
-            console.error("Error loading preferences:", error);
-            // Fallback to defaults
-            updateSettingsUI();
-            fetchMovies();
-        }
-    }
-
-    // Save preferences to Firestore
-    async function saveUserPreferences(countryCode, platformIds, showMessage = true) {
-        const docRef = getPreferencesDocRef();
-        if (!docRef) {
-            console.error("Cannot save preferences: User ID not available.");
-            return;
-        }
-
-        const data = { countryCode, platformIds };
-        currentPreferences = data;
-
-        try {
-            await setDoc(docRef, data);
-            if (showMessage) {
-                const msgEl = document.getElementById('save-message');
-                msgEl.textContent = "Preferences saved! Refreshing movie list...";
-                msgEl.classList.remove('hidden', 'text-red-500');
-                msgEl.classList.add('text-green-500');
-                setTimeout(() => {
-                    msgEl.classList.add('hidden');
-                    // Rerun movie fetching after saving
-                    resetMovieDeck();
-                }, 1500);
-            }
-        } catch (error) {
-            console.error("Error saving preferences:", error);
-            if (showMessage) {
-                const msgEl = document.getElementById('save-message');
-                msgEl.textContent = `Error saving: ${error.message}`;
-                msgEl.classList.remove('hidden', 'text-green-500');
-                msgEl.classList.add('text-red-500');
-            }
-        }
-    }
-    
-    // --- FIRESTORE SWIPE & MATCH LOGIC ---
-
-    // Get reference to the public movie swipe document
-    function getMovieSwipesDocRef(movieId) {
-        // Path: /artifacts/{appId}/public/data/swipes/{movieId}
-        return doc(db, 'artifacts', appId, 'public', 'data', 'swipes', String(movieId));
-    }
-
-    // Save the user's decision to 'like' a movie in the public collection
-    async function saveSwipeDecision(movieId) {
-        if (!userId || !db) return;
-        const docRef = getMovieSwipesDocRef(movieId);
-
-        try {
-            // Atomically add the current user's ID to the 'likers' map.
-            await setDoc(docRef, { 
-                likers: { 
-                    [userId]: true 
-                },
-                movieId: movieId
-            }, { merge: true });
-            
-            console.log(`User ${userId} liked movie ${movieId}.`);
-
-        } catch (error) {
-            console.error("Error saving swipe decision:", error);
-        }
-    }
-
-    // Check if a match exists (another user has also liked this movie) and finalize it.
-    async function finalizeMatch(movieId, movieData) {
-        if (!userId || !db) return;
-        const movieDocRef = getMovieSwipesDocRef(movieId);
-
-        try {
-            const docSnap = await getDoc(movieDocRef);
-            if (docSnap.exists()) {
-                const data = docSnap.data();
-                const likers = data.likers || {};
-                
-                // Find all likers who are NOT the current user
-                const otherLikers = Object.keys(likers).filter(id => id !== userId);
-
-                if (otherLikers.length > 0) {
-                    // Match found!
-                    console.log(`MATCH FOUND for movie ${movieId} with user(s): ${otherLikers.join(', ')}`);
-
-                    // Prepare match data for the private list
-                    const matchData = {
-                        movieId: movieId,
-                        title: movieData.title,
-                        poster_path: movieData.poster_path,
-                        release_date: movieData.release_date,
-                        overview: movieData.overview,
-                        matchedWith: otherLikers,
-                        timestamp: new Date().getTime()
-                    };
-
-                    // Add to the current user's private match list
-                    // Path: /artifacts/{appId}/users/{userId}/matches/{movieId}
-                    const userMatchDocRef = doc(db, 'artifacts', appId, 'users', userId, 'matches', String(movieId));
-                    await setDoc(userMatchDocRef, matchData, { merge: true });
+            return `
+                <div id="movie-card-${movie.id}" class="swipe-card rounded-2xl shadow-2xl mb-8">
                     
-                    // You might want to update the public swipe document to mark it as 'matched'
-                    // but for simplicity, we rely on the private list for displaying matches.
-                }
-            }
-        } catch (error) {
-            console.error("Error checking or finalizing match:", error);
+                    <!-- Overlay Stamps (LIKE/NOPE) -->
+                    <div class="swipe-overlay overlay-like -rotate-12 absolute z-10 top-10 left-6 text-success border-success opacity-0" style="border-width: 3px;">LIKE</div>
+                    <div class="swipe-overlay overlay-nope rotate-12 absolute z-10 top-10 right-6 text-nope border-nope opacity-0" style="border-width: 3px;">NOPE</div>
+
+                    <!-- Poster Section -->
+                    <div class="swipe-card-poster">
+                        <img src="https://placehold.co/400x400/${movie.id.length % 2 === 0 ? '10b981' : 'ef4444'}/ffffff?text=${movie.title.split(' ').join('+')}" 
+                             onerror="this.onerror=null;this.src='https://placehold.co/400x400/10b981/ffffff?text=Poster';" 
+                             alt="${movie.title} Poster" 
+                             class="w-full h-full object-cover" 
+                             loading="lazy"> 
+                        
+                        <!-- Badges Overlay -->
+                        <div class="absolute top-3 left-3 flex space-x-2">
+                            <span class="bg-yellow-500 text-secondary text-xs font-bold px-2 py-1 rounded-full shadow-md">IMDb ${movie.imdb}</span>
+                            <span class="bg-red-600 text-white text-xs font-bold px-2 py-1 rounded-full shadow-md">RT ${movie.rt}%</span>
+                        </div>
+
+                        <!-- Platform Overlay -->
+                        <div class="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-secondary/80 to-transparent">
+                            <span class="text-lg font-bold text-white flex items-center">
+                                <span class="h-6 w-6 rounded-full ${platformColor} text-white flex items-center justify-center text-xs font-extrabold mr-2">${platformIcon}</span>
+                                Available on ${movie.platform}
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Details Section -->
+                    <div class="swipe-card-details p-4">
+                        <div class="flex justify-between items-center mb-2">
+                            <h2 class="text-2xl font-bold text-white truncate">${movie.title} (${movie.year})</h2>
+                            <span class="text-primary text-xl font-bold">${movie.matchProb}%</span>
+                        </div>
+                        <p class="text-sm text-gray-400 mb-3">${movie.genre} | ${movie.runtime}</p>
+                        
+                        <!-- AI Explanation -->
+                        <div class="bg-secondary p-3 rounded-lg border border-gray-700 mb-4">
+                            <p class="text-xs font-semibold text-primary mb-1">AI Match Insight:</p>
+                            <p class="text-sm text-gray-300">${movie.aiSummary}</p>
+                        </div>
+                        
+                        <!-- Movie Moods -->
+                        <p class="text-sm text-gray-400 mb-2">Moods: <span class="text-white">${movie.mood}</span></p>
+
+                        <!-- Trailer Button -->
+                        <button class="w-full bg-gray-600 text-white py-2 rounded-lg text-sm hover:bg-gray-500 transition duration-150" aria-label="View trailer preview">
+                            View Trailer Preview
+                        </button>
+                    </div>
+                </div>
+            `;
         }
-    }
 
-    // Real-time listener for the user's final list of matches
-    function listenForFinalList() {
-        if (!userId || !db) return;
-
-        // Path: /artifacts/{appId}/users/{userId}/matches
-        const matchesRef = collection(db, 'artifacts', appId, 'users', userId, 'matches');
-
-        onSnapshot(matchesRef, (snapshot) => {
-            const matches = [];
-            snapshot.forEach(doc => {
-                matches.push(doc.data());
-            });
-            // Sort by match time, newest first
-            matches.sort((a, b) => b.timestamp - a.timestamp);
-            renderFinalList(matches);
-        }, (error) => {
-            console.error("Error listening to final list:", error);
-        });
-    }
-
-    // --- UI FUNCTIONS ---
-
-    // Navigation logic
-    document.querySelectorAll('.nav-link').forEach(link => {
-        link.addEventListener('click', () => {
-            const targetTab = link.getAttribute('data-tab');
-
-            // Update navigation links
-            document.querySelectorAll('.nav-link').forEach(nav => nav.classList.remove('active'));
-            link.classList.add('active');
-
-            // Show correct tab content
-            document.querySelectorAll('.tab-content').forEach(content => {
-                content.classList.add('hidden');
-            });
-            document.getElementById(`tab-${targetTab}`).classList.remove('hidden');
-
-            // If switching to Swipe, ensure movies are loaded
-            if (targetTab === 'swipe' && movieDeck.length === 0) {
-                fetchMovies();
+        function generateSwipeContent() {
+            if (!window.isAuthReady) {
+                return `
+                    <div class="flex flex-col items-center justify-center min-h-[500px] p-8">
+                        <svg class="animate-spin h-10 w-10 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <p class="text-gray-400 mt-4">Waiting for secure connection...</p>
+                    </div>
+                `;
             }
-        });
-    });
+            
+            const movie = MOCK_SWIPE_MOVIES[currentMovieIndex];
 
-    // Render platform selection checkboxes
-    function renderPlatformCheckboxes() {
-        const container = document.getElementById('platforms-container');
-        container.innerHTML = '';
+            if (!movie) {
+                return `
+                    <div class="p-8 text-center">
+                        <h1 class="text-3xl font-extrabold text-white pt-2 mb-6">Queue Empty!</h1>
+                        <p class="text-gray-400">You've reached the end of your current discovery queue.</p>
+                        <p class="text-gray-400 mt-2">Try adjusting your filters or checking back later.</p>
+                        <button class="mt-6 bg-primary text-white font-bold py-3 px-6 rounded-full hover:bg-orange-500 transition" aria-label="Adjust movie filters">
+                            Adjust Filters
+                        </button>
+                        <p class="mt-8 text-3xl">🍿 sad popcorn</p>
+                    </div>
+                `;
+            }
 
-        PROVIDER_MAP.forEach(provider => {
-            const isChecked = currentPreferences.platformIds.includes(provider.id);
-            const html = `
-                <div class="flex items-center space-x-3 bg-gray-700 p-3 rounded-lg">
-                    <input type="checkbox" id="platform-${provider.id}" value="${provider.id}"
-                           class="h-5 w-5 text-red-600 bg-gray-600 border-gray-500 rounded focus:ring-red-500"
-                           ${isChecked ? 'checked' : ''}>
-                    <label for="platform-${provider.id}" class="text-gray-200 flex items-center flex-grow">
-                        <img src="${provider.logo}" onerror="this.onerror=null; this.src='https://placehold.co/16x16/374151/ffffff?text=X'" alt="${provider.name} Logo" class="h-6 w-6 rounded mr-1">
-                        ${provider.name}
+            // The card HTML is generated here
+            const cardHtml = getSwipeCardHtml(movie);
+
+            // The rest of the page structure
+            const pageHtml = `
+                <div class="p-4 flex flex-col items-center justify-start min-h-[calc(100vh-64px-16px)]">
+                    <h1 class="text-3xl font-extrabold text-white tracking-tight pt-2 mb-6">Find Your Next Movie</h1>
+
+                    <!-- The Core Swipe Card -->
+                    ${cardHtml}
+                    
+                    <!-- Swipe Action Buttons (No more inline onclick) -->
+                    <div class="flex justify-center space-x-6 w-full max-w-sm">
+                        
+                        <!-- PASS Button (Left) -->
+                        <button id="swipe-pass-btn" data-action="pass" class="action-button swipe-action-button bg-gray-600 text-white p-4 rounded-full hover:bg-gray-500 flex-shrink-0" aria-label="Pass on this movie">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-8 h-8">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+
+                        <!-- SUPER-LIKE / MUST-WATCH Button (Center) -->
+                        <button id="swipe-superlike-btn" data-action="superlike" class="action-button swipe-action-button bg-blue-600 text-white p-3 rounded-full hover:bg-blue-500 flex-shrink-0 border-4 border-blue-400" aria-label="Super-like this movie (Must Watch)">
+                            <!-- Star Icon for Super-Like -->
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24" class="w-10 h-10">
+                                <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+                            </svg>
+                        </button>
+                        
+                        <!-- LIKE Button (Right) -->
+                        <button id="swipe-like-btn" data-action="like" class="action-button swipe-action-button bg-primary text-white p-4 rounded-full hover:bg-orange-500 flex-shrink-0" aria-label="Like this movie">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-8 h-8">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.054-4.312 2.655-.715-1.601-2.377-2.655-4.313-2.655C4.099 3.75 2 5.765 2 8.25c0 7.22 9 12 10 12s10-4.78 10-12z" />
+                            </svg>
+                        </button>
+                    </div>
+
+                    <p class="text-sm text-gray-500 mt-4">Drag the card left/right, or use the buttons.</p>
+                </div>
+            `;
+            
+            // Set the HTML and immediately setup the listeners for the card and buttons
+            setTimeout(() => {
+                setupSwipeGestureListeners(`movie-card-${movie.id}`);
+                setupSwipeButtonListeners();
+            }, 0); 
+            
+            return pageHtml;
+        }
+
+        // General Notification/Toast System (Mock)
+        function showMockNotification(message) {
+            const existing = document.getElementById('mock-notification');
+            if (existing) existing.remove();
+
+            const notification = document.createElement('div');
+            notification.id = 'mock-notification';
+            notification.className = 'fixed bottom-20 left-1/2 transform -translate-x-1/2 bg-secondary text-white p-3 rounded-xl shadow-2xl border border-primary z-[100] text-sm opacity-0 transition-opacity duration-300';
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            // Fade in and out
+            setTimeout(() => { notification.style.opacity = 1; }, 50);
+            setTimeout(() => { notification.style.opacity = 0; }, 1500);
+            setTimeout(() => { notification.remove(); }, 1850);
+        }
+
+        // Undo Toast Implementation
+        function showUndoToast(movieTitle, action) {
+            // Clear any existing timer/toast
+            clearTimeout(toastTimeoutId);
+            const existing = document.getElementById('undo-toast');
+            if (existing) existing.remove();
+
+            const toast = document.createElement('div');
+            toast.id = 'undo-toast';
+            toast.className = 'fixed bottom-20 left-1/2 transform -translate-x-1/2 w-11/12 max-w-sm bg-gray-800 text-white p-3 rounded-xl shadow-2xl border border-gray-700 z-[100] flex justify-between items-center opacity-0 transition-opacity duration-300';
+            
+            const message = `${action.toUpperCase()}: ${movieTitle}`;
+            
+            // The undo button now uses a direct event listener attached below
+            toast.innerHTML = `
+                <span class="text-sm">${message}</span>
+                <button id="undo-button"
+                    class="bg-primary text-white text-xs font-bold py-1 px-3 rounded-lg hover:bg-orange-500 transition duration-150 ml-4"
+                    aria-label="Undo last swipe action">
+                    UNDO
+                </button>
+            `;
+            
+            document.body.appendChild(toast);
+            
+            // Attach listener for the undo button (CSP compliant)
+            document.getElementById('undo-button').addEventListener('click', window.undoLastSwipe);
+
+            // Fade in
+            setTimeout(() => { toast.style.opacity = 1; }, 50);
+
+            // Set timeout to auto-remove toast (5 seconds)
+            toastTimeoutId = setTimeout(() => {
+                toast.style.opacity = 0;
+                setTimeout(() => {
+                    toast.remove();
+                }, 300);
+            }, 5000);
+        }
+
+
+        // UPDATED: renderGroupMatches to include Confetti Trigger
+        function renderGroupMatches(selectedGroupName) {
+            const matches = MOCK_GROUP_DATA[selectedGroupName] || [];
+            // Check for perfect match across the group, and flag to trigger confetti once
+            let perfectMatchFound = false;
+
+            const movieMatchCards = matches.map(match => {
+                const likedCount = match.likes.length;
+                const matchPercentage = Math.round((likedCount / match.totalMembers) * 100);
+                const progressColor = matchPercentage === 100 ? 'bg-success' : (matchPercentage >= 75 ? 'bg-primary' : 'bg-yellow-500');
+
+                // Set flag if a 100% match is found in the current group
+                if (matchPercentage === 100) {
+                    perfectMatchFound = true; 
+                }
+
+                return `
+                    <div class="bg-card-bg p-4 rounded-xl border border-gray-700 shadow-lg transition hover:shadow-primary/30 hover:ring-2 ring-primary/50">
+                        <div class="flex items-start justify-between mb-3">
+                            <div>
+                                <p class="text-lg font-bold text-white">${match.movie}</p>
+                                <p class="text-sm text-gray-400">On: <span class="text-white font-medium">${match.platform}</span></p>
+                            </div>
+                            <div class="text-3xl font-extrabold ${progressColor}">
+                                ${matchPercentage}%
+                            </div>
+                        </div>
+
+                        <!-- Progress Bar for Group Consensus -->
+                        <div class="mb-3">
+                            <p class="text-xs text-gray-400 mb-1">Consensus: ${likedCount} / ${match.totalMembers} people liked it</p>
+                            <div class="h-2 bg-gray-600 rounded-full overflow-hidden">
+                                <div class="h-full ${progressColor} transition-all duration-500" style="width: ${matchPercentage}%"></div>
+                            </div>
+                        </div>
+                        
+                        <!-- Liked By Avatars -->
+                        <div class="flex items-center mt-2">
+                            <span class="text-sm text-gray-400 mr-3">Liked By:</span>
+                            <div class="flex -space-x-2">
+                                ${match.likes.map(name => `
+                                    <div class="h-6 w-6 rounded-full bg-blue-500 border-2 border-card-bg flex items-center justify-center text-xs font-semibold text-white" 
+                                         title="${name}">
+                                        ${name.charAt(0)}
+                                    </div>
+                                `).join('')}
+                            </div>
+                            ${matchPercentage === 100 ? '<span class="ml-3 text-lg perfect-match-icon" title="Perfect Match!">&#127881;</span>' : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            // Trigger confetti if a perfect match was detected in this group
+            if (perfectMatchFound) {
+                // Delay slightly so the UI is fully rendered before explosion
+                setTimeout(triggerConfetti, 150); 
+            }
+
+            return `
+                <h2 class="text-xl font-semibold text-white mb-4 mt-6">Matches for ${selectedGroupName}</h2>
+                <div class="space-y-4">
+                    ${movieMatchCards.length > 0 
+                        ? movieMatchCards 
+                        : `<p class="text-center text-gray-500 pt-4">No common matches found. Keep swiping!</p>`}
+                </div>
+            `;
+        }
+
+        function generateMatchesContent() {
+            const friends = ["Alex K. & Sarah J.", "The Squad (5 Members)", "Mike T."];
+            
+            const matchSelectors = friends.map((name, index) => {
+                const isActive = index === 0 ? 'active-selection' : '';
+                return `
+                    <button data-match-name="${name}" class="match-selector flex-shrink-0 bg-primary/20 text-primary border border-primary hover:bg-primary hover:text-white font-medium py-2 px-4 rounded-full transition duration-150 ${isActive}" aria-label="Select match group: ${name}">
+                        ${name}
+                    </button>
+                `;
+            }).join('');
+
+            return `
+                <div class="p-4">
+                    <h1 class="text-3xl font-extrabold text-white tracking-tight pt-2 mb-6">Group & Couple Matches</h1>
+                    
+                    <h2 class="text-lg font-medium text-white mb-3">Select Watch Group</h2>
+                    <div id="match-selector-bar" class="flex overflow-x-auto pb-4 mb-6 space-x-3">
+                        ${matchSelectors}
+                    </div>
+
+                    <div id="group-match-results">
+                        ${renderGroupMatches("Alex K. & Sarah J.")} 
+                    </div>
+                    
+                    <h2 class="text-xl font-semibold text-white mb-4 mt-8 border-t border-gray-700 pt-6">Discovery Tools</h2>
+                    <div class="space-y-4">
+                        <div class="bg-card-bg p-4 rounded-xl shadow-md border border-gray-700 cursor-pointer hover:bg-gray-600 transition" aria-label="Open AI Movie Assistant">
+                            <h3 class="font-bold text-white text-lg">AI Movie Assistant</h3>
+                            <p class="text-sm text-gray-400">Ask for film suggestions based on mood, platform, and who you're watching with.</p>
+                        </div>
+                        <div class="bg-card-bg p-4 rounded-xl shadow-md border border-gray-700 cursor-pointer hover:bg-gray-600 transition" aria-label="Open Mystery Movie Wheel">
+                            <h3 class="font-bold text-white text-lg">Mystery Movie Wheel</h3>
+                            <p class="text-sm text-gray-400">Spin the wheel for a surprise suggestion (Challenge Mode).</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function setupMatchSelectorListener() {
+            const selectorBar = document.getElementById('match-selector-bar');
+            const matchResultsArea = document.getElementById('group-match-results');
+
+            if (selectorBar && matchResultsArea) {
+                selectorBar.addEventListener('click', (e) => {
+                    const selector = e.target.closest('.match-selector');
+                    if (selector) {
+                        const selectedName = selector.getAttribute('data-match-name');
+                        document.querySelectorAll('.match-selector').forEach(btn => {
+                            btn.classList.remove('active-selection');
+                        });
+                        selector.classList.add('active-selection');
+                        matchResultsArea.innerHTML = renderGroupMatches(selectedName);
+                    }
+                });
+            }
+        }
+
+
+        function generateProfileContent() {
+             const platformList = MOCK_PLATFORMS.map(p => `
+                <div class="flex justify-between items-center py-3 border-b border-gray-700 last:border-b-0">
+                    <div class="flex items-center space-x-3">
+                        <div class="h-8 w-8 rounded-full bg-card-bg border-2 border-gray-600 flex items-center justify-center text-lg font-bold ${p.color}">${p.icon}</div>
+                        <span class="text-gray-200">${p.name}</span>
+                    </div>
+                    <button class="text-sm font-medium px-3 py-1 rounded-full 
+                        ${p.status === 'Connected' 
+                            ? 'bg-red-600 text-white hover:bg-red-700' 
+                            : 'bg-primary text-white hover:bg-orange-500'}" aria-label="${p.status === 'Connected' ? 'Disconnect' : 'Connect'} ${p.name}">
+                        ${p.status === 'Connected' ? 'Disconnect' : 'Connect'}
+                    </button>
+                </div>
+            `).join('');
+
+            const warningSettings = MOCK_WARNING_SETTINGS.map(w => `
+                <div class="flex justify-between items-center py-3 border-b border-gray-700 last:border-b-0">
+                    <span class="text-gray-200">${w.label}</span>
+                    <label class="toggle-switch" aria-label="Toggle ${w.label} warning">
+                        <!-- Removed inline onchange="..." in previous step -->
+                        <input type="checkbox" data-setting-label="${w.label}" class="setting-toggle" ${w.enabled ? 'checked' : ''}>
+                        <span class="slider"></span>
                     </label>
                 </div>
-            `;
-            container.insertAdjacentHTML('beforeend', html);
-        });
+            `).join('');
 
-        // Attach save handler to the button
-        document.getElementById('save-settings-btn').onclick = handleSaveSettings;
-    }
 
-    // Update settings UI from currentPreferences
-    function updateSettingsUI() {
-        document.getElementById('country-code').value = currentPreferences.countryCode.toUpperCase();
-        renderPlatformCheckboxes();
-    }
-
-    // Handle saving settings
-    function handleSaveSettings() {
-        const countryCode = document.getElementById('country-code').value.toUpperCase();
-        const selectedIds = Array.from(document.querySelectorAll('#platforms-container input[type="checkbox"]:checked'))
-            .map(cb => parseInt(cb.value));
-
-        if (!countryCode || selectedIds.length === 0) {
-            // Simple validation message
-            const msgEl = document.getElementById('save-message');
-            msgEl.textContent = "Please select at least one platform and enter a country code.";
-            msgEl.classList.remove('hidden', 'text-green-500');
-            msgEl.classList.add('text-red-500');
-            return;
-        }
-
-        saveUserPreferences(countryCode, selectedIds, true);
-    }
-    
-    // Render the list of matched movies
-    function renderFinalList(matches) {
-        finalListEl.innerHTML = '';
-        const noMatchesMsg = document.getElementById('no-matches-msg');
-
-        if (matches.length === 0) {
-            finalListEl.innerHTML = '<p class="text-gray-400 text-center p-4">No matches yet. Start swiping!</p>';
-            return;
-        }
-
-        matches.forEach(match => {
-            const posterUrl = match.poster_path ? TMDB_IMAGE_BASE_URL + match.poster_path : 'https://placehold.co/100x150/374151/ffffff?text=No+Poster';
-            const matchedWithText = match.matchedWith.length > 0
-                ? `<span class="text-sm text-green-400">Matched with: ${match.matchedWith.join(', ')}</span>`
-                : '<span class="text-sm text-yellow-400">Match Pending...</span>';
-
-            const cardHtml = `
-                <div class="flex bg-gray-700 rounded-xl shadow-lg overflow-hidden">
-                    <img src="${posterUrl}" onerror="this.onerror=null; this.src='https://placehold.co/100x150/374151/ffffff?text=X'" alt="${match.title} Poster" class="w-20 h-32 object-cover">
-                    <div class="p-3 flex-grow">
-                        <h3 class="text-lg font-semibold text-white truncate">${match.title}</h3>
-                        <p class="text-xs text-gray-400 mb-2">${match.release_date ? match.release_date.substring(0, 4) : 'TBD'}</p>
-                        ${matchedWithText}
-                        <p class="text-xs text-gray-400 mt-1">Found on ${new Date(match.timestamp).toLocaleDateString()}</p>
+            return `
+                <div class="p-4">
+                    <h1 class="text-3xl font-extrabold text-white tracking-tight pt-2 mb-6">My Profile</h1>
+                    
+                    <div class="bg-card-bg rounded-xl p-6 text-center shadow-xl mb-8">
+                        <img src="https://placehold.co/100x100/f97316/ffffff?text=U" onerror="this.onerror=null;this.src='https://placehold.co/100x100/f97316/ffffff?text=User';" alt="Profile Avatar" class="w-24 h-24 rounded-full mx-auto border-4 border-primary mb-4">
+                        <h2 class="text-2xl font-bold text-white">Movie Enthusiast</h2>
+                        <p class="text-sm text-gray-400">XP Level 14 | Horror Duo Badge</p>
                     </div>
+
+                    <div class="bg-secondary rounded-xl p-4 shadow-xl mb-8 border border-gray-700">
+                        <h2 class="text-xl font-semibold text-white mb-4">Authentication Details</h2>
+                        <p class="text-sm text-gray-400 mb-2">Your unique ID for grouping with friends:</p>
+                        <code class="block bg-gray-800 text-green-400 p-2 rounded-lg text-xs break-all">${window.userId || 'Loading...'}</code>
+                        <p class="text-xs text-gray-500 mt-2">Status: ${window.db ? 'Connected to Firebase' : 'Initializing'}</p>
+                    </div>
+
+                    <h2 class="text-xl font-semibold text-white mb-4 mt-6">Associated Platforms</h2>
+                    <p class="text-sm text-gray-400 mb-4">Connect streaming services to see shared matches and availability.</p>
+                    <div class="bg-secondary rounded-xl p-4 shadow-xl mb-8 border border-gray-700">
+                        ${platformList}
+                    </div>
+
+                    <h2 class="text-xl font-semibold text-white mb-4">Trigger Warning Settings</h2>
+                    <p class="text-sm text-gray-400 mb-4">Toggle sensitive topics you wish to filter or receive warnings for in recommendations.</p>
+                    <div id="warning-settings-list" class="bg-secondary rounded-xl p-4 shadow-xl mb-8 border border-gray-700">
+                        ${warningSettings}
+                    </div>
+                    
+                    <h2 class="text-xl font-semibold text-white mb-4">Viewing Preferences</h2>
+                    <div class="space-y-4 mb-8">
+                        <div class="bg-card-bg rounded-lg p-4 flex justify-between items-center">
+                            <span class="text-gray-300">Favorite Genre:</span>
+                            <span class="text-primary font-medium">Sci-Fi & Action</span>
+                        </div>
+                        <div class="bg-card-bg rounded-lg p-4 flex justify-between items-center">
+                            <span class="text-gray-300">Max Runtime (mins):</span>
+                            <span class="text-primary font-medium">150</span>
+                        </div>
+                    </div>
+
+                    <button class="w-full bg-red-600 text-white font-bold py-3 rounded-lg hover:bg-red-700 transition shadow-lg" aria-label="Log out of the application">
+                        Log Out
+                    </button>
                 </div>
             `;
-            finalListEl.insertAdjacentHTML('beforeend', cardHtml);
-        });
-    }
-
-
-    // --- TMDb API LOGIC ---
-
-    // Function to fetch and filter movies based on preferences
-    async function fetchMovies() {
-        currentMovieIndex = 0; // Reset index for a fresh deck
-        movieDeck = []; // Clear existing deck
-        movieDeckMap.clear(); // Clear map
-        loadingCardEl.classList.remove('hidden');
-        noMoviesCardEl.classList.add('hidden');
-
-        if (TMDB_API_KEY === 'YOUR_TMDB_API_KEY' || !isAuthReady) {
-            console.error("API Key missing or Auth not ready.");
-            loadingCardEl.innerHTML = '<p class="text-red-400">Error: TMDb API Key is missing or Firebase not ready. Please check the console.</p>';
-            return;
-        }
-
-        const { countryCode, platformIds } = currentPreferences;
-        const availableMovies = [];
-
-        try {
-            // 1. Get popular movie list (ID, title, poster)
-            const popularUrl = `${TMDB_BASE_URL}/discover/movie?api_key=${TMDB_API_KEY}&language=en-US&sort_by=popularity.desc&include_adult=false&include_video=false&page=1&with_watch_monetization_types=flatrate`;
-            const popularMovies = await fetch(popularUrl).then(res => res.json());
-
-            if (!popularMovies.results || popularMovies.results.length === 0) {
-                loadingCardEl.classList.add('hidden');
-                noMoviesCardEl.classList.remove('hidden');
-                return;
-            }
-
-            // Limit to a reasonable number of initial movies to check
-            const moviesToCheck = popularMovies.results.slice(0, 20);
-
-            // 2. Platform Check (Loop)
-            for (const movie of moviesToCheck) {
-                // Throttle requests slightly to avoid rate limits
-                await new Promise(resolve => setTimeout(resolve, 50)); 
-                
-                const providersUrl = `${TMDB_BASE_URL}/movie/${movie.id}/watch/providers?api_key=${TMDB_API_KEY}`;
-                
-                let providersResponse;
-                try {
-                     providersResponse = await fetch(providersUrl).then(res => res.json());
-                } catch(e) {
-                     console.warn(`Could not fetch providers for movie ${movie.id}:`, e);
-                     continue; // Skip this movie if provider fetch fails
-                }
-
-                // 3. Filter by Location
-                const providers = providersResponse.results[countryCode];
-
-                if (providers && providers.flatrate) {
-                    // 4. Filter by Platform: Check if any of the movie's providers are in the user's list
-                    const isAvailable = providers.flatrate.some(provider => platformIds.includes(provider.provider_id));
-
-                    if (isAvailable) {
-                        // Attach required platform data (name, logo path) to the movie object
-                        movie.platforms = providers.flatrate
-                            .filter(provider => platformIds.includes(provider.provider_id))
-                            .map(p => ({
-                                name: p.provider_name,
-                                logo_path: TMDB_IMAGE_BASE_URL + p.logo_path
-                            }));
-                        availableMovies.push(movie);
-                        movieDeckMap.set(movie.id, movie); // Store full movie data
-                    }
-                }
-            }
-
-            movieDeck = availableMovies;
-            renderMovieDeck();
-
-        } catch (error) {
-            console.error("Error fetching or filtering movies:", error);
-            loadingCardEl.innerHTML = `<p class="text-red-400">An error occurred during API fetch: ${error.message}</p>`;
-        }
-    }
-
-    // Call this to reload the deck (e.g., after settings change)
-    function resetMovieDeck() {
-        // Clear all cards except the loading/no-movies ones
-        Array.from(movieStackEl.children).forEach(child => {
-            if (!['loading-card', 'no-movies-card'].includes(child.id)) {
-                child.remove();
-            }
-        });
-        fetchMovies();
-    }
-
-    // --- MOVIE CARD RENDERING & SWIPE LOGIC ---
-
-    function renderMovieDeck() {
-        loadingCardEl.classList.add('hidden');
-
-        if (movieDeck.length === 0) {
-            noMoviesCardEl.classList.remove('hidden');
-            return;
-        }
-
-        // Clear previous cards
-        Array.from(movieStackEl.children).forEach(child => {
-            if (!['loading-card', 'no-movies-card'].includes(child.id)) {
-                child.remove();
-            }
-        });
-
-        movieDeck.forEach((movie, index) => {
-            const cardEl = createMovieCard(movie);
-            // Stack them visually
-            cardEl.style.zIndex = movieDeck.length - index;
-            cardEl.style.transform = `translateX(-50%) translateY(${index * 5}px) scale(${1 - index * 0.05})`;
-
-            if (index === 0) {
-                attachSwipeListeners(cardEl, movie.id);
-            }
-            movieStackEl.appendChild(cardEl);
-        });
-    }
-
-    function createMovieCard(movie) {
-        const card = document.createElement('div');
-        card.className = 'movie-card';
-        card.id = `movie-${movie.id}`;
-        card.setAttribute('data-movie-id', movie.id);
-
-        const posterUrl = movie.poster_path ? TMDB_IMAGE_BASE_URL + movie.poster_path : 'https://placehold.co/500x750/374151/ffffff?text=No+Poster+Available';
-
-        const platformLogos = (movie.platforms || []).map(p => `
-            <div class="flex items-center text-xs bg-gray-600 px-2 py-1 rounded-full mr-2 mb-2">
-                <img src="${p.logo_path}" onerror="this.onerror=null; this.src='https://placehold.co/16x16/374151/ffffff?text=X'" alt="${p.name} logo" class="h-4 w-4 rounded-full mr-1">
-                ${p.name}
-            </div>
-        `).join('');
-
-        card.innerHTML = `
-            <div class="movie-card-image" style="background-image: url('${posterUrl}')"></div>
-            <div class="movie-card-info">
-                <div>
-                    <h3 class="text-xl font-bold mb-1 truncate text-white">${movie.title}</h3>
-                    <p class="text-sm text-gray-400 mb-2">${movie.release_date ? movie.release_date.substring(0, 4) : 'TBD'}</p>
-                    <p class="text-gray-300 text-sm overflow-hidden line-clamp-3 h-12">${movie.overview}</p>
-                </div>
-                <div>
-                    <div class="mt-2 flex flex-wrap items-center">
-                        <span class="text-sm text-gray-400 mr-2">Available on:</span>
-                        ${platformLogos}
-                    </div>
-                </div>
-            </div>
-        `;
-        return card;
-    }
-
-    // --- SWIPE GESTURE IMPLEMENTATION ---
-    function attachSwipeListeners(cardEl, movieId) {
-        let startX = 0;
-        let currentX = 0;
-        let isSwiping = false;
-
-        // Ensure we remove previous listeners before adding new ones
-        // This is a simplified implementation, for robustness one would use a dedicated library or store listener references.
-        // For this single-page implementation, we only attach to the top card, so we trust it's the only one active.
-        
-        const onStart = (e) => {
-            isSwiping = true;
-            startX = (e.touches ? e.touches[0].clientX : e.clientX);
-            cardEl.style.transition = 'none'; // Disable transition during drag
-        };
-
-        const onMove = (e) => {
-            if (!isSwiping) return;
-
-            // Prevent scrolling while dragging horizontally
-            if (e.touches && Math.abs(currentX - startX) > 10) {
-                 e.preventDefault();
-            }
-
-            currentX = (e.touches ? e.touches[0].clientX : e.clientX);
-            const deltaX = currentX - startX;
-            const rotate = deltaX / 20; // Slight rotation effect
-
-            // Update transform: move, rotate, and slight scale change
-            cardEl.style.transform = `translateX(-50%) translateX(${deltaX}px) rotate(${rotate}deg)`;
-        };
-
-        const onEnd = () => {
-            if (!isSwiping) return;
-            isSwiping = false;
-            cardEl.style.transition = 'transform 0.3s ease-out'; // Re-enable transition
-
-            const deltaX = currentX - startX;
-            const threshold = cardEl.offsetWidth / 3; // Swipe threshold
-
-            let action = null;
-            if (deltaX > threshold) {
-                // Swipe Right (Like)
-                action = 'like';
-                cardEl.style.transform = `translateX(-50%) translateX(1000px) rotate(30deg)`;
-            } else if (deltaX < -threshold) {
-                // Swipe Left (Dislike)
-                action = 'dislike';
-                cardEl.style.transform = `translateX(-50%) translateX(-1000px) rotate(-30deg)`;
-            } else {
-                // Reset card position
-                cardEl.style.transform = 'translateX(-50%)';
-                return;
-            }
-
-            // After successful swipe animation, remove card and update stack
-            setTimeout(() => {
-                cardEl.remove();
-                handleSwipe(movieId, action);
-                updateCardStack();
-            }, 300);
-        };
-
-        // Mouse events (for desktop)
-        cardEl.addEventListener('mousedown', onStart);
-        document.addEventListener('mousemove', onMove);
-        document.addEventListener('mouseup', onEnd);
-
-        // Touch events (for mobile)
-        cardEl.addEventListener('touchstart', onStart);
-        document.addEventListener('touchmove', onMove);
-        cardEl.addEventListener('touchend', onEnd);
-    }
-
-    // Handle swipe action (save choice to Firestore)
-    function handleSwipe(movieId, action) {
-        const movieData = movieDeckMap.get(movieId);
-        if (!movieData) {
-            console.error(`Movie data not found for ID: ${movieId}`);
-            return;
-        }
-
-        if (action === 'like') {
-            // 1. Record the like publicly
-            saveSwipeDecision(movieId);
-            // 2. Check for a match with other users who may have also liked it
-            finalizeMatch(movieId, movieData);
         }
         
-        // Dislikes are not recorded in this collaborative model, but we might save them privately 
-        // in a future iteration to prevent re-showing the movie.
-    }
-
-    // Update the visual stack after a swipe
-    function updateCardStack() {
-        currentMovieIndex++;
-        const remainingCards = movieStackEl.querySelectorAll('.movie-card:not(#loading-card):not(#no-movies-card)');
-
-        if (remainingCards.length === 0) {
-            // End of current deck, fetch next page or show 'no movies'
-            noMoviesCardEl.classList.remove('hidden');
-            return;
+        /**
+         * Attaches listeners to the Profile tab's toggle switches.
+         */
+        function setupProfileListeners() {
+            const toggleSwitches = document.querySelectorAll('.setting-toggle');
+            toggleSwitches.forEach(toggle => {
+                // Attach the event listener (CSP compliant)
+                toggle.addEventListener('change', (e) => {
+                    const label = e.target.getAttribute('data-setting-label');
+                    const isChecked = e.target.checked;
+                    console.log(`Toggle for "${label}" changed to: ${isChecked}`);
+                    // In a real app, you would update Firestore here
+                });
+            });
         }
-
-        remainingCards.forEach((card, index) => {
-            // Only update z-index and transformation for the next card and below
-            card.style.transition = 'transform 0.3s ease-out';
-            card.style.zIndex = remainingCards.length - index;
-            card.style.transform = `translateX(-50%) translateY(${index * 5}px) scale(${1 - index * 0.05})`;
-
-            if (index === 0) {
-                // Attach listeners to the new top card
-                const nextMovieId = parseInt(card.getAttribute('data-movie-id'));
-                attachSwipeListeners(card, nextMovieId);
-            }
+        
+        // Add event listeners for navigation
+        const navItems = document.querySelectorAll('.nav-item');
+        navItems.forEach(item => {
+            item.addEventListener('click', () => {
+                const tabName = item.getAttribute('data-tab');
+                setActiveTab(tabName);
+            });
         });
-    }
+
+        // Function to control tab switching and content rendering
+        function setActiveTab(tabName) {
+            const contentArea = document.getElementById('content-area');
+            const navItems = document.querySelectorAll('.nav-item');
+            
+            navItems.forEach(item => {
+                if (item.getAttribute('data-tab') === tabName) {
+                    item.classList.add('active');
+                    item.classList.add('text-primary');
+                    item.classList.remove('text-gray-400');
+                } else {
+                    item.classList.remove('active');
+                    item.classList.remove('text-primary');
+                    item.classList.add('text-gray-400');
+                }
+            });
+
+            // Render content based on tab
+            switch (tabName) {
+                case 'watchlist':
+                    contentArea.innerHTML = generateWatchlistContent();
+                    break;
+                case 'swipe':
+                    contentArea.innerHTML = generateSwipeContent();
+                    // setupSwipeButtonListeners() is called inside generateSwipeContent()
+                    break;
+                case 'matches':
+                    contentArea.innerHTML = generateMatchesContent();
+                    setupMatchSelectorListener();
+                    break;
+                case 'profile':
+                    contentArea.innerHTML = generateProfileContent();
+                    setupProfileListeners(); // Attach event listeners after content is loaded
+                    break;
+                default:
+                    contentArea.innerHTML = `<div class="p-4 text-center text-gray-500">Page not found.</div>`;
+            }
+        }
+        
+        // Final Initialization Function - Called ONLY when Firebase is ready
+        window.initializeAppContent = () => {
+             preloadNextMovie();
+             setActiveTab('swipe');
+        };
 
 
-    // --- APPLICATION START ---
-    window.onload = function() {
-        initializeFirebase();
-    };
-
-    // Initial render of checkboxes (will be updated after Firestore load)
-    renderPlatformCheckboxes();
-</script>
+        // Initialization: Preload the first next card and start the app
+        window.onload = () => {
+             // Start Firebase initialization and auth handshake
+             window.setupFirebase();
+             
+             // Initial render is the loading state defined in the HTML structure
+        };
+    </script>
 </body>
 </html>
