@@ -11,70 +11,7 @@ import { HomeTab } from './tabs/home.js';
 import { MatchesTab } from './tabs/matches.js';
 import { ProfileTab } from './tabs/profile.js';
 import { LibraryTab } from './tabs/library.js';
-
-// Mock movie data
-const MOCK_MOVIES = [
-    {
-        id: "void-walker-2024",
-        title: "The Void Walker",
-        year: 2024,
-        genre: "Sci-Fi / Mystery",
-        type: "Movie",
-        runtime: "128 min",
-        imdb: 8.4,
-        rt: 94,
-        platform: "Netflix",
-        actors: ["Anya Taylor-Joy", "Cillian Murphy"],
-        trigger: ["Flashing Lights", "Isolation"],
-        synopsis: "A lone astronaut wakes up millions of miles from Earth with no memory of his mission, but a growing sense of dread about what he left behind.",
-        mood: "Mind-blowing, Thrilling",
-    },
-    {
-        id: "echoes-2023",
-        title: "Echoes of Tomorrow",
-        year: 2023,
-        genre: "Drama / Romance",
-        type: "Series (Limited)",
-        runtime: "6 Episodes",
-        imdb: 7.9,
-        rt: 88,
-        platform: "Prime Video",
-        actors: ["Tom Hanks", "Zendaya"],
-        trigger: ["Emotional Loss", "Smoking"],
-        synopsis: "A poignant limited series exploring two people's lives across parallel dimensions, searching for a moment they missed in time.",
-        mood: "Cozy, Feel-good",
-    },
-    {
-        id: "crystal-king-2022",
-        title: "Crystal King",
-        year: 2022,
-        genre: "Fantasy / Adventure",
-        type: "Movie",
-        runtime: "145 min",
-        imdb: 8.1,
-        rt: 90,
-        platform: "Hulu",
-        actors: ["Chris Hemsworth", "Cate Blanchett"],
-        trigger: ["High Violence", "Large Spiders"],
-        synopsis: "The legend of the Crystal King resurfaces when a young peasant discovers a shard of the magical crystal, leading him on an epic quest.",
-        mood: "Epic, Visual Spectacle",
-    },
-    {
-        id: "rogue-protocol-2021",
-        title: "Rogue Protocol",
-        year: 2021,
-        genre: "Action / Thriller",
-        type: "Movie",
-        runtime: "98 min",
-        imdb: 7.5,
-        rt: 82,
-        platform: "Max (HBO)",
-        actors: ["Idris Elba", "Gal Gadot"],
-        trigger: ["Needles / Injections"],
-        synopsis: "A rogue agent must race against time to expose a global conspiracy before a biological weapon is unleashed on a major city.",
-        mood: "Fast-paced, Intense",
-    }
-];
+import { initTMDBService, getTMDBService } from './services/tmdb.js';
 
 class App {
     constructor() {
@@ -101,8 +38,11 @@ class App {
             // Initialize Firebase
             await this.initFirebase();
             
-            // Load mock data
-            store.setMovies(MOCK_MOVIES);
+            // Initialize TMDB Service
+            await this.initTMDB();
+            
+            // Load movies from TMDB
+            await this.loadMovies();
             
             // Initialize tabs
             this.initTabs();
@@ -122,7 +62,7 @@ class App {
             this.navBar.style.display = 'flex';
             
             // Navigate to initial tab
-            this.navigateToTab('swipe');
+            this.navigateToTab('home');
             
             // Mark as initialized
             store.setState({ isInitialized: true });
@@ -181,6 +121,97 @@ class App {
                 isAuthenticated: false
             });
         }
+    }
+    
+    /**
+     * Initialize TMDB Service
+     */
+    async initTMDB() {
+        try {
+            // Get TMDB API key from global variable or environment
+            const tmdbApiKey = typeof __tmdb_api_key !== 'undefined' 
+                ? __tmdb_api_key 
+                : null;
+            
+            if (!tmdbApiKey) {
+                console.warn('[App] TMDB API key not found. Using fallback data.');
+                return;
+            }
+            
+            initTMDBService(tmdbApiKey);
+            console.log('[App] TMDB Service initialized');
+            
+        } catch (error) {
+            console.error('[App] TMDB initialization failed:', error);
+        }
+    }
+    
+    /**
+     * Load movies from TMDB API
+     */
+    async loadMovies() {
+        try {
+            store.setLoading(true);
+            
+            const tmdbService = getTMDBService();
+            
+            // Fetch popular movies (5 pages = 100 movies)
+            console.log('[App] Loading movies from TMDB...');
+            const movies = await tmdbService.fetchPopularMovies(5);
+            
+            if (movies && movies.length > 0) {
+                store.setMovies(movies);
+                console.log(`[App] Loaded ${movies.length} movies from TMDB`);
+            } else {
+                throw new Error('No movies returned from TMDB');
+            }
+            
+            store.setLoading(false);
+            
+        } catch (error) {
+            console.error('[App] Error loading movies:', error);
+            store.setLoading(false);
+            
+            // Use fallback data if TMDB fails
+            console.warn('[App] Using fallback movie data');
+            store.setMovies(this.getFallbackMovies());
+        }
+    }
+    
+    /**
+     * Get fallback movies (minimal set for development/testing)
+     */
+    getFallbackMovies() {
+        return [
+            {
+                id: "fallback-1",
+                title: "Sample Movie 1",
+                year: 2024,
+                genre: "Action / Thriller",
+                type: "Movie",
+                runtime: "120 min",
+                imdb: 7.5,
+                platform: "Netflix",
+                actors: ["Actor One", "Actor Two"],
+                trigger: [],
+                synopsis: "This is a fallback movie. Connect to TMDB API to see real movies.",
+                mood: "Action-packed"
+            },
+            {
+                id: "fallback-2",
+                title: "Sample Movie 2",
+                year: 2024,
+                genre: "Comedy / Drama",
+                type: "Movie",
+                runtime: "95 min",
+                imdb: 8.0,
+                platform: "Hulu",
+                actors: ["Actor Three", "Actor Four"],
+                trigger: [],
+                synopsis: "This is a fallback movie. Add your TMDB API key to load real movies.",
+                mood: "Light-hearted"
+            }
+        ];
     }
     
     /**
