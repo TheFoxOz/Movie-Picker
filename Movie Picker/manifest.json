@@ -1,0 +1,21 @@
+{
+"name": "Movie Picker App",
+"short_name": "Picker",
+"description": "Swipe to find the perfect movie for your group.",
+"start_url": "./index.html",
+"display": "standalone",
+"background_color": "#111827",
+"theme_color": "#f97316",
+"icons": [
+{
+"src": "https://www.google.com/search?q=https://placehold.co/192x192/f97316/ffffff%3Ftext%3DMP",
+"sizes": "192x192",
+"type": "image/png"
+},
+{
+"src": "https://www.google.com/search?q=https://placehold.co/512x512/f97316/ffffff%3Ftext%3DMP",
+"sizes": "512x512",
+"type": "image/png"
+}
+]
+}
