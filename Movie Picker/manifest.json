@@ -2,7 +2,7 @@
 "name": "Movie Picker App",
 "short_name": "Picker",
 "description": "Swipe to find the perfect movie for your group.",
-"start_url": "./index.html",
+"start_url": "/",
 "display": "standalone",
 "background_color": "#111827",
 "theme_color": "#f97316",
