@@ -79,6 +79,32 @@ class App {
      * Initialize Firebase
      */
     async initFirebase() {
+        // Set a timeout for Firebase initialization
+        const initWithTimeout = Promise.race([
+            this._initFirebaseCore(),
+            new Promise(resolve => setTimeout(() => {
+                console.warn('[App] Firebase initialization timeout - continuing without Firebase');
+                resolve(false);
+            }, 5000))
+        ]);
+        
+        try {
+            await initWithTimeout;
+        } catch (error) {
+            console.error('[App] Firebase initialization failed:', error);
+            // Continue with guest mode
+            const guestId = 'guest-' + crypto.randomUUID().substring(0, 8);
+            store.setState({
+                userId: guestId,
+                isAuthenticated: false
+            });
+        }
+    }
+    
+    /**
+     * Core Firebase initialization logic
+     */
+    async _initFirebaseCore() {
         try {
             // Get Firebase config from global variables
             const appId = typeof __app_id !== 'undefined' ? __app_id : 'movie-picker-app';
@@ -95,9 +121,9 @@ class App {
                 
                 // Update store with user info
                 store.setState({
-                    userId: firebaseService.getUserId(),
+                    userId: firebaseService.getUserId() || 'guest-' + crypto.randomUUID().substring(0, 8),
                     appId: appId,
-                    isAuthenticated: true
+                    isAuthenticated: firebaseService.userId ? true : false
                 });
                 
                 console.log('[App] Firebase initialized');
@@ -110,7 +136,7 @@ class App {
                     isAuthenticated: false
                 });
                 
-                console.log('[App] Running in guest mode');
+                console.log('[App] Running in guest mode (no Firebase config)');
             }
         } catch (error) {
             console.error('[App] Firebase initialization failed:', error);
