@@ -18,7 +18,6 @@ class App {
         this.currentTab = null;
         this.contentArea = null;
         this.navBar = null;
-        this.loadingScreen = null;
     }
     
     /**
@@ -29,7 +28,6 @@ class App {
             // Get DOM elements
             this.contentArea = document.getElementById('content-area');
             this.navBar = document.getElementById('nav-bar');
-            this.loadingScreen = document.getElementById('app-loading');
             
             // Initialize notification system
             initNotifications();
@@ -55,8 +53,7 @@ class App {
             // Subscribe to store changes
             store.subscribe(this.handleStateChange.bind(this));
             
-            // Hide loading screen and show app
-            this.loadingScreen.style.display = 'none';
+            // Show app
             this.contentArea.style.display = 'block';
             this.navBar.style.display = 'flex';
             
@@ -70,7 +67,7 @@ class App {
             
         } catch (error) {
             console.error('[App] Initialization failed:', error);
-            this.showErrorScreen(error);
+            showError('Failed to initialize app: ' + error.message);
         }
     }
     
@@ -311,11 +308,11 @@ class App {
      * Initialize tabs
      */
     initTabs() {
-        this.tabs.set('home', new HomeTab());
-        this.tabs.set('library', new LibraryTab());
-        this.tabs.set('swipe', new SwipeTab());
-        this.tabs.set('matches', new MatchesTab());
-        this.tabs.set('profile', new ProfileTab());
+        this.tabs.set('home', new HomeTab(this.contentArea));
+        this.tabs.set('library', new LibraryTab(this.contentArea));
+        this.tabs.set('swipe', new SwipeTab(this.contentArea));
+        this.tabs.set('matches', new MatchesTab(this.contentArea));
+        this.tabs.set('profile', new ProfileTab(this.contentArea));
         
         console.log('[App] Tabs initialized');
     }
@@ -360,7 +357,7 @@ class App {
         const tab = this.tabs.get(tabName);
         if (tab) {
             this.contentArea.innerHTML = '';
-            tab.render(this.contentArea);
+            tab.render();
             this.currentTab = tabName;
             
             // Update store
@@ -392,31 +389,6 @@ class App {
      */
     handleStateChange(state) {
         // Update UI based on state changes if needed
-    }
-    
-    /**
-     * Show error screen
-     */
-    showErrorScreen(error) {
-        this.loadingScreen.innerHTML = `
-            <div class="loading-content">
-                <div style="font-size: 48px; margin-bottom: 20px;">⚠️</div>
-                <h2>Something Went Wrong</h2>
-                <p>${error.message || 'Unknown error occurred'}</p>
-                <button onclick="location.reload()" style="
-                    margin-top: 20px;
-                    padding: 12px 24px;
-                    background: var(--marquee);
-                    color: white;
-                    border: none;
-                    border-radius: 8px;
-                    cursor: pointer;
-                    font-size: 16px;
-                ">
-                    Reload App
-                </button>
-            </div>
-        `;
     }
 }
 
