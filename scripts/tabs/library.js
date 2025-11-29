@@ -6,6 +6,7 @@
 import { store } from '../state/store.js';
 import { movieModal } from '../components/movie-modal.js';
 import { getPlatformStyle } from '../utils/scoring.js';
+import { getTMDBService } from '../services/tmdb.js';
 
 export class LibraryTab {
     constructor(container) {
@@ -15,14 +16,16 @@ export class LibraryTab {
         this.selectedPlatform = 'all';
         this.sortBy = 'title';
         this.viewMode = 'grid';
+        this.isSearching = false;
+        this.searchResults = null;
     }
     
     render() {
-        const movies = store.get('movies');
+        const movies = this.searchResults || store.get('movies');
         const swipeHistory = store.get('swipeHistory');
         
-        const genres = this.extractUniqueGenres(movies);
-        const platforms = this.extractUniquePlatforms(movies);
+        const genres = this.extractUniqueGenres(store.get('movies'));
+        const platforms = this.extractUniquePlatforms(store.get('movies'));
         
         const filteredMovies = this.filterAndSortMovies(movies);
         
@@ -31,7 +34,7 @@ export class LibraryTab {
                 <div style="margin-bottom: 1.5rem;">
                     <h1 style="margin-bottom: 0.5rem;">Movie Library</h1>
                     <p style="color: var(--color-text-secondary);">
-                        ${filteredMovies.length} of ${movies.length} movies
+                        ${this.searchResults ? `${filteredMovies.length} search results` : `${filteredMovies.length} of ${movies.length} movies`}
                     </p>
                 </div>
                 
@@ -43,11 +46,21 @@ export class LibraryTab {
                         <input 
                             type="text" 
                             id="library-search"
-                            placeholder="Search by title, actor, or genre..." 
+                            placeholder="Search TMDB for any movie (e.g., Lord of the Rings)..." 
                             value="${this.searchQuery}"
                             style="width: 100%; padding: 0.75rem 1rem 0.75rem 3rem; border-radius: 0.75rem; background: var(--color-bg-elevated); border: 1px solid var(--color-border); color: var(--color-text-primary); font-size: 0.875rem;"
                         >
+                        ${this.isSearching ? `
+                            <div style="position: absolute; right: 1rem; top: 50%; transform: translateY(-50%);">
+                                <div class="loading-spinner" style="width: 20px; height: 20px; border-width: 2px;"></div>
+                            </div>
+                        ` : ''}
                     </div>
+                    ${this.searchQuery ? `
+                        <p style="font-size: 0.75rem; color: var(--color-text-secondary); margin-top: 0.5rem;">
+                            ${this.searchResults ? 'Searching TMDB database...' : 'Press Enter to search TMDB'}
+                        </p>
+                    ` : ''}
                 </div>
                 
                 <div style="display: flex; gap: 0.75rem; margin-bottom: 1.5rem; overflow-x: auto; padding-bottom: 0.5rem;">
@@ -98,13 +111,13 @@ export class LibraryTab {
                             id="clear-filters"
                             class="btn btn-ghost" 
                             style="padding: 0.5rem 1rem; font-size: 0.875rem; white-space: nowrap;">
-                            Clear Filters
+                            Clear All
                         </button>
                     ` : ''}
                 </div>
                 
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem;">
-                    ${this.getQuickStats(movies, swipeHistory)}
+                    ${this.getQuickStats(store.get('movies'), swipeHistory)}
                 </div>
                 
                 <div id="movie-container">
@@ -114,6 +127,30 @@ export class LibraryTab {
         `;
         
         this.attachListeners();
+    }
+    
+    async searchTMDB(query) {
+        if (!query || query.length < 2) {
+            this.searchResults = null;
+            this.render();
+            return;
+        }
+        
+        this.isSearching = true;
+        this.render();
+        
+        try {
+            const tmdbService = getTMDBService();
+            const results = await tmdbService.searchMovies(query);
+            this.searchResults = results;
+            console.log(`[Library] Found ${results.length} movies for "${query}"`);
+        } catch (error) {
+            console.error('[Library] Search error:', error);
+            this.searchResults = [];
+        }
+        
+        this.isSearching = false;
+        this.render();
     }
     
     extractUniqueGenres(movies) {
@@ -140,17 +177,6 @@ export class LibraryTab {
     
     filterAndSortMovies(movies) {
         let filtered = [...movies];
-        
-        if (this.searchQuery) {
-            const query = this.searchQuery.toLowerCase();
-            filtered = filtered.filter(movie => {
-                const titleMatch = movie.title?.toLowerCase().includes(query);
-                const genreMatch = movie.genre?.toLowerCase().includes(query);
-                const actorMatch = movie.actors?.some(a => a.toLowerCase().includes(query));
-                const synopsisMatch = movie.synopsis?.toLowerCase().includes(query);
-                return titleMatch || genreMatch || actorMatch || synopsisMatch;
-            });
-        }
         
         if (this.selectedGenre !== 'all') {
             filtered = filtered.filter(movie => 
@@ -244,6 +270,9 @@ export class LibraryTab {
         const swipeHistory = store.get('swipeHistory');
         const userSwipe = swipeHistory.find(s => s.movie?.id === movie.id);
         
+        // Use real TMDB poster if available
+        const posterUrl = movie.poster_path || `https://placehold.co/400x600/${color.replace('#', '')}/ffffff?text=${encodeURIComponent(movie.title)}`;
+        
         return `
             <div class="card" style="padding: 0; overflow: hidden; cursor: pointer; position: relative;" data-movie-id="${movie.id}">
                 ${userSwipe ? `
@@ -252,8 +281,14 @@ export class LibraryTab {
                     </div>
                 ` : ''}
                 
-                <div style="width: 100%; aspect-ratio: 2/3; background: linear-gradient(135deg, ${color}, ${color}dd); position: relative; overflow: hidden;">
-                    <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 4rem; opacity: 0.3;">
+                <div style="width: 100%; aspect-ratio: 2/3; background: ${color}; position: relative; overflow: hidden;">
+                    <img 
+                        src="${posterUrl}" 
+                        alt="${movie.title}"
+                        style="width: 100%; height: 100%; object-fit: cover;"
+                        onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
+                    >
+                    <div style="position: absolute; inset: 0; display: none; align-items: center; justify-content: center; font-size: 4rem; opacity: 0.3; background: linear-gradient(135deg, ${color}, ${color}dd);">
                         🎬
                     </div>
                     <div style="position: absolute; bottom: 0.5rem; left: 0.5rem; width: 24px; height: 24px; border-radius: 50%; background: ${color}; display: flex; align-items: center; justify-content: center; font-size: 0.625rem; color: white; font-weight: 800; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">
@@ -291,11 +326,19 @@ export class LibraryTab {
         const swipeHistory = store.get('swipeHistory');
         const userSwipe = swipeHistory.find(s => s.movie?.id === movie.id);
         
+        const posterUrl = movie.poster_path || `https://placehold.co/160x240/${color.replace('#', '')}/ffffff?text=${encodeURIComponent(movie.title)}`;
+        
         return `
             <div class="card" style="padding: 0; overflow: hidden; cursor: pointer;" data-movie-id="${movie.id}">
                 <div style="display: flex; gap: 1rem;">
-                    <div style="width: 80px; height: 120px; background: linear-gradient(135deg, ${color}, ${color}dd); flex-shrink: 0; position: relative;">
-                        <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 2rem; opacity: 0.3;">
+                    <div style="width: 80px; height: 120px; background: ${color}; flex-shrink: 0; position: relative; overflow: hidden;">
+                        <img 
+                            src="${posterUrl}" 
+                            alt="${movie.title}"
+                            style="width: 100%; height: 100%; object-fit: cover;"
+                            onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
+                        >
+                        <div style="position: absolute; inset: 0; display: none; align-items: center; justify-content: center; font-size: 2rem; opacity: 0.3; background: linear-gradient(135deg, ${color}, ${color}dd);">
                             🎬
                         </div>
                         ${userSwipe ? `
@@ -346,9 +389,30 @@ export class LibraryTab {
     attachListeners() {
         const searchInput = document.getElementById('library-search');
         if (searchInput) {
+            let searchTimeout;
+            
             searchInput.addEventListener('input', (e) => {
                 this.searchQuery = e.target.value;
-                this.render();
+                
+                // Don't re-render immediately (prevents focus loss)
+                // Just update the query
+                
+                // Debounce the actual search
+                clearTimeout(searchTimeout);
+                if (this.searchQuery.length >= 2) {
+                    searchTimeout = setTimeout(() => {
+                        this.searchTMDB(this.searchQuery);
+                    }, 500);
+                } else if (this.searchQuery.length === 0) {
+                    this.searchResults = null;
+                    this.render();
+                }
+            });
+            
+            searchInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter' && this.searchQuery.length >= 2) {
+                    this.searchTMDB(this.searchQuery);
+                }
             });
         }
         
@@ -388,6 +452,7 @@ export class LibraryTab {
         if (clearFilters) {
             clearFilters.addEventListener('click', () => {
                 this.searchQuery = '';
+                this.searchResults = null;
                 this.selectedGenre = 'all';
                 this.selectedPlatform = 'all';
                 this.sortBy = 'title';
@@ -399,7 +464,7 @@ export class LibraryTab {
         movieCards.forEach(card => {
             card.addEventListener('click', () => {
                 const movieId = card.dataset.movieId;
-                const movies = store.get('movies');
+                const movies = this.searchResults || store.get('movies');
                 const movie = movies.find(m => m.id === movieId);
                 if (movie) {
                     movieModal.show(movie);
@@ -410,6 +475,7 @@ export class LibraryTab {
     
     destroy() {
         this.searchQuery = '';
+        this.searchResults = null;
         this.selectedGenre = 'all';
         this.selectedPlatform = 'all';
     }
