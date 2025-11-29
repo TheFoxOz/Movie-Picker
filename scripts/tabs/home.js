@@ -8,15 +8,15 @@ import { movieModal } from '../components/movie-modal.js';
 import { getPlatformStyle } from '../utils/scoring.js';
 
 export class HomeTab {
-    constructor(container) {
-        this.container = container;
+    constructor() {
+        this.container = null;
     }
     
-    render() {
+    render(container) {
+        this.container = container;
         const movies = store.get('movies');
         const swipeHistory = store.get('swipeHistory');
         
-        // Calculate stats
         const stats = this.calculateStats(swipeHistory);
         
         this.container.innerHTML = `
@@ -26,7 +26,6 @@ export class HomeTab {
                     Find your next perfect movie match
                 </p>
                 
-                <!-- Quick Stats -->
                 <div class="stagger-children" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; margin-bottom: 2rem;">
                     <div class="card" style="text-align: center; padding: 1rem;">
                         <div style="font-size: 2rem; font-weight: 800; color: var(--color-primary); margin-bottom: 0.25rem;">
@@ -65,22 +64,18 @@ export class HomeTab {
                     </div>
                 </div>
                 
-                <!-- Continue Swiping CTA -->
                 ${this.getContinueSwipingSection()}
                 
-                <!-- Trending Movies -->
                 <h2 style="font-size: 1.25rem; margin-bottom: 1rem;">Trending This Week</h2>
                 <div style="margin-bottom: 2rem;">
                     ${this.getTrendingSection(movies)}
                 </div>
                 
-                <!-- Recommendations -->
                 <h2 style="font-size: 1.25rem; margin-bottom: 1rem;">Recommended For You</h2>
                 <div class="stagger-children">
                     ${this.getRecommendationsSection(movies, swipeHistory)}
                 </div>
                 
-                <!-- Quick Actions -->
                 <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; margin-top: 2rem;">
                     <button class="btn btn-primary" style="width: 100%; padding: 1rem;" data-nav="swipe">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 20px; height: 20px;">
@@ -111,7 +106,7 @@ export class HomeTab {
             }).length,
             loveCount: swipeHistory.filter(s => s.action === 'love').length,
             likeCount: swipeHistory.filter(s => s.action === 'like').length,
-            matchCount: 0, // Would be calculated from Firebase matches
+            matchCount: 0,
             totalCount: swipeHistory.length
         };
     }
@@ -182,7 +177,6 @@ export class HomeTab {
     }
     
     getRecommendationsSection(movies, swipeHistory) {
-        // Get movies user hasn't swiped yet
         const swipedIds = new Set(swipeHistory.map(s => s.movie?.id).filter(Boolean));
         const recommendations = movies.filter(m => !swipedIds.has(m.id)).slice(0, 4);
         
@@ -225,7 +219,6 @@ export class HomeTab {
     }
     
     attachListeners() {
-        // Navigation buttons
         const navButtons = this.container.querySelectorAll('[data-nav]');
         navButtons.forEach(button => {
             button.addEventListener('click', () => {
@@ -234,7 +227,6 @@ export class HomeTab {
             });
         });
         
-        // Movie detail clicks
         const movieCards = this.container.querySelectorAll('[data-movie-id]');
         movieCards.forEach(card => {
             card.addEventListener('click', () => {
