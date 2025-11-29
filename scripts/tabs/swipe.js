@@ -10,12 +10,12 @@ export class SwipeTab {
     constructor(container) {
         this.container = container;
         this.currentCard = null;
+        this.boundHandleSwipeComplete = this.handleSwipeComplete.bind(this);
     }
     
     render() {
         const movies = store.get('movies');
         const swipeHistory = store.get('swipeHistory');
-        const currentMovie = store.get('currentMovie');
         
         // Get unswiped movies
         const swipedIds = new Set(swipeHistory.map(s => s.movie?.id).filter(Boolean));
@@ -117,6 +117,7 @@ export class SwipeTab {
             </div>
         `;
         
+        // Load first card if movies available
         if (unswipedMovies.length > 0) {
             this.loadNextCard();
         }
@@ -153,6 +154,10 @@ export class SwipeTab {
                 this.currentCard.destroy();
             }
             
+            // Clear container
+            container.innerHTML = '';
+            
+            // Create new card
             this.currentCard = new SwipeCard(container, nextMovie);
         }
     }
@@ -179,7 +184,7 @@ export class SwipeTab {
         });
         
         // Listen for swipe completion
-        document.addEventListener('swipe-action', this.handleSwipeComplete.bind(this));
+        document.addEventListener('swipe-action', this.boundHandleSwipeComplete);
     }
     
     handleSwipeComplete(e) {
@@ -187,20 +192,21 @@ export class SwipeTab {
         
         // Small delay before loading next card
         setTimeout(() => {
-            this.loadNextCard();
-            
-            // Update counter
             const movies = store.get('movies');
             const swipeHistory = store.get('swipeHistory');
             const swipedIds = new Set(swipeHistory.map(s => s.movie?.id).filter(Boolean));
             const remaining = movies.filter(m => !swipedIds.has(m.id)).length;
             
-            const header = this.container.querySelector('h1 + p');
-            if (header) {
-                if (remaining === 0) {
-                    // Show empty state
-                    this.render();
-                } else {
+            if (remaining === 0) {
+                // Show empty state
+                this.render();
+            } else {
+                // Load next card
+                this.loadNextCard();
+                
+                // Update counter
+                const header = this.container.querySelector('h1 + p');
+                if (header) {
                     header.textContent = `${remaining} movies remaining`;
                 }
             }
@@ -213,6 +219,6 @@ export class SwipeTab {
             this.currentCard = null;
         }
         
-        document.removeEventListener('swipe-action', this.handleSwipeComplete.bind(this));
+        document.removeEventListener('swipe-action', this.boundHandleSwipeComplete);
     }
 }
