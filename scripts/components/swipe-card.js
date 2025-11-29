@@ -4,7 +4,7 @@
  */
 
 import { store } from '../state/store.js';
-import { firebaseService } from '../state/firebase.js';
+// REMOVED: import { firebaseService } from '../state/firebase.js';
 import { SWIPE_SCORES, getPlatformStyle } from '../utils/scoring.js';
 import { showSwipeToast, hapticFeedback, announce } from '../utils/notifications.js';
 
@@ -296,20 +296,12 @@ export class SwipeCard {
         store.addSwipeToHistory({
             index: store.get('currentMovieIndex'),
             movie: this.movie,
-            action
+            action,
+            timestamp: Date.now()
         });
         
-        // Save to Firebase
-        try {
-            await firebaseService.saveSwipe({
-                movieId: this.movie.id,
-                movieTitle: this.movie.title,
-                action,
-                score: SWIPE_SCORES[action]
-            });
-        } catch (error) {
-            console.error('[SwipeCard] Error saving swipe:', error);
-        }
+        // FIREBASE REMOVED - Just save to local store
+        console.log('[SwipeCard] Swipe saved to local store:', action);
         
         // Trigger callback
         setTimeout(() => {
