@@ -69,9 +69,9 @@ export class TMDBService {
                 
                 const data = await response.json();
                 
-                // Transform each movie
+                // Transform each movie (without extra API calls for initial load)
                 for (const movie of data.results) {
-                    const transformedMovie = await this.transformMovie(movie);
+                    const transformedMovie = this.transformMovieBasic(movie);
                     allMovies.push(transformedMovie);
                 }
                 
@@ -103,9 +103,7 @@ export class TMDBService {
             
             const data = await response.json();
             
-            const movies = await Promise.all(
-                data.results.slice(0, 20).map(movie => this.transformMovie(movie))
-            );
+            const movies = data.results.slice(0, 20).map(movie => this.transformMovieBasic(movie));
             
             return movies;
             
@@ -122,7 +120,7 @@ export class TMDBService {
      */
     async searchMovies(query) {
         try {
-            const url = `${TMDB_BASE_URL}/search/movie?api_key=${this.apiKey}&query=${encodeURIComponent(query)}`;
+            const url = `${TMDB_BASE_URL}/search/movie?api_key=${this.apiKey}&query=${encodeURIComponent(query)}&language=en-US&page=1`;
             const response = await fetch(url);
             
             if (!response.ok) {
@@ -131,10 +129,13 @@ export class TMDBService {
             
             const data = await response.json();
             
-            const movies = await Promise.all(
-                data.results.slice(0, 20).map(movie => this.transformMovie(movie))
-            );
+            // Transform search results (basic transformation for speed)
+            const movies = data.results
+                .filter(movie => movie.poster_path) // Only include movies with posters
+                .slice(0, 20)
+                .map(movie => this.transformMovieBasic(movie));
             
+            console.log(`[TMDB] Search for "${query}" returned ${movies.length} results`);
             return movies;
             
         } catch (error) {
@@ -144,7 +145,36 @@ export class TMDBService {
     }
     
     /**
-     * Transform TMDB movie data to app format
+     * Transform TMDB movie data to app format (BASIC - fast, no extra API calls)
+     * @param {Object} tmdbMovie - Raw TMDB movie object
+     * @returns {Object} Transformed movie object
+     */
+    transformMovieBasic(tmdbMovie) {
+        return {
+            id: `tmdb-${tmdbMovie.id}`,
+            tmdbId: tmdbMovie.id,
+            title: tmdbMovie.title,
+            year: tmdbMovie.release_date ? new Date(tmdbMovie.release_date).getFullYear() : null,
+            genre: this.getGenreNames(tmdbMovie.genre_ids || []),
+            type: "Movie",
+            runtime: 'N/A', // Not available in basic response
+            imdb: tmdbMovie.vote_average ? parseFloat(tmdbMovie.vote_average.toFixed(1)) : null,
+            rt: null,
+            platform: this.assignRandomPlatform(),
+            actors: [],
+            director: null,
+            trigger: this.inferTriggerWarnings(tmdbMovie.genre_ids || [], {}),
+            synopsis: tmdbMovie.overview || 'No description available.',
+            mood: this.inferMood(tmdbMovie.genre_ids || []),
+            poster_path: tmdbMovie.poster_path ? `${TMDB_IMAGE_BASE}/w500${tmdbMovie.poster_path}` : null,
+            backdrop_path: tmdbMovie.backdrop_path ? `${TMDB_IMAGE_BASE}/w1280${tmdbMovie.backdrop_path}` : null,
+            popularity: tmdbMovie.popularity,
+            vote_count: tmdbMovie.vote_count
+        };
+    }
+    
+    /**
+     * Transform TMDB movie data to app format (DETAILED - with extra API calls)
      * @param {Object} tmdbMovie - Raw TMDB movie object
      * @returns {Object} Transformed movie object
      */
