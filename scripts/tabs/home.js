@@ -8,12 +8,11 @@ import { movieModal } from '../components/movie-modal.js';
 import { getPlatformStyle } from '../utils/scoring.js';
 
 export class HomeTab {
-    constructor() {
-        this.container = null;
+    constructor(container) {
+        this.container = container;
     }
     
-    render(container) {
-        this.container = container;
+    render() {
         const movies = store.get('movies');
         const swipeHistory = store.get('swipeHistory');
         
@@ -120,11 +119,20 @@ export class HomeTab {
         
         const { icon, color } = getPlatformStyle(currentMovie.platform);
         
+        // Use real poster if available
+        const posterUrl = currentMovie.poster_path || `https://placehold.co/200x280/${color.replace('#', '')}/ffffff?text=${encodeURIComponent(currentMovie.title)}`;
+        
         return `
             <div class="card" style="margin-bottom: 2rem; padding: 0; overflow: hidden; cursor: pointer;" data-nav="swipe">
                 <div style="display: flex; gap: 1rem; align-items: center;">
-                    <div style="width: 100px; height: 140px; flex-shrink: 0; background: linear-gradient(135deg, ${color}, ${color}dd); position: relative;">
-                        <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 3rem;">
+                    <div style="width: 100px; height: 140px; flex-shrink: 0; background: ${color}; position: relative; overflow: hidden;">
+                        <img 
+                            src="${posterUrl}" 
+                            alt="${currentMovie.title}"
+                            style="width: 100%; height: 100%; object-fit: cover;"
+                            onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
+                        >
+                        <div style="position: absolute; inset: 0; display: none; align-items: center; justify-content: center; font-size: 3rem; background: linear-gradient(135deg, ${color}, ${color}dd);">
                             🎬
                         </div>
                     </div>
@@ -190,11 +198,21 @@ export class HomeTab {
         
         return recommendations.map(movie => {
             const { icon, color } = getPlatformStyle(movie.platform);
+            const posterUrl = movie.poster_path || `https://placehold.co/160x240/${color.replace('#', '')}/ffffff?text=${encodeURIComponent(movie.title)}`;
+            
             return `
                 <div class="card" style="margin-bottom: 1rem; padding: 0; overflow: hidden; cursor: pointer;" data-movie-id="${movie.id}">
                     <div style="display: flex; gap: 1rem;">
-                        <div style="width: 80px; height: 120px; background: ${color}; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 2rem;">
-                            🎬
+                        <div style="width: 80px; height: 120px; background: ${color}; flex-shrink: 0; overflow: hidden; position: relative;">
+                            <img 
+                                src="${posterUrl}" 
+                                alt="${movie.title}"
+                                style="width: 100%; height: 100%; object-fit: cover;"
+                                onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
+                            >
+                            <div style="position: absolute; inset: 0; display: none; align-items: center; justify-content: center; font-size: 2rem; background: linear-gradient(135deg, ${color}, ${color}dd);">
+                                🎬
+                            </div>
                         </div>
                         <div style="flex: 1; padding: 1rem 1rem 1rem 0;">
                             <h4 style="font-size: 1rem; margin-bottom: 0.25rem;">${movie.title}</h4>
