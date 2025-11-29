@@ -1,81 +1,86 @@
 /**
- * TMDB Service
- * Handles all TMDB API interactions and data transformation
+ * TMDB Service - WITH TRAILER SUPPORT
+ * Handles all TMDB API interactions including trailers
  */
 
-// TMDB Configuration
-const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
+const TMDB_API_BASE = 'https://api.themoviedb.org/3';
 const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p';
+const CACHE_EXPIRY = 1000 * 60 * 30; // 30 minutes
 
-// Genre ID to Name Mapping (from TMDB)
-const GENRE_MAP = {
-    28: "Action",
-    12: "Adventure",
-    16: "Animation",
-    35: "Comedy",
-    80: "Crime",
-    99: "Documentary",
-    18: "Drama",
-    10751: "Family",
-    14: "Fantasy",
-    36: "History",
-    27: "Horror",
-    10402: "Music",
-    9648: "Mystery",
-    10749: "Romance",
-    878: "Sci-Fi",
-    10770: "TV Movie",
-    53: "Thriller",
-    10752: "War",
-    37: "Western"
-};
-
-// Streaming Platform Mapping (simplified)
-const PLATFORM_PROVIDERS = {
-    8: "Netflix",
-    15: "Hulu",
-    9: "Prime Video",
-    384: "Max (HBO)",
-    337: "Disney+",
-    350: "Apple TV+"
-};
-
-export class TMDBService {
-    constructor(apiKey) {
-        this.apiKey = apiKey;
+class TMDBService {
+    constructor() {
+        this.apiKey = window.__tmdb_api_key || null;
         this.cache = new Map();
-        this.cacheExpiry = 1000 * 60 * 30; // 30 minutes
+        console.log('[TMDB] Service initialized with API key:', this.apiKey ? 'Present' : 'Missing');
     }
     
     /**
-     * Fetch popular movies from TMDB
-     * @param {Number} pages - Number of pages to fetch (20 movies per page)
-     * @returns {Array} Array of transformed movies
+     * Get movie trailer from TMDB
      */
-    async fetchPopularMovies(pages = 5) {
+    async getMovieTrailer(movieId) {
+        if (!this.apiKey) {
+            console.warn('[TMDB] No API key - cannot fetch trailer');
+            return null;
+        }
+        
+        const cacheKey = `trailer_${movieId}`;
+        const cached = this.getFromCache(cacheKey);
+        if (cached) {
+            console.log('[TMDB] Trailer from cache:', cached);
+            return cached;
+        }
+        
         try {
-            console.log('[TMDB] Fetching popular movies...');
+            const url = `${TMDB_API_BASE}/movie/${movieId}/videos?api_key=${this.apiKey}`;
+            const response = await fetch(url);
             
+            if (!response.ok) {
+                throw new Error(`TMDB API error: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            
+            // Find official YouTube trailer
+            const trailer = data.results?.find(video => 
+                video.type === 'Trailer' && 
+                video.site === 'YouTube' && 
+                video.official === true
+            ) || data.results?.find(video => 
+                video.type === 'Trailer' && 
+                video.site === 'YouTube'
+            );
+            
+            const trailerKey = trailer?.key || null;
+            
+            // Cache the result
+            this.setToCache(cacheKey, trailerKey);
+            
+            console.log('[TMDB] Trailer key:', trailerKey);
+            return trailerKey;
+            
+        } catch (error) {
+            console.error('[TMDB] Error fetching trailer:', error);
+            return null;
+        }
+    }
+    
+    /**
+     * Fetch popular movies from TMDB (fast version - basic data only)
+     */
+    async fetchPopularMovies() {
+        if (!this.apiKey) {
+            console.warn('[TMDB] No API key provided');
+            return this.getFallbackMovies();
+        }
+        
+        try {
             const allMovies = [];
+            const totalPages = 5; // Fetch 5 pages = 100 movies
             
-            for (let page = 1; page <= pages; page++) {
-                const url = `${TMDB_BASE_URL}/movie/popular?api_key=${this.apiKey}&language=en-US&page=${page}`;
-                
-                const response = await fetch(url);
-                
-                if (!response.ok) {
-                    throw new Error(`TMDB API error: ${response.status} ${response.statusText}`);
-                }
-                
-                const data = await response.json();
-                
-                // Transform each movie (without extra API calls for initial load)
-                for (const movie of data.results) {
-                    const transformedMovie = this.transformMovieBasic(movie);
-                    allMovies.push(transformedMovie);
-                }
-                
-                console.log(`[TMDB] Loaded page ${page}/${pages}`);
+            for (let page = 1; page <= totalPages; page++) {
+                console.log(`[TMDB] Loaded page ${page}/${totalPages}`);
+                const movies = await this.fetchPage(page);
+                allMovies.push(...movies);
             }
             
             console.log(`[TMDB] Successfully loaded ${allMovies.length} movies`);
@@ -83,44 +88,46 @@ export class TMDBService {
             
         } catch (error) {
             console.error('[TMDB] Error fetching movies:', error);
-            throw error;
+            return this.getFallbackMovies();
         }
     }
     
-    /**
-     * Fetch trending movies
-     * @param {String} timeWindow - 'day' or 'week'
-     * @returns {Array} Array of trending movies
-     */
-    async fetchTrendingMovies(timeWindow = 'week') {
-        try {
-            const url = `${TMDB_BASE_URL}/trending/movie/${timeWindow}?api_key=${this.apiKey}`;
-            const response = await fetch(url);
-            
-            if (!response.ok) {
-                throw new Error(`TMDB API error: ${response.status}`);
-            }
-            
-            const data = await response.json();
-            
-            const movies = data.results.slice(0, 20).map(movie => this.transformMovieBasic(movie));
-            
-            return movies;
-            
-        } catch (error) {
-            console.error('[TMDB] Error fetching trending:', error);
-            return [];
+    async fetchPage(page) {
+        const cacheKey = `popular_page_${page}`;
+        const cached = this.getFromCache(cacheKey);
+        if (cached) return cached;
+        
+        const url = `${TMDB_API_BASE}/movie/popular?api_key=${this.apiKey}&page=${page}`;
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+            throw new Error(`TMDB API error: ${response.status}`);
         }
+        
+        const data = await response.json();
+        const movies = data.results
+            .filter(movie => movie.poster_path) // Only movies with posters
+            .map(movie => this.transformMovieBasic(movie));
+        
+        this.setToCache(cacheKey, movies);
+        return movies;
     }
     
     /**
-     * Search movies by query
-     * @param {String} query - Search query
-     * @returns {Array} Array of matching movies
+     * Search movies on TMDB
      */
     async searchMovies(query) {
+        if (!this.apiKey) {
+            console.warn('[TMDB] No API key - cannot search');
+            return [];
+        }
+        
+        const cacheKey = `search_${query}`;
+        const cached = this.getFromCache(cacheKey);
+        if (cached) return cached;
+        
         try {
-            const url = `${TMDB_BASE_URL}/search/movie?api_key=${this.apiKey}&query=${encodeURIComponent(query)}&language=en-US&page=1`;
+            const url = `${TMDB_API_BASE}/search/movie?api_key=${this.apiKey}&query=${encodeURIComponent(query)}`;
             const response = await fetch(url);
             
             if (!response.ok) {
@@ -128,308 +135,323 @@ export class TMDBService {
             }
             
             const data = await response.json();
-            
-            // Transform search results (basic transformation for speed)
             const movies = data.results
-                .filter(movie => movie.poster_path) // Only include movies with posters
-                .slice(0, 20)
+                .filter(movie => movie.poster_path) // Only movies with posters
                 .map(movie => this.transformMovieBasic(movie));
             
-            console.log(`[TMDB] Search for "${query}" returned ${movies.length} results`);
+            this.setToCache(cacheKey, movies);
             return movies;
             
         } catch (error) {
-            console.error('[TMDB] Error searching movies:', error);
+            console.error('[TMDB] Search error:', error);
             return [];
         }
     }
     
     /**
-     * Transform TMDB movie data to app format (BASIC - fast, no extra API calls)
-     * @param {Object} tmdbMovie - Raw TMDB movie object
-     * @returns {Object} Transformed movie object
+     * Transform TMDB movie data (FAST - basic info only, no extra API calls)
      */
     transformMovieBasic(tmdbMovie) {
         return {
-            id: `tmdb-${tmdbMovie.id}`,
-            tmdbId: tmdbMovie.id,
+            id: tmdbMovie.id,
             title: tmdbMovie.title,
-            year: tmdbMovie.release_date ? new Date(tmdbMovie.release_date).getFullYear() : null,
-            genre: this.getGenreNames(tmdbMovie.genre_ids || []),
-            type: "Movie",
-            runtime: 'N/A', // Not available in basic response
-            imdb: tmdbMovie.vote_average ? parseFloat(tmdbMovie.vote_average.toFixed(1)) : null,
-            rt: null,
-            platform: this.assignRandomPlatform(),
-            actors: [],
-            director: null,
-            trigger: this.inferTriggerWarnings(tmdbMovie.genre_ids || [], {}),
+            year: tmdbMovie.release_date ? new Date(tmdbMovie.release_date).getFullYear() : 'N/A',
+            imdb: tmdbMovie.vote_average ? tmdbMovie.vote_average.toFixed(1) : 'N/A',
+            vote_count: tmdbMovie.vote_count || 0,
+            popularity: tmdbMovie.popularity || 0,
             synopsis: tmdbMovie.overview || 'No description available.',
-            mood: this.inferMood(tmdbMovie.genre_ids || []),
-            poster_path: tmdbMovie.poster_path ? `${TMDB_IMAGE_BASE}/w500${tmdbMovie.poster_path}` : null,
-            backdrop_path: tmdbMovie.backdrop_path ? `${TMDB_IMAGE_BASE}/w1280${tmdbMovie.backdrop_path}` : null,
-            popularity: tmdbMovie.popularity,
-            vote_count: tmdbMovie.vote_count
+            genre: this.getGenres(tmdbMovie.genre_ids),
+            poster_path: tmdbMovie.poster_path 
+                ? `${TMDB_IMAGE_BASE}/w500${tmdbMovie.poster_path}`
+                : null,
+            backdrop_path: tmdbMovie.backdrop_path
+                ? `${TMDB_IMAGE_BASE}/w1280${tmdbMovie.backdrop_path}`
+                : null,
+            platform: this.inferPlatform(tmdbMovie),
+            runtime: 'N/A', // Not available without extra API call
+            cast: [], // Not available without extra API call
+            mood: this.inferMood(tmdbMovie.genre_ids),
+            triggerWarnings: this.inferTriggerWarnings(tmdbMovie.genre_ids)
         };
     }
     
     /**
-     * Transform TMDB movie data to app format (DETAILED - with extra API calls)
-     * @param {Object} tmdbMovie - Raw TMDB movie object
-     * @returns {Object} Transformed movie object
+     * Transform TMDB movie data (DETAILED - with extra API calls for full data)
      */
     async transformMovie(tmdbMovie) {
-        // Check cache first
-        const cacheKey = `movie-${tmdbMovie.id}`;
-        const cached = this.getFromCache(cacheKey);
-        if (cached) return cached;
+        // Start with basic data
+        const movie = this.transformMovieBasic(tmdbMovie);
         
-        // Get additional details
-        const details = await this.getMovieDetails(tmdbMovie.id);
-        const credits = await this.getMovieCredits(tmdbMovie.id);
-        const providers = await this.getStreamingProviders(tmdbMovie.id);
-        
-        const transformed = {
-            id: `tmdb-${tmdbMovie.id}`,
-            tmdbId: tmdbMovie.id,
-            title: tmdbMovie.title,
-            year: tmdbMovie.release_date ? new Date(tmdbMovie.release_date).getFullYear() : null,
-            genre: this.getGenreNames(tmdbMovie.genre_ids || details.genres?.map(g => g.id) || []),
-            type: "Movie",
-            runtime: details.runtime ? `${details.runtime} min` : 'N/A',
-            imdb: tmdbMovie.vote_average ? parseFloat(tmdbMovie.vote_average.toFixed(1)) : null,
-            rt: null, // TMDB doesn't have RT scores
-            platform: providers[0] || this.assignRandomPlatform(),
-            actors: credits.cast?.slice(0, 3).map(actor => actor.name) || [],
-            director: credits.crew?.find(person => person.job === 'Director')?.name,
-            trigger: this.inferTriggerWarnings(tmdbMovie.genre_ids || [], details),
-            synopsis: tmdbMovie.overview || 'No description available.',
-            mood: this.inferMood(tmdbMovie.genre_ids || []),
-            poster_path: tmdbMovie.poster_path ? `${TMDB_IMAGE_BASE}/w500${tmdbMovie.poster_path}` : null,
-            backdrop_path: tmdbMovie.backdrop_path ? `${TMDB_IMAGE_BASE}/w1280${tmdbMovie.backdrop_path}` : null,
-            popularity: tmdbMovie.popularity,
-            vote_count: tmdbMovie.vote_count
-        };
-        
-        // Cache the result
-        this.setCache(cacheKey, transformed);
-        
-        return transformed;
-    }
-    
-    /**
-     * Get detailed movie information
-     * @param {Number} movieId - TMDB movie ID
-     * @returns {Object} Movie details
-     */
-    async getMovieDetails(movieId) {
-        const cacheKey = `details-${movieId}`;
-        const cached = this.getFromCache(cacheKey);
-        if (cached) return cached;
-        
-        try {
-            const url = `${TMDB_BASE_URL}/movie/${movieId}?api_key=${this.apiKey}`;
-            const response = await fetch(url);
-            
-            if (!response.ok) return {};
-            
-            const data = await response.json();
-            this.setCache(cacheKey, data);
-            return data;
-            
-        } catch (error) {
-            console.error(`[TMDB] Error fetching details for ${movieId}:`, error);
-            return {};
-        }
-    }
-    
-    /**
-     * Get movie credits (cast and crew)
-     * @param {Number} movieId - TMDB movie ID
-     * @returns {Object} Credits data
-     */
-    async getMovieCredits(movieId) {
-        const cacheKey = `credits-${movieId}`;
-        const cached = this.getFromCache(cacheKey);
-        if (cached) return cached;
-        
-        try {
-            const url = `${TMDB_BASE_URL}/movie/${movieId}/credits?api_key=${this.apiKey}`;
-            const response = await fetch(url);
-            
-            if (!response.ok) return { cast: [], crew: [] };
-            
-            const data = await response.json();
-            this.setCache(cacheKey, data);
-            return data;
-            
-        } catch (error) {
-            console.error(`[TMDB] Error fetching credits for ${movieId}:`, error);
-            return { cast: [], crew: [] };
-        }
-    }
-    
-    /**
-     * Get streaming providers for a movie
-     * @param {Number} movieId - TMDB movie ID
-     * @returns {Array} Array of platform names
-     */
-    async getStreamingProviders(movieId) {
-        const cacheKey = `providers-${movieId}`;
-        const cached = this.getFromCache(cacheKey);
-        if (cached) return cached;
-        
-        try {
-            const url = `${TMDB_BASE_URL}/movie/${movieId}/watch/providers?api_key=${this.apiKey}`;
-            const response = await fetch(url);
-            
-            if (!response.ok) return [];
-            
-            const data = await response.json();
-            
-            // Get US providers (flatrate = subscription streaming)
-            const usProviders = data.results?.US?.flatrate || [];
-            
-            const platforms = usProviders
-                .map(provider => PLATFORM_PROVIDERS[provider.provider_id])
-                .filter(Boolean);
-            
-            this.setCache(cacheKey, platforms);
-            return platforms;
-            
-        } catch (error) {
-            console.error(`[TMDB] Error fetching providers for ${movieId}:`, error);
-            return [];
-        }
-    }
-    
-    /**
-     * Convert genre IDs to genre names
-     * @param {Array} genreIds - Array of genre IDs
-     * @returns {String} Formatted genre string
-     */
-    getGenreNames(genreIds) {
-        if (!genreIds || genreIds.length === 0) return 'Unknown';
-        
-        const genres = genreIds
-            .map(id => GENRE_MAP[id])
-            .filter(Boolean)
-            .slice(0, 3); // Max 3 genres
-        
-        return genres.join(' / ') || 'Unknown';
-    }
-    
-    /**
-     * Assign a random streaming platform (fallback)
-     * @returns {String} Platform name
-     */
-    assignRandomPlatform() {
-        const platforms = Object.values(PLATFORM_PROVIDERS);
-        return platforms[Math.floor(Math.random() * platforms.length)];
-    }
-    
-    /**
-     * Infer trigger warnings from genres and content
-     * @param {Array} genreIds - Genre IDs
-     * @param {Object} details - Movie details
-     * @returns {Array} Array of trigger warnings
-     */
-    inferTriggerWarnings(genreIds, details) {
-        const warnings = [];
-        
-        // Horror movies
-        if (genreIds.includes(27)) {
-            warnings.push('Jump Scares', 'Gore');
-        }
-        
-        // Action movies
-        if (genreIds.includes(28)) {
-            warnings.push('High Violence');
-        }
-        
-        // War movies
-        if (genreIds.includes(10752)) {
-            warnings.push('War Violence', 'Emotional Loss');
-        }
-        
-        // Check adult rating
-        if (details.adult) {
-            warnings.push('Adult Content');
-        }
-        
-        return warnings;
-    }
-    
-    /**
-     * Infer mood from genres
-     * @param {Array} genreIds - Genre IDs
-     * @returns {String} Mood description
-     */
-    inferMood(genreIds) {
-        const moodMap = {
-            28: "Action-packed, Adrenaline-fueled",
-            35: "Funny, Light-hearted",
-            18: "Emotional, Thought-provoking",
-            27: "Scary, Suspenseful",
-            878: "Mind-bending, Futuristic",
-            10749: "Romantic, Feel-good",
-            16: "Whimsical, Animated",
-            80: "Intense, Gripping",
-            9648: "Mysterious, Intriguing",
-            53: "Thrilling, Edge-of-your-seat",
-            12: "Adventurous, Epic",
-            14: "Magical, Fantastical"
-        };
-        
-        // Get the first matching mood
-        for (const genreId of genreIds) {
-            if (moodMap[genreId]) {
-                return moodMap[genreId];
+        // Fetch additional details if API key available
+        if (this.apiKey && tmdbMovie.id) {
+            try {
+                const details = await this.fetchMovieDetails(tmdbMovie.id);
+                if (details) {
+                    movie.runtime = details.runtime ? `${details.runtime} min` : 'N/A';
+                    movie.cast = details.cast || [];
+                }
+            } catch (error) {
+                console.error('[TMDB] Error fetching details:', error);
             }
         }
         
-        return "Entertaining, Engaging";
+        return movie;
     }
     
-    /**
-     * Cache management
-     */
-    setCache(key, value) {
-        this.cache.set(key, {
-            value,
-            timestamp: Date.now()
-        });
+    async fetchMovieDetails(movieId) {
+        const cacheKey = `details_${movieId}`;
+        const cached = this.getFromCache(cacheKey);
+        if (cached) return cached;
+        
+        try {
+            const url = `${TMDB_API_BASE}/movie/${movieId}?api_key=${this.apiKey}&append_to_response=credits`;
+            const response = await fetch(url);
+            
+            if (!response.ok) return null;
+            
+            const data = await response.json();
+            const details = {
+                runtime: data.runtime,
+                cast: data.credits?.cast?.slice(0, 6).map(c => c.name) || []
+            };
+            
+            this.setToCache(cacheKey, details);
+            return details;
+            
+        } catch (error) {
+            console.error('[TMDB] Error fetching details:', error);
+            return null;
+        }
+    }
+    
+    getGenres(genreIds) {
+        const genreMap = {
+            28: 'Action', 12: 'Adventure', 16: 'Animation', 35: 'Comedy',
+            80: 'Crime', 99: 'Documentary', 18: 'Drama', 10751: 'Family',
+            14: 'Fantasy', 36: 'History', 27: 'Horror', 10402: 'Music',
+            9648: 'Mystery', 10749: 'Romance', 878: 'Sci-Fi', 10770: 'TV Movie',
+            53: 'Thriller', 10752: 'War', 37: 'Western'
+        };
+        
+        return genreIds?.map(id => genreMap[id]).filter(Boolean).join(', ') || 'Unknown';
+    }
+    
+    inferPlatform(movie) {
+        // Simple platform inference based on popularity/year
+        const platforms = ['Netflix', 'Hulu', 'Prime Video', 'Disney+', 'HBO Max', 'Apple TV+'];
+        const hash = (movie.id || 0) % platforms.length;
+        return platforms[hash];
+    }
+    
+    inferMood(genreIds) {
+        if (!genreIds || genreIds.length === 0) return 'Entertaining';
+        
+        if (genreIds.includes(27)) return 'Scary';
+        if (genreIds.includes(35)) return 'Funny';
+        if (genreIds.includes(10749)) return 'Romantic';
+        if (genreIds.includes(28)) return 'Action-Packed';
+        if (genreIds.includes(878)) return 'Mind-Bending';
+        if (genreIds.includes(18)) return 'Emotional';
+        if (genreIds.includes(9648)) return 'Mysterious';
+        if (genreIds.includes(16)) return 'Whimsical';
+        if (genreIds.includes(12)) return 'Adventurous';
+        if (genreIds.includes(53)) return 'Suspenseful';
+        if (genreIds.includes(14)) return 'Magical';
+        
+        return 'Entertaining';
+    }
+    
+    inferTriggerWarnings(genreIds) {
+        const warnings = [];
+        
+        if (genreIds?.includes(27)) {
+            warnings.push('Jump Scares', 'Gore', 'Supernatural Horror');
+        }
+        if (genreIds?.includes(28)) {
+            warnings.push('High Violence', 'Intense Action');
+        }
+        if (genreIds?.includes(10752)) {
+            warnings.push('War Violence', 'Emotional Loss');
+        }
+        if (genreIds?.includes(80)) {
+            warnings.push('Crime Violence', 'Disturbing Themes');
+        }
+        
+        return warnings;
     }
     
     getFromCache(key) {
         const cached = this.cache.get(key);
         if (!cached) return null;
         
-        // Check if expired
-        if (Date.now() - cached.timestamp > this.cacheExpiry) {
+        if (Date.now() - cached.timestamp > CACHE_EXPIRY) {
             this.cache.delete(key);
             return null;
         }
         
-        return cached.value;
+        return cached.data;
     }
     
-    clearCache() {
-        this.cache.clear();
+    setToCache(key, data) {
+        this.cache.set(key, {
+            data,
+            timestamp: Date.now()
+        });
+    }
+    
+    getFallbackMovies() {
+        console.log('[TMDB] Using fallback movies');
+        return [
+            {
+                id: '603',
+                title: 'The Matrix',
+                year: 1999,
+                imdb: '8.7',
+                synopsis: 'A computer hacker learns about the true nature of reality.',
+                genre: 'Action, Sci-Fi',
+                poster_path: null,
+                platform: 'HBO Max',
+                runtime: '136 min',
+                cast: ['Keanu Reeves', 'Laurence Fishburne'],
+                mood: 'Mind-Bending',
+                triggerWarnings: ['High Violence']
+            },
+            {
+                id: '27205',
+                title: 'Inception',
+                year: 2010,
+                imdb: '8.8',
+                synopsis: 'A thief who steals corporate secrets through dream-sharing technology.',
+                genre: 'Action, Sci-Fi, Thriller',
+                poster_path: null,
+                platform: 'Netflix',
+                runtime: '148 min',
+                cast: ['Leonardo DiCaprio', 'Joseph Gordon-Levitt'],
+                mood: 'Mind-Bending',
+                triggerWarnings: []
+            },
+            {
+                id: '278',
+                title: 'The Shawshank Redemption',
+                year: 1994,
+                imdb: '9.3',
+                synopsis: 'Two imprisoned men bond over years, finding redemption.',
+                genre: 'Drama',
+                poster_path: null,
+                platform: 'Prime Video',
+                runtime: '142 min',
+                cast: ['Tim Robbins', 'Morgan Freeman'],
+                mood: 'Emotional',
+                triggerWarnings: []
+            },
+            {
+                id: '680',
+                title: 'Pulp Fiction',
+                year: 1994,
+                imdb: '8.9',
+                synopsis: 'The lives of two mob hitmen, a boxer, and a gangster intertwine.',
+                genre: 'Crime, Drama',
+                poster_path: null,
+                platform: 'Netflix',
+                runtime: '154 min',
+                cast: ['John Travolta', 'Uma Thurman'],
+                mood: 'Intense',
+                triggerWarnings: ['Crime Violence']
+            },
+            {
+                id: '155',
+                title: 'The Dark Knight',
+                year: 2008,
+                imdb: '9.0',
+                synopsis: 'Batman faces the Joker, a criminal mastermind.',
+                genre: 'Action, Crime, Drama',
+                poster_path: null,
+                platform: 'HBO Max',
+                runtime: '152 min',
+                cast: ['Christian Bale', 'Heath Ledger'],
+                mood: 'Dark',
+                triggerWarnings: ['High Violence']
+            },
+            {
+                id: '13',
+                title: 'Forrest Gump',
+                year: 1994,
+                imdb: '8.8',
+                synopsis: 'The presidencies of Kennedy and Johnson unfold through a slow-witted man.',
+                genre: 'Drama, Romance',
+                poster_path: null,
+                platform: 'Prime Video',
+                runtime: '142 min',
+                cast: ['Tom Hanks', 'Robin Wright'],
+                mood: 'Heartwarming',
+                triggerWarnings: []
+            },
+            {
+                id: '157336',
+                title: 'Interstellar',
+                year: 2014,
+                imdb: '8.6',
+                synopsis: 'A team of explorers travel through a wormhole in space.',
+                genre: 'Adventure, Drama, Sci-Fi',
+                poster_path: null,
+                platform: 'Hulu',
+                runtime: '169 min',
+                cast: ['Matthew McConaughey', 'Anne Hathaway'],
+                mood: 'Epic',
+                triggerWarnings: []
+            },
+            {
+                id: '238',
+                title: 'The Godfather',
+                year: 1972,
+                imdb: '9.2',
+                synopsis: 'The aging patriarch of an organized crime dynasty transfers control.',
+                genre: 'Crime, Drama',
+                poster_path: null,
+                platform: 'Prime Video',
+                runtime: '175 min',
+                cast: ['Marlon Brando', 'Al Pacino'],
+                mood: 'Intense',
+                triggerWarnings: ['Crime Violence']
+            },
+            {
+                id: '550',
+                title: 'Fight Club',
+                year: 1999,
+                imdb: '8.8',
+                synopsis: 'An insomniac office worker forms an underground fight club.',
+                genre: 'Drama',
+                poster_path: null,
+                platform: 'Netflix',
+                runtime: '139 min',
+                cast: ['Brad Pitt', 'Edward Norton'],
+                mood: 'Mind-Bending',
+                triggerWarnings: ['High Violence']
+            },
+            {
+                id: '1124',
+                title: 'The Prestige',
+                year: 2006,
+                imdb: '8.5',
+                synopsis: 'Two stage magicians engage in competitive one-upmanship.',
+                genre: 'Drama, Mystery, Thriller',
+                poster_path: null,
+                platform: 'HBO Max',
+                runtime: '130 min',
+                cast: ['Christian Bale', 'Hugh Jackman'],
+                mood: 'Mysterious',
+                triggerWarnings: []
+            }
+        ];
     }
 }
 
-// Singleton instance (will be initialized with API key)
+// Singleton instance
 let tmdbServiceInstance = null;
-
-export function initTMDBService(apiKey) {
-    tmdbServiceInstance = new TMDBService(apiKey);
-    return tmdbServiceInstance;
-}
 
 export function getTMDBService() {
     if (!tmdbServiceInstance) {
-        throw new Error('TMDB Service not initialized. Call initTMDBService(apiKey) first.');
+        tmdbServiceInstance = new TMDBService();
     }
     return tmdbServiceInstance;
 }
