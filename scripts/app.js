@@ -1,3 +1,8 @@
+/**
+ * Main Application Entry Point (NO FIREBASE VERSION)
+ * Initializes and coordinates all app modules
+ */
+
 import { store } from './state/store.js';
 import { initNotifications, showError } from './utils/notifications.js';
 import { SwipeTab } from './tabs/swipe.js';
