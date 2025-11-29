@@ -1,4 +1,3 @@
-cat > /home/claude/movie-picker-refactored/scripts/components/match-list.js << 'EOF'
 /**
  * MatchList Component
  * Displays group/couple matches
