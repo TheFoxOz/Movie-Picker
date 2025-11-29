@@ -16,27 +16,11 @@
     <link rel="stylesheet" href="/styles/components.css">
     <link rel="stylesheet" href="/styles/animations.css">
     
-    <!-- Preconnect to Firebase -->
-    <link rel="preconnect" href="https://www.gstatic.com">
-    
     <!-- Configuration Script -->
     <script>
         // TMDB API Configuration
         // Get your free API key at: https://www.themoviedb.org/settings/api
         window.__tmdb_api_key = 'YOUR_TMDB_API_KEY_HERE';
-        
-        // Optional: Firebase Configuration (uncomment and fill in if using Firebase)
-        /*
-        window.__app_id = 'movie-picker-app';
-        window.__firebase_config = JSON.stringify({
-            apiKey: "YOUR_FIREBASE_API_KEY",
-            authDomain: "your-app.firebaseapp.com",
-            projectId: "your-project-id",
-            storageBucket: "your-app.appspot.com",
-            messagingSenderId: "123456789",
-            appId: "your-app-id"
-        });
-        */
     </script>
     
     <!-- App Script (Module) -->
@@ -45,22 +29,13 @@
 <body>
     <div class="app-container">
         
-        <!-- Loading Screen (Shown Until App Initializes) -->
-        <div id="app-loading" class="app-loading">
-            <div class="loading-content">
-                <div class="loading-spinner"></div>
-                <h2>Movie Picker</h2>
-                <p>Loading your watchlist...</p>
-            </div>
-        </div>
-        
         <!-- Main Content Area -->
-        <main id="content-area" class="content-area" style="display: none;">
+        <main id="content-area" class="content-area">
             <!-- Dynamic content loaded here -->
         </main>
 
         <!-- Fixed Bottom Navigation -->
-        <nav id="nav-bar" class="nav-bar" style="display: none;">
+        <nav id="nav-bar" class="nav-bar">
             <button class="nav-item" data-tab="home" aria-label="Home">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.149-.439 1.588 0L21.75 12M4.5 9.75v10.125a3 3 0 003 3h8.25a3 3 0 003-3V9.75" />
