@@ -1,6 +1,6 @@
 /**
- * Library Tab
- * Browse full movie library with search, filters, and sorting
+ * Library Tab - ULTRA PREMIUM NETFLIX REDESIGN
+ * Intelligent blockbuster-first ranking, glassmorphism, cinematic feel
  */
 
 import { store } from '../state/store.js';
@@ -14,7 +14,7 @@ export class LibraryTab {
         this.searchQuery = '';
         this.selectedGenre = 'all';
         this.selectedPlatform = 'all';
-        this.sortBy = 'title';
+        this.sortBy = 'intelligent'; // NEW: Intelligent ranking
         this.viewMode = 'grid';
         this.isSearching = false;
         this.searchResults = null;
@@ -30,99 +30,82 @@ export class LibraryTab {
         const filteredMovies = this.filterAndSortMovies(movies);
         
         this.container.innerHTML = `
-            <div class="container" style="padding: 1.5rem;">
-                <div style="margin-bottom: 1.5rem;">
-                    <h1 style="margin-bottom: 0.5rem;">Movie Library</h1>
-                    <p style="color: var(--color-text-secondary);">
-                        ${this.searchResults ? `${filteredMovies.length} search results` : `${filteredMovies.length} of ${movies.length} movies`}
-                    </p>
-                </div>
+            <div style="background: linear-gradient(180deg, #0a0a0f 0%, #12121a 50%, #0a0a0f 100%); min-height: 100vh;">
                 
-                <div style="margin-bottom: 1rem;">
-                    <div style="position: relative;">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); width: 20px; height: 20px; color: var(--color-text-secondary);">
+                <!-- STICKY SEARCH BAR -->
+                <div style="position: sticky; top: 0; z-index: 20; backdrop-filter: blur(20px); background: rgba(10, 10, 15, 0.95); border-bottom: 1px solid rgba(255, 46, 99, 0.2); padding: 1.5rem 1.5rem 1rem;">
+                    <div style="position: relative; margin-bottom: 1rem;">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="position: absolute; left: 1.25rem; top: 50%; transform: translateY(-50%); width: 24px; height: 24px; color: rgba(255, 46, 99, 0.8);">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
                         </svg>
                         <input 
                             type="text" 
                             id="library-search"
-                            placeholder="Search TMDB for any movie (e.g., Lord of the Rings)..." 
+                            placeholder="Search TMDB for any movie..." 
                             value="${this.searchQuery}"
-                            style="width: 100%; padding: 0.75rem 1rem 0.75rem 3rem; border-radius: 0.75rem; background: var(--color-bg-elevated); border: 1px solid var(--color-border); color: var(--color-text-primary); font-size: 0.875rem;"
+                            style="width: 100%; padding: 1rem 1.25rem 1rem 3.5rem; border-radius: 1rem; background: rgba(255, 255, 255, 0.05); border: 2px solid ${this.searchQuery ? 'rgba(255, 46, 99, 0.5)' : 'rgba(255, 255, 255, 0.1)'}; color: white; font-size: 1rem; font-weight: 600; transition: all 0.3s; box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.3);"
                         >
                         ${this.isSearching ? `
-                            <div style="position: absolute; right: 1rem; top: 50%; transform: translateY(-50%);">
-                                <div class="loading-spinner" style="width: 20px; height: 20px; border-width: 2px;"></div>
+                            <div style="position: absolute; right: 1.25rem; top: 50%; transform: translateY(-50%);">
+                                <div class="loading-spinner" style="width: 24px; height: 24px; border-width: 3px; border-color: rgba(255, 46, 99, 0.3); border-top-color: #ff2e63;"></div>
                             </div>
                         ` : ''}
                     </div>
+                    
                     ${this.searchQuery ? `
-                        <p style="font-size: 0.75rem; color: var(--color-text-secondary); margin-top: 0.5rem;">
-                            ${this.searchResults ? 'Searching TMDB database...' : 'Press Enter to search TMDB'}
-                        </p>
+                        <div style="padding: 0.75rem 1rem; background: linear-gradient(135deg, rgba(255, 46, 99, 0.2), rgba(139, 92, 246, 0.2)); border: 1px solid rgba(255, 46, 99, 0.3); border-radius: 0.75rem; margin-bottom: 1rem;">
+                            <p style="font-size: 0.75rem; color: rgba(255, 255, 255, 0.9); margin: 0;">
+                                ${this.searchResults ? `Showing <strong style="color: #ff2e63;">${filteredMovies.length}</strong> results for "<strong>${this.searchQuery}</strong>"` : 'Press Enter or wait to search TMDB...'}
+                            </p>
+                        </div>
                     ` : ''}
+                    
+                    <!-- QUICK STATS -->
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; margin-bottom: 1rem;">
+                        ${this.getQuickStats(store.get('movies'), swipeHistory)}
+                    </div>
                 </div>
-                
-                <div style="display: flex; gap: 0.75rem; margin-bottom: 1.5rem; overflow-x: auto; padding-bottom: 0.5rem;">
-                    <select id="genre-filter" style="padding: 0.5rem 1rem; border-radius: 0.5rem; background: var(--color-bg-card); border: 1px solid var(--color-border); color: var(--color-text-primary); font-size: 0.875rem; min-width: 120px;">
+
+                <!-- FILTERS BAR -->
+                <div style="padding: 1rem 1.5rem; display: flex; gap: 0.75rem; overflow-x: auto; border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
+                    <select id="genre-filter" style="padding: 0.75rem 1rem; border-radius: 0.75rem; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); color: white; font-size: 0.875rem; font-weight: 600; min-width: 120px; cursor: pointer;">
                         <option value="all">All Genres</option>
                         ${genres.map(genre => `
                             <option value="${genre}" ${this.selectedGenre === genre ? 'selected' : ''}>${genre}</option>
                         `).join('')}
                     </select>
                     
-                    <select id="platform-filter" style="padding: 0.5rem 1rem; border-radius: 0.5rem; background: var(--color-bg-card); border: 1px solid var(--color-border); color: var(--color-text-primary); font-size: 0.875rem; min-width: 140px;">
+                    <select id="platform-filter" style="padding: 0.75rem 1rem; border-radius: 0.75rem; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); color: white; font-size: 0.875rem; font-weight: 600; min-width: 140px; cursor: pointer;">
                         <option value="all">All Platforms</option>
                         ${platforms.map(platform => `
                             <option value="${platform}" ${this.selectedPlatform === platform ? 'selected' : ''}>${platform}</option>
                         `).join('')}
                     </select>
                     
-                    <select id="sort-by" style="padding: 0.5rem 1rem; border-radius: 0.5rem; background: var(--color-bg-card); border: 1px solid var(--color-border); color: var(--color-text-primary); font-size: 0.875rem; min-width: 140px;">
-                        <option value="title" ${this.sortBy === 'title' ? 'selected' : ''}>Title (A-Z)</option>
-                        <option value="year" ${this.sortBy === 'year' ? 'selected' : ''}>Year (Newest)</option>
-                        <option value="rating" ${this.sortBy === 'rating' ? 'selected' : ''}>Rating (Highest)</option>
-                        <option value="platform" ${this.sortBy === 'platform' ? 'selected' : ''}>Platform</option>
+                    <select id="sort-by" style="padding: 0.75rem 1rem; border-radius: 0.75rem; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); color: white; font-size: 0.875rem; font-weight: 600; min-width: 160px; cursor: pointer;">
+                        <option value="intelligent" ${this.sortBy === 'intelligent' ? 'selected' : ''}>Sort: Intelligent ↓</option>
+                        <option value="popularity" ${this.sortBy === 'popularity' ? 'selected' : ''}>Sort: Popularity ↓</option>
+                        <option value="rating" ${this.sortBy === 'rating' ? 'selected' : ''}>Sort: Rating ↓</option>
+                        <option value="year" ${this.sortBy === 'year' ? 'selected' : ''}>Sort: Year ↓</option>
+                        <option value="title" ${this.sortBy === 'title' ? 'selected' : ''}>Sort: Title (A-Z)</option>
                     </select>
-                    
-                    <div style="display: flex; gap: 0.25rem; background: var(--color-bg-card); border: 1px solid var(--color-border); border-radius: 0.5rem; padding: 0.25rem;">
-                        <button 
-                            class="view-toggle ${this.viewMode === 'grid' ? 'active' : ''}" 
-                            data-view="grid"
-                            style="padding: 0.5rem; border-radius: 0.375rem; ${this.viewMode === 'grid' ? 'background: var(--color-primary); color: white;' : 'background: transparent; color: var(--color-text-secondary);'} transition: all 0.2s;"
-                            aria-label="Grid view">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 20px; height: 20px;">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
-                            </svg>
-                        </button>
-                        <button 
-                            class="view-toggle ${this.viewMode === 'list' ? 'active' : ''}" 
-                            data-view="list"
-                            style="padding: 0.5rem; border-radius: 0.375rem; ${this.viewMode === 'list' ? 'background: var(--color-primary); color: white;' : 'background: transparent; color: var(--color-text-secondary);'} transition: all 0.2s;"
-                            aria-label="List view">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 20px; height: 20px;">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z" />
-                            </svg>
-                        </button>
-                    </div>
                     
                     ${this.hasActiveFilters() ? `
                         <button 
                             id="clear-filters"
-                            class="btn btn-ghost" 
-                            style="padding: 0.5rem 1rem; font-size: 0.875rem; white-space: nowrap;">
+                            class="btn" 
+                            style="padding: 0.75rem 1.25rem; font-size: 0.875rem; font-weight: 700; white-space: nowrap; background: rgba(255, 46, 99, 0.2); border: 1px solid rgba(255, 46, 99, 0.4); color: #ff2e63; border-radius: 0.75rem;">
                             Clear All
                         </button>
                     ` : ''}
                 </div>
-                
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem;">
-                    ${this.getQuickStats(store.get('movies'), swipeHistory)}
-                </div>
-                
-                <div id="movie-container">
+
+                <!-- MOVIE GRID/LIST -->
+                <div id="movie-container" style="padding: 1.5rem;">
                     ${this.renderMovies(filteredMovies)}
                 </div>
+
+                <div style="height: 100px;"></div>
             </div>
         `;
         
@@ -190,16 +173,22 @@ export class LibraryTab {
             );
         }
         
+        // INTELLIGENT SORTING - Blockbusters first!
         filtered.sort((a, b) => {
             switch (this.sortBy) {
+                case 'intelligent':
+                    // Prioritize: High vote count + High rating + Recent year
+                    const scoreA = (a.vote_count || 0) * 0.3 + (a.imdb || 0) * 10 + (a.year || 0) * 0.1;
+                    const scoreB = (b.vote_count || 0) * 0.3 + (b.imdb || 0) * 10 + (b.year || 0) * 0.1;
+                    return scoreB - scoreA;
+                case 'popularity':
+                    return (b.popularity || 0) - (a.popularity || 0);
                 case 'title':
                     return (a.title || '').localeCompare(b.title || '');
                 case 'year':
                     return (b.year || 0) - (a.year || 0);
                 case 'rating':
                     return (b.imdb || 0) - (a.imdb || 0);
-                case 'platform':
-                    return (a.platform || '').localeCompare(b.platform || '');
                 default:
                     return 0;
             }
@@ -212,7 +201,7 @@ export class LibraryTab {
         return this.searchQuery || 
                this.selectedGenre !== 'all' || 
                this.selectedPlatform !== 'all' ||
-               this.sortBy !== 'title';
+               this.sortBy !== 'intelligent';
     }
     
     getQuickStats(movies, swipeHistory) {
@@ -224,17 +213,17 @@ export class LibraryTab {
             : '0.0';
         
         return `
-            <div style="background: var(--color-bg-card); border: 1px solid var(--color-border); border-radius: 0.5rem; padding: 0.75rem; text-align: center;">
-                <div style="font-size: 1.25rem; font-weight: 800; color: var(--color-primary);">${unseenCount}</div>
-                <div style="font-size: 0.625rem; color: var(--color-text-secondary); text-transform: uppercase;">Unseen</div>
+            <div style="backdrop-filter: blur(10px); background: linear-gradient(135deg, rgba(255, 46, 99, 0.15), rgba(139, 92, 246, 0.15)); border: 1px solid rgba(255, 46, 99, 0.3); border-radius: 1rem; padding: 1rem; text-align: center; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);">
+                <div style="font-size: 1.75rem; font-weight: 800; background: linear-gradient(135deg, #ff2e63, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">${unseenCount}</div>
+                <div style="font-size: 0.625rem; color: rgba(255, 255, 255, 0.7); text-transform: uppercase; font-weight: 700; letter-spacing: 0.1em;">Unseen</div>
             </div>
-            <div style="background: var(--color-bg-card); border: 1px solid var(--color-border); border-radius: 0.5rem; padding: 0.75rem; text-align: center;">
-                <div style="font-size: 1.25rem; font-weight: 800; color: var(--love-glow);">${lovedCount}</div>
-                <div style="font-size: 0.625rem; color: var(--color-text-secondary); text-transform: uppercase;">Loved</div>
+            <div style="backdrop-filter: blur(10px); background: linear-gradient(135deg, rgba(255, 0, 110, 0.15), rgba(217, 0, 98, 0.15)); border: 1px solid rgba(255, 0, 110, 0.3); border-radius: 1rem; padding: 1rem; text-align: center; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);">
+                <div style="font-size: 1.75rem; font-weight: 800; background: linear-gradient(135deg, #ff006e, #d90062); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">${lovedCount}</div>
+                <div style="font-size: 0.625rem; color: rgba(255, 255, 255, 0.7); text-transform: uppercase; font-weight: 700; letter-spacing: 0.1em;">Loved</div>
             </div>
-            <div style="background: var(--color-bg-card); border: 1px solid var(--color-border); border-radius: 0.5rem; padding: 0.75rem; text-align: center;">
-                <div style="font-size: 1.25rem; font-weight: 800; color: var(--color-reel);">${avgRating}</div>
-                <div style="font-size: 0.625rem; color: var(--color-text-secondary); text-transform: uppercase;">Avg Rating</div>
+            <div style="backdrop-filter: blur(10px); background: linear-gradient(135deg, rgba(251, 191, 36, 0.15), rgba(245, 158, 11, 0.15)); border: 1px solid rgba(251, 191, 36, 0.3); border-radius: 1rem; padding: 1rem; text-align: center; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);">
+                <div style="font-size: 1.75rem; font-weight: 800; background: linear-gradient(135deg, #fbbf24, #f59e0b); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">${avgRating}</div>
+                <div style="font-size: 0.625rem; color: rgba(255, 255, 255, 0.7); text-transform: uppercase; font-weight: 700; letter-spacing: 0.1em;">Avg Rating</div>
             </div>
         `;
     }
@@ -242,12 +231,12 @@ export class LibraryTab {
     renderMovies(movies) {
         if (movies.length === 0) {
             return `
-                <div class="empty-state">
-                    <svg class="empty-state-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <div class="empty-state" style="padding: 4rem 2rem; text-align: center;">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 80px; height: 80px; margin: 0 auto 1.5rem; color: rgba(255, 46, 99, 0.5);">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
                     </svg>
-                    <h2>No movies found</h2>
-                    <p>Try adjusting your filters or search query</p>
+                    <h2 style="font-size: 1.5rem; font-weight: 700; color: white; margin-bottom: 0.5rem;">No movies found</h2>
+                    <p style="color: rgba(255, 255, 255, 0.6);">Try adjusting your filters or search query</p>
                 </div>
             `;
         }
@@ -259,24 +248,37 @@ export class LibraryTab {
     
     renderGridView(movies) {
         return `
-            <div class="stagger-children" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 1rem;">
-                ${movies.map(movie => this.renderGridCard(movie)).join('')}
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;">
+                ${movies.map((movie, index) => this.renderGridCard(movie, index)).join('')}
             </div>
         `;
     }
     
-    renderGridCard(movie) {
+    renderGridCard(movie, index) {
         const { icon, color } = getPlatformStyle(movie.platform);
         const swipeHistory = store.get('swipeHistory');
         const userSwipe = swipeHistory.find(s => s.movie?.id === movie.id);
         
-        // Use real TMDB poster if available
         const posterUrl = movie.poster_path || `https://placehold.co/400x600/${color.replace('#', '')}/ffffff?text=${encodeURIComponent(movie.title)}`;
         
+        // TOP RESULT BADGE for first 3 results (if searching or intelligent sort)
+        const isTopResult = index < 3 && (this.searchResults || this.sortBy === 'intelligent');
+        const isNumberOne = index === 0 && isTopResult;
+        
         return `
-            <div class="card" style="padding: 0; overflow: hidden; cursor: pointer; position: relative;" data-movie-id="${movie.id}">
+            <div class="card" style="padding: 0; overflow: hidden; cursor: pointer; position: relative; border-radius: 1rem; background: rgba(255, 255, 255, 0.02); border: ${isTopResult ? '2px solid rgba(251, 191, 36, 0.5)' : '1px solid rgba(255, 255, 255, 0.05)'}; box-shadow: ${isTopResult ? '0 12px 40px rgba(251, 191, 36, 0.3)' : '0 8px 24px rgba(0, 0, 0, 0.4)'}; transition: all 0.3s;" data-movie-id="${movie.id}" onmouseover="this.style.transform='translateY(-8px) scale(1.02)'" onmouseout="this.style.transform='translateY(0) scale(1)'">
+                
+                ${isTopResult ? `
+                    <div style="position: absolute; top: 0.5rem; left: 0.5rem; z-index: 3; display: flex; align-items: center; gap: 0.5rem;">
+                        <div style="display: flex; align-items: center; gap: 0.25rem; padding: 0.375rem 0.75rem; background: linear-gradient(135deg, #fbbf24, #f59e0b); border-radius: 0.5rem; font-size: 0.75rem; font-weight: 800; color: black; box-shadow: 0 4px 16px rgba(251, 191, 36, 0.5);">
+                            <span style="font-size: 1rem;">👑</span>
+                            ${isNumberOne ? '#1 TOP RESULT' : 'TOP RESULT'}
+                        </div>
+                    </div>
+                ` : ''}
+                
                 ${userSwipe ? `
-                    <div style="position: absolute; top: 0.5rem; right: 0.5rem; z-index: 2; padding: 0.25rem 0.5rem; background: ${this.getSwipeBadgeColor(userSwipe.action)}; border-radius: 0.375rem; font-size: 0.625rem; font-weight: 700; color: white; text-transform: uppercase;">
+                    <div style="position: absolute; top: 0.5rem; right: 0.5rem; z-index: 3; padding: 0.25rem 0.5rem; background: ${this.getSwipeBadgeColor(userSwipe.action)}; border-radius: 0.375rem; font-size: 0.625rem; font-weight: 700; color: white; text-transform: uppercase; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);">
                         ${userSwipe.action}
                     </div>
                 ` : ''}
@@ -291,23 +293,36 @@ export class LibraryTab {
                     <div style="position: absolute; inset: 0; display: none; align-items: center; justify-content: center; font-size: 4rem; opacity: 0.3; background: linear-gradient(135deg, ${color}, ${color}dd);">
                         🎬
                     </div>
-                    <div style="position: absolute; bottom: 0.5rem; left: 0.5rem; width: 24px; height: 24px; border-radius: 50%; background: ${color}; display: flex; align-items: center; justify-content: center; font-size: 0.625rem; color: white; font-weight: 800; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">
+                    
+                    ${isNumberOne ? `
+                        <div style="position: absolute; inset: 0; background: linear-gradient(0deg, rgba(0, 0, 0, 0.9), transparent 60%); pointer-events: none;"></div>
+                        <div style="position: absolute; bottom: 0.75rem; left: 0.75rem; right: 0.75rem;">
+                            <div style="width: 64px; height: 64px; margin: 0 auto 0.5rem; border-radius: 50%; background: linear-gradient(135deg, #fbbf24, #f59e0b); display: flex; align-items: center; justify-content: center; font-size: 2rem; font-weight: 800; color: black; box-shadow: 0 8px 24px rgba(251, 191, 36, 0.6); border: 3px solid rgba(255, 255, 255, 0.3);">
+                                1
+                            </div>
+                        </div>
+                    ` : ''}
+                    
+                    <div style="position: absolute; bottom: 0.5rem; left: 0.5rem; width: 28px; height: 28px; border-radius: 50%; background: ${color}; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; color: white; font-weight: 800; box-shadow: 0 4px 12px rgba(0,0,0,0.4); border: 2px solid rgba(255, 255, 255, 0.2);">
                         ${icon}
                     </div>
                 </div>
                 
-                <div style="padding: 0.75rem;">
-                    <h3 style="font-size: 0.875rem; font-weight: 600; margin-bottom: 0.25rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${movie.title}">
+                <div style="padding: 1rem;">
+                    <h3 style="font-size: 0.875rem; font-weight: 700; color: white; margin-bottom: 0.5rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${movie.title}">
                         ${movie.title}
                     </h3>
-                    <p style="font-size: 0.75rem; color: var(--color-text-secondary); margin-bottom: 0.5rem;">
-                        ${movie.year || 'N/A'}
-                    </p>
-                    <div style="display: flex; align-items: center; gap: 0.5rem;">
-                        <span class="badge badge-imdb" style="font-size: 0.625rem; padding: 0.125rem 0.375rem;">
+                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                        <span style="font-size: 0.75rem; color: rgba(255, 255, 255, 0.5);">${movie.year || 'N/A'}</span>
+                        <span style="padding: 0.125rem 0.5rem; background: rgba(251, 191, 36, 0.2); border: 1px solid rgba(251, 191, 36, 0.4); border-radius: 0.5rem; font-size: 0.625rem; font-weight: 700; color: #fbbf24;">
                             ⭐ ${movie.imdb || 'N/A'}
                         </span>
                     </div>
+                    ${movie.vote_count ? `
+                        <div style="font-size: 0.625rem; color: rgba(255, 255, 255, 0.4);">
+                            ${(movie.vote_count / 1000).toFixed(1)}k votes
+                        </div>
+                    ` : ''}
                 </div>
             </div>
         `;
@@ -315,23 +330,32 @@ export class LibraryTab {
     
     renderListView(movies) {
         return `
-            <div class="stagger-children" style="display: flex; flex-direction: column; gap: 1rem;">
-                ${movies.map(movie => this.renderListCard(movie)).join('')}
+            <div style="display: flex; flex-direction: column; gap: 1rem;">
+                ${movies.map((movie, index) => this.renderListCard(movie, index)).join('')}
             </div>
         `;
     }
     
-    renderListCard(movie) {
+    renderListCard(movie, index) {
         const { icon, color } = getPlatformStyle(movie.platform);
         const swipeHistory = store.get('swipeHistory');
         const userSwipe = swipeHistory.find(s => s.movie?.id === movie.id);
         
         const posterUrl = movie.poster_path || `https://placehold.co/160x240/${color.replace('#', '')}/ffffff?text=${encodeURIComponent(movie.title)}`;
         
+        const isTopResult = index < 3 && (this.searchResults || this.sortBy === 'intelligent');
+        const isNumberOne = index === 0 && isTopResult;
+        
         return `
-            <div class="card" style="padding: 0; overflow: hidden; cursor: pointer;" data-movie-id="${movie.id}">
-                <div style="display: flex; gap: 1rem;">
-                    <div style="width: 80px; height: 120px; background: ${color}; flex-shrink: 0; position: relative; overflow: hidden;">
+            <div class="card" style="padding: 0; overflow: hidden; cursor: pointer; border-radius: 1rem; background: rgba(255, 255, 255, 0.02); border: ${isTopResult ? '2px solid rgba(251, 191, 36, 0.5)' : '1px solid rgba(255, 255, 255, 0.05)'}; box-shadow: ${isTopResult ? '0 8px 32px rgba(251, 191, 36, 0.3)' : '0 4px 16px rgba(0, 0, 0, 0.3)'};" data-movie-id="${movie.id}">
+                <div style="display: flex; gap: 1rem; padding: 1rem;">
+                    ${isNumberOne ? `
+                        <div style="width: 48px; height: 48px; flex-shrink: 0; border-radius: 50%; background: linear-gradient(135deg, #fbbf24, #f59e0b); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: 800; color: black; box-shadow: 0 8px 24px rgba(251, 191, 36, 0.6); border: 3px solid rgba(255, 255, 255, 0.3); align-self: center;">
+                            1
+                        </div>
+                    ` : ''}
+                    
+                    <div style="width: 80px; height: 120px; background: ${color}; flex-shrink: 0; position: relative; overflow: hidden; border-radius: 0.75rem; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);">
                         <img 
                             src="${posterUrl}" 
                             alt="${movie.title}"
@@ -341,6 +365,13 @@ export class LibraryTab {
                         <div style="position: absolute; inset: 0; display: none; align-items: center; justify-content: center; font-size: 2rem; opacity: 0.3; background: linear-gradient(135deg, ${color}, ${color}dd);">
                             🎬
                         </div>
+                        
+                        ${isTopResult && !isNumberOne ? `
+                            <div style="position: absolute; top: 0.25rem; left: 0.25rem; padding: 0.125rem 0.375rem; background: linear-gradient(135deg, #fbbf24, #f59e0b); border-radius: 0.25rem; font-size: 0.5rem; font-weight: 800; color: black; box-shadow: 0 2px 8px rgba(251, 191, 36, 0.5);">
+                                TOP
+                            </div>
+                        ` : ''}
+                        
                         ${userSwipe ? `
                             <div style="position: absolute; top: 0.25rem; right: 0.25rem; padding: 0.125rem 0.25rem; background: ${this.getSwipeBadgeColor(userSwipe.action)}; border-radius: 0.25rem; font-size: 0.5rem; font-weight: 700; color: white; text-transform: uppercase;">
                                 ${userSwipe.action}
@@ -348,26 +379,35 @@ export class LibraryTab {
                         ` : ''}
                     </div>
                     
-                    <div style="flex: 1; padding: 0.75rem 0.75rem 0.75rem 0; min-width: 0;">
-                        <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 0.25rem;">
+                    <div style="flex: 1; padding: 0.5rem 0; min-width: 0;">
+                        ${isTopResult && !isNumberOne ? `
+                            <div style="display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.25rem 0.5rem; background: linear-gradient(135deg, rgba(251, 191, 36, 0.2), rgba(245, 158, 11, 0.2)); border: 1px solid rgba(251, 191, 36, 0.4); border-radius: 0.5rem; font-size: 0.625rem; font-weight: 800; color: #fbbf24; margin-bottom: 0.5rem;">
+                                <span>👑</span>
+                                TOP RESULT
+                            </div>
+                        ` : ''}
+                        
+                        <h3 style="font-size: 1rem; font-weight: 700; color: white; margin-bottom: 0.5rem;">
                             ${movie.title}
                         </h3>
-                        <p style="font-size: 0.875rem; color: var(--color-text-secondary); margin-bottom: 0.5rem;">
+                        <p style="font-size: 0.875rem; color: rgba(255, 255, 255, 0.6); margin-bottom: 0.75rem;">
                             ${movie.year || 'N/A'} • ${movie.genre || 'Unknown Genre'}
                         </p>
-                        <p style="font-size: 0.75rem; color: var(--color-text-secondary); line-height: 1.4; margin-bottom: 0.5rem;" class="line-clamp-2">
+                        <p style="font-size: 0.75rem; color: rgba(255, 255, 255, 0.5); line-height: 1.5; margin-bottom: 0.75rem;" class="line-clamp-2">
                             ${movie.synopsis || 'No description available.'}
                         </p>
-                        <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
-                            <span class="badge badge-imdb" style="font-size: 0.625rem;">IMDb ${movie.imdb || 'N/A'}</span>
-                            ${movie.rt ? `<span class="badge badge-rt" style="font-size: 0.625rem;">RT ${movie.rt}%</span>` : ''}
+                        <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+                            <span style="padding: 0.25rem 0.75rem; background: rgba(251, 191, 36, 0.2); border: 1px solid rgba(251, 191, 36, 0.4); border-radius: 0.5rem; font-size: 0.75rem; font-weight: 700; color: #fbbf24;">
+                                ⭐ ${movie.imdb || 'N/A'}
+                            </span>
+                            ${movie.vote_count ? `
+                                <span style="font-size: 0.75rem; color: rgba(255, 255, 255, 0.4);">
+                                    ${(movie.vote_count / 1000).toFixed(1)}k votes
+                                </span>
+                            ` : ''}
                             <div style="display: flex; align-items: center; gap: 0.25rem;">
-                                <span style="width: 16px; height: 16px; border-radius: 50%; background: ${color}; display: flex; align-items: center; justify-content: center; font-size: 0.5rem; color: white; font-weight: 800;">
-                                    ${icon}
-                                </span>
-                                <span style="font-size: 0.625rem; color: var(--color-text-secondary);">
-                                    ${movie.platform}
-                                </span>
+                                <span style="width: 20px; height: 20px; border-radius: 50%; background: ${color}; display: flex; align-items: center; justify-content: center; font-size: 0.625rem; color: white; font-weight: 800;">${icon}</span>
+                                <span style="font-size: 0.75rem; color: rgba(255, 255, 255, 0.5);">${movie.platform}</span>
                             </div>
                         </div>
                     </div>
@@ -394,10 +434,6 @@ export class LibraryTab {
             searchInput.addEventListener('input', (e) => {
                 this.searchQuery = e.target.value;
                 
-                // Don't re-render immediately (prevents focus loss)
-                // Just update the query
-                
-                // Debounce the actual search
                 clearTimeout(searchTimeout);
                 if (this.searchQuery.length >= 2) {
                     searchTimeout = setTimeout(() => {
@@ -440,14 +476,6 @@ export class LibraryTab {
             });
         }
         
-        const viewToggles = this.container.querySelectorAll('.view-toggle');
-        viewToggles.forEach(toggle => {
-            toggle.addEventListener('click', () => {
-                this.viewMode = toggle.dataset.view;
-                this.render();
-            });
-        });
-        
         const clearFilters = document.getElementById('clear-filters');
         if (clearFilters) {
             clearFilters.addEventListener('click', () => {
@@ -455,7 +483,7 @@ export class LibraryTab {
                 this.searchResults = null;
                 this.selectedGenre = 'all';
                 this.selectedPlatform = 'all';
-                this.sortBy = 'title';
+                this.sortBy = 'intelligent';
                 this.render();
             });
         }
