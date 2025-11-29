@@ -1,21 +1,21 @@
 {
-"name": "Movie Picker App",
-"short_name": "Picker",
-"description": "Swipe to find the perfect movie for your group.",
-"start_url": "/",
-"display": "standalone",
-"background_color": "#111827",
-"theme_color": "#f97316",
-"icons": [
-{
-"src": "https://www.google.com/search?q=https://placehold.co/192x192/f97316/ffffff%3Ftext%3DMP",
-"sizes": "192x192",
-"type": "image/png"
-},
-{
-"src": "https://www.google.com/search?q=https://placehold.co/512x512/f97316/ffffff%3Ftext%3DMP",
-"sizes": "512x512",
-"type": "image/png"
-}
-]
+  "name": "Movie Picker App",
+  "short_name": "Picker",
+  "description": "Swipe to find the perfect movie for your group.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0f",
+  "theme_color": "#ff2e63",
+  "icons": [
+    {
+      "src": "https://placehold.co/192x192/ff2e63/ffffff?text=MP",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://placehold.co/512x512/ff2e63/ffffff?text=MP",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
 }
