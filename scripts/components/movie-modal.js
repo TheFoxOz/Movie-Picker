@@ -1,4 +1,3 @@
-cat > /home/claude/movie-picker-refactored/scripts/components/movie-modal.js << 'EOF'
 /**
  * MovieModal Component
  * Detailed movie information modal
@@ -103,3 +102,6 @@ export class MovieModal {
         }
     }
 }
+
+// Create singleton instance
+export const movieModal = new MovieModal();
