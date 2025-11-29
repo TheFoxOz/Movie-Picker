@@ -1,222 +1,346 @@
 /**
- * Swipe Tab
- * Main swipe interface with card and controls
+ * Swipe Card Component
+ * Interactive movie card with gesture controls
+ * FIXED: Proper TMDB poster loading
  */
 
 import { store } from '../state/store.js';
-import { SwipeCard } from '../components/swipe-card.js';
-import { movieModal } from '../components/movie-modal.js';
-import { showSwipeToast } from '../utils/notifications.js';
 
-export class SwipeTab {
-    constructor(container) {
+export class SwipeCard {
+    constructor(container, movie) {
         this.container = container;
-        this.currentCard = null;
-    }
-    
-    render() {
-        const movie = store.get('currentMovie');
-        const movies = store.get('movies');
-        const currentIndex = store.get('currentMovieIndex');
-        const remaining = movies.length - currentIndex;
+        this.movie = movie;
+        this.card = null;
+        this.startX = 0;
+        this.startY = 0;
+        this.currentX = 0;
+        this.currentY = 0;
+        this.isDragging = false;
         
-        if (!movie) {
-            this.container.innerHTML = this.getEmptyState();
-            return;
-        }
-        
-        this.container.innerHTML = `
-            <div class="container" style="padding-top: 1.5rem; padding-bottom: 1.5rem;">
-                <!-- Header -->
-                <div style="text-align: center; margin-bottom: 1rem;">
-                    <h1 style="margin-bottom: 0.25rem;">Find Your Next Movie</h1>
-                    <p style="font-size: 0.875rem; color: var(--color-text-secondary);">
-                        ${remaining} movie${remaining !== 1 ? 's' : ''} remaining
-                    </p>
-                </div>
-                
-                <!-- Card Container -->
-                <div id="card-container" style="margin-bottom: 1.5rem;"></div>
-                
-                <!-- Action Buttons -->
-                <div style="display: flex; gap: 0.5rem; max-width: 400px; margin: 0 auto 1rem;">
-                    <!-- NOPE Button -->
-                    <button 
-                        class="action-button action-button-nope" 
-                        data-action="pass" 
-                        aria-label="Pass on this movie - No thank you">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                        <span>Nope</span>
-                    </button>
-                    
-                    <!-- MAYBE Button -->
-                    <button 
-                        class="action-button action-button-maybe" 
-                        data-action="maybe" 
-                        aria-label="Maybe watch later - Add to watchlist">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
-                        </svg>
-                        <span>Maybe</span>
-                    </button>
-                    
-                    <!-- LIKE Button -->
-                    <button 
-                        class="action-button action-button-like" 
-                        data-action="like" 
-                        aria-label="Like this movie - Would watch">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M6.633 10.5c.806 0 1.533-.446 2.031-1.08a9.041 9.041 0 012.861-2.4c.723-.384 1.35-.956 1.653-1.715a4.498 4.498 0 00.322-1.672V3a.75.75 0 01.75-.75A2.25 2.25 0 0116.5 4.5c0 1.152-.26 2.243-.723 3.218-.266.558.107 1.282.725 1.282h3.126c1.026 0 1.945.694 2.054 1.715.045.422.068.85.068 1.285a11.95 11.95 0 01-2.649 7.521c-.388.482-.987.729-1.605.729H13.48c-.483 0-.964-.078-1.423-.23l-3.114-1.04a4.501 4.501 0 00-1.423-.23H5.904" />
-                        </svg>
-                        <span>Like</span>
-                    </button>
-                    
-                    <!-- LOVE Button -->
-                    <button 
-                        class="action-button action-button-love" 
-                        data-action="love" 
-                        aria-label="Love this movie - Must watch!">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M11.645 20.91l-.007-.003-.022-.012a15.247 15.247 0 01-.383-.218 25.18 25.18 0 01-4.244-3.17C4.688 15.36 2.25 12.174 2.25 8.25 2.25 5.322 4.714 3 7.688 3A5.5 5.5 0 0112 5.052 5.5 5.5 0 0116.313 3c2.973 0 5.437 2.322 5.437 5.25 0 3.925-2.438 7.111-4.739 9.256a25.175 25.175 0 01-4.244 3.17 15.247 15.247 0 01-.383.219l-.022.012-.007.004-.003.001a.752.752 0 01-.704 0l-.003-.001z" />
-                        </svg>
-                        <span>Love</span>
-                    </button>
-                </div>
-                
-                <!-- Helper Text -->
-                <p style="text-align: center; color: var(--color-text-muted); font-size: 0.75rem; line-height: 1.4;">
-                    <strong>Swipe:</strong> Drag card left/right<br>
-                    <strong>Keyboard:</strong> ← Nope • ↓ Maybe • → Like • ↑ Love
-                </p>
-            </div>
-        `;
-        
-        this.renderCard();
+        this.render();
         this.attachListeners();
     }
     
-    renderCard() {
-        const cardContainer = document.getElementById('card-container');
-        const movie = store.get('currentMovie');
+    render() {
+        const { icon, color } = this.getPlatformStyle(this.movie.platform);
         
-        if (!movie || !cardContainer) return;
+        // FIXED: Use real TMDB poster URL
+        const posterUrl = this.movie.poster_path 
+            || this.movie.backdrop_path 
+            || `https://placehold.co/400x600/${color.replace('#', '')}/ffffff?text=${encodeURIComponent(this.movie.title)}`;
         
-        // Clean up previous card
-        if (this.currentCard) {
-            this.currentCard.destroy();
-        }
+        this.card = document.createElement('div');
+        this.card.className = 'swipe-card';
+        this.card.style.cssText = `
+            position: absolute;
+            width: calc(100% - 3rem);
+            max-width: 450px;
+            aspect-ratio: 2/3;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            cursor: grab;
+            user-select: none;
+            touch-action: none;
+        `;
         
-        // Create new card
-        this.currentCard = new SwipeCard(
-            movie,
-            this.handleSwipe.bind(this),
-            this.handleShowDetails.bind(this)
-        );
+        this.card.innerHTML = `
+            <div style="position: relative; width: 100%; height: 100%; border-radius: 2rem; overflow: hidden; background: ${color}; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);">
+                <!-- Poster Image -->
+                <img 
+                    src="${posterUrl}" 
+                    alt="${this.movie.title}"
+                    style="width: 100%; height: 100%; object-fit: cover;"
+                    onerror="this.style.display='none'; this.parentElement.querySelector('.poster-fallback').style.display='flex';"
+                    draggable="false"
+                >
+                
+                <!-- Fallback if poster fails to load -->
+                <div class="poster-fallback" style="display: none; position: absolute; inset: 0; align-items: center; justify-content: center; font-size: 8rem; opacity: 0.3; background: linear-gradient(135deg, ${color}, ${color}dd);">
+                    🎬
+                </div>
+                
+                <!-- Gradient Overlay -->
+                <div style="position: absolute; inset: 0; background: linear-gradient(0deg, rgba(0, 0, 0, 0.9) 0%, transparent 40%, rgba(0, 0, 0, 0.7) 100%); pointer-events: none;"></div>
+                
+                <!-- Top Info -->
+                <div style="position: absolute; top: 1.5rem; left: 1.5rem; right: 1.5rem; display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; pointer-events: none;">
+                    <div style="flex: 1; min-width: 0;">
+                        <div style="display: inline-block; padding: 0.375rem 0.875rem; background: rgba(251, 191, 36, 0.3); backdrop-filter: blur(10px); border: 1px solid rgba(251, 191, 36, 0.5); border-radius: 0.75rem; font-size: 0.875rem; font-weight: 700; color: #fbbf24; margin-bottom: 0.5rem; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);">
+                            IMDb ${this.movie.imdb || 'N/A'}
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; background: rgba(10, 10, 15, 0.6); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 0.75rem; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);">
+                        <span style="width: 28px; height: 28px; border-radius: 50%; background: ${color}; display: flex; align-items: center; justify-content: center; font-size: 0.875rem; color: white; font-weight: 800; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);">${icon}</span>
+                        <span style="font-size: 0.875rem; font-weight: 600; color: white;">${this.movie.platform}</span>
+                    </div>
+                </div>
+                
+                <!-- Bottom Info -->
+                <div style="position: absolute; bottom: 0; left: 0; right: 0; padding: 2rem 1.5rem; pointer-events: none;">
+                    <h2 style="font-size: 1.75rem; font-weight: 800; color: white; margin: 0 0 0.5rem 0; line-height: 1.2; text-shadow: 0 4px 12px rgba(0, 0, 0, 0.8);">
+                        ${this.movie.title}
+                    </h2>
+                    <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; flex-wrap: wrap;">
+                        <span style="font-size: 0.875rem; color: rgba(255, 255, 255, 0.9); font-weight: 600;">${this.movie.year || 'N/A'}</span>
+                        <span style="width: 4px; height: 4px; border-radius: 50%; background: rgba(255, 255, 255, 0.5);"></span>
+                        <span style="font-size: 0.875rem; color: rgba(255, 255, 255, 0.9); font-weight: 600;">${this.movie.genre || 'Unknown'}</span>
+                        ${this.movie.runtime ? `
+                            <span style="width: 4px; height: 4px; border-radius: 50%; background: rgba(255, 255, 255, 0.5);"></span>
+                            <span style="font-size: 0.875rem; color: rgba(255, 255, 255, 0.9); font-weight: 600;">${this.movie.runtime}</span>
+                        ` : ''}
+                    </div>
+                    <p style="font-size: 0.875rem; color: rgba(255, 255, 255, 0.85); line-height: 1.6; margin: 0; max-height: 4.8em; overflow: hidden; text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);" class="line-clamp-3">
+                        ${this.movie.synopsis || 'No description available.'}
+                    </p>
+                    
+                    ${this.movie.triggerWarnings?.length ? `
+                        <div style="margin-top: 1rem; padding: 0.75rem 1rem; background: rgba(220, 38, 38, 0.2); backdrop-filter: blur(10px); border: 1px solid rgba(220, 38, 38, 0.4); border-radius: 0.75rem; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);">
+                            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
+                                <span style="font-size: 1rem;">⚠️</span>
+                                <span style="font-size: 0.75rem; font-weight: 700; color: #fca5a5; text-transform: uppercase; letter-spacing: 0.05em;">Trigger Warnings:</span>
+                            </div>
+                            <p style="font-size: 0.75rem; color: rgba(255, 255, 255, 0.8); margin: 0;">
+                                ${this.movie.triggerWarnings.join(', ')}
+                            </p>
+                        </div>
+                    ` : ''}
+                </div>
+                
+                <!-- Swipe Overlays -->
+                <div class="swipe-overlay swipe-overlay-love" style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, rgba(255, 0, 110, 0.9), rgba(217, 0, 98, 0.9)); opacity: 0; pointer-events: none; transition: opacity 0.2s;">
+                    <div style="font-size: 4rem; font-weight: 800; color: white; text-transform: uppercase; transform: rotate(-15deg); text-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); letter-spacing: 0.1em;">
+                        LOVE
+                    </div>
+                </div>
+                
+                <div class="swipe-overlay swipe-overlay-like" style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, rgba(16, 185, 129, 0.9), rgba(5, 150, 105, 0.9)); opacity: 0; pointer-events: none; transition: opacity 0.2s;">
+                    <div style="font-size: 4rem; font-weight: 800; color: white; text-transform: uppercase; transform: rotate(-15deg); text-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); letter-spacing: 0.1em;">
+                        LIKE
+                    </div>
+                </div>
+                
+                <div class="swipe-overlay swipe-overlay-maybe" style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, rgba(251, 191, 36, 0.9), rgba(245, 158, 11, 0.9)); opacity: 0; pointer-events: none; transition: opacity 0.2s;">
+                    <div style="font-size: 4rem; font-weight: 800; color: white; text-transform: uppercase; transform: rotate(-15deg); text-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); letter-spacing: 0.1em;">
+                        MAYBE
+                    </div>
+                </div>
+                
+                <div class="swipe-overlay swipe-overlay-nope" style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, rgba(239, 68, 68, 0.9), rgba(220, 38, 38, 0.9)); opacity: 0; pointer-events: none; transition: opacity 0.2s;">
+                    <div style="font-size: 4rem; font-weight: 800; color: white; text-transform: uppercase; transform: rotate(-15deg); text-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); letter-spacing: 0.1em;">
+                        NOPE
+                    </div>
+                </div>
+            </div>
+        `;
         
-        cardContainer.innerHTML = '';
-        cardContainer.appendChild(this.currentCard.render());
-    }
-    
-    handleSwipe(action, movie) {
-        // Show undo toast
-        showSwipeToast(movie.title, action, () => {
-            this.handleUndo();
-        });
-        
-        // Move to next movie
-        store.nextMovie();
-        
-        // Re-render with new movie
-        this.render();
-    }
-    
-    handleShowDetails(movie) {
-        movieModal.show(movie);
-    }
-    
-    handleUndo() {
-        const lastSwipe = store.undoLastSwipe();
-        if (lastSwipe) {
-            // Re-render to show previous movie
-            this.render();
-        }
+        this.container.appendChild(this.card);
     }
     
     attachListeners() {
-        // Action button clicks
-        const buttons = this.container.querySelectorAll('.action-button[data-action]');
-        buttons.forEach(button => {
-            button.addEventListener('click', () => {
-                const action = button.dataset.action;
-                if (this.currentCard) {
-                    this.currentCard.swipe(action);
-                }
+        // Mouse events
+        this.card.addEventListener('mousedown', this.handleStart.bind(this));
+        document.addEventListener('mousemove', this.handleMove.bind(this));
+        document.addEventListener('mouseup', this.handleEnd.bind(this));
+        
+        // Touch events
+        this.card.addEventListener('touchstart', this.handleStart.bind(this));
+        document.addEventListener('touchmove', this.handleMove.bind(this));
+        document.addEventListener('touchend', this.handleEnd.bind(this));
+        
+        // Keyboard events
+        document.addEventListener('keydown', this.handleKeyboard.bind(this));
+        
+        // Info button click
+        const infoButton = this.card.querySelector('.info-button');
+        if (infoButton) {
+            infoButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                document.dispatchEvent(new CustomEvent('show-movie-modal', { 
+                    detail: { movie: this.movie } 
+                }));
             });
-        });
-        
-        // Keyboard shortcuts
-        this.keyboardHandler = (e) => {
-            // Don't intercept if user is typing
-            if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
-            
-            const actions = {
-                'ArrowLeft': 'pass',
-                'ArrowDown': 'maybe',
-                'ArrowRight': 'like',
-                'ArrowUp': 'love',
-                ' ': 'details',  // Spacebar
-                'z': 'undo'
-            };
-            
-            const action = actions[e.key];
-            
-            if (action && this.currentCard) {
-                e.preventDefault();
-                
-                if (action === 'details') {
-                    const movie = store.get('currentMovie');
-                    if (movie) {
-                        this.handleShowDetails(movie);
-                    }
-                } else if (action === 'undo') {
-                    this.handleUndo();
-                } else {
-                    this.currentCard.swipe(action);
-                }
-            }
-        };
-        
-        document.addEventListener('keydown', this.keyboardHandler);
+        }
     }
     
-    getEmptyState() {
-        return `
-            <div class="empty-state">
-                <svg class="empty-state-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.182 16.318A4.486 4.486 0 0012.016 15a4.486 4.486 0 00-3.198 1.318M21 12a9 9 0 11-18 0 9 9 0 0118 0zM9.75 9.75c0 .414-.168.75-.375.75S9 10.164 9 9.75 9.168 9 9.375 9s.375.336.375.75zm-.375 0h.008v.015h-.008V9.75zm5.625 0c0 .414-.168.75-.375.75s-.375-.336-.375-.75.168-.75.375-.75.375.336.375.75zm-.375 0h.008v.015h-.008V9.75z" />
-                </svg>
-                <h2>Queue Empty!</h2>
-                <p>You've reached the end of your discovery queue. Check back later for new releases or adjust your preferences.</p>
-                <button class="btn btn-primary" style="margin-top: 1rem;" data-nav="home">
-                    Back to Home
-                </button>
-            </div>
+    handleStart(e) {
+        this.isDragging = true;
+        this.card.style.cursor = 'grabbing';
+        
+        const touch = e.type === 'touchstart' ? e.touches[0] : e;
+        this.startX = touch.clientX;
+        this.startY = touch.clientY;
+    }
+    
+    handleMove(e) {
+        if (!this.isDragging) return;
+        
+        e.preventDefault();
+        
+        const touch = e.type === 'touchmove' ? e.touches[0] : e;
+        this.currentX = touch.clientX - this.startX;
+        this.currentY = touch.clientY - this.startY;
+        
+        const rotation = this.currentX / 20;
+        
+        this.card.style.transform = `
+            translate(calc(-50% + ${this.currentX}px), calc(-50% + ${this.currentY}px))
+            rotate(${rotation}deg)
         `;
+        
+        this.updateOverlay();
+    }
+    
+    handleEnd(e) {
+        if (!this.isDragging) return;
+        
+        this.isDragging = false;
+        this.card.style.cursor = 'grab';
+        
+        const threshold = 100;
+        const action = this.getSwipeAction(this.currentX, this.currentY, threshold);
+        
+        if (action) {
+            this.animateSwipe(action);
+        } else {
+            this.resetPosition();
+        }
+    }
+    
+    handleKeyboard(e) {
+        const keyActions = {
+            'ArrowLeft': 'pass',
+            'ArrowDown': 'maybe',
+            'ArrowUp': 'like',
+            'ArrowRight': 'love'
+        };
+        
+        if (keyActions[e.key]) {
+            e.preventDefault();
+            this.handleAction(keyActions[e.key]);
+        }
+    }
+    
+    getSwipeAction(x, y, threshold) {
+        if (Math.abs(x) < threshold && Math.abs(y) < threshold) {
+            return null;
+        }
+        
+        if (Math.abs(x) > Math.abs(y)) {
+            return x > 0 ? 'love' : 'pass';
+        } else {
+            return y < 0 ? 'like' : 'maybe';
+        }
+    }
+    
+    updateOverlay() {
+        const overlays = {
+            love: this.card.querySelector('.swipe-overlay-love'),
+            like: this.card.querySelector('.swipe-overlay-like'),
+            maybe: this.card.querySelector('.swipe-overlay-maybe'),
+            nope: this.card.querySelector('.swipe-overlay-nope')
+        };
+        
+        Object.values(overlays).forEach(overlay => {
+            if (overlay) overlay.style.opacity = '0';
+        });
+        
+        const threshold = 50;
+        let activeOverlay = null;
+        
+        if (this.currentX > threshold) {
+            activeOverlay = overlays.love;
+        } else if (this.currentX < -threshold) {
+            activeOverlay = overlays.nope;
+        } else if (this.currentY < -threshold) {
+            activeOverlay = overlays.like;
+        } else if (this.currentY > threshold) {
+            activeOverlay = overlays.maybe;
+        }
+        
+        if (activeOverlay) {
+            const distance = Math.max(Math.abs(this.currentX), Math.abs(this.currentY));
+            const opacity = Math.min(distance / 200, 1);
+            activeOverlay.style.opacity = opacity.toString();
+        }
+    }
+    
+    resetPosition() {
+        this.card.style.transition = 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
+        this.card.style.transform = 'translate(-50%, -50%) rotate(0deg)';
+        
+        const overlays = this.card.querySelectorAll('.swipe-overlay');
+        overlays.forEach(overlay => {
+            overlay.style.opacity = '0';
+        });
+        
+        setTimeout(() => {
+            this.card.style.transition = '';
+            this.currentX = 0;
+            this.currentY = 0;
+        }, 300);
+    }
+    
+    animateSwipe(action) {
+        const directions = {
+            love: { x: 1000, y: 0 },
+            like: { x: 0, y: -1000 },
+            maybe: { x: 0, y: 1000 },
+            pass: { x: -1000, y: 0 }
+        };
+        
+        const direction = directions[action];
+        const rotation = action === 'love' ? 30 : action === 'pass' ? -30 : 0;
+        
+        this.card.style.transition = 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)';
+        this.card.style.transform = `
+            translate(calc(-50% + ${direction.x}px), calc(-50% + ${direction.y}px))
+            rotate(${rotation}deg)
+        `;
+        this.card.style.opacity = '0';
+        
+        setTimeout(() => {
+            this.handleAction(action);
+        }, 400);
+    }
+    
+    handleAction(action) {
+        console.log(`[SwipeCard] Action: ${action} for movie: ${this.movie.title}`);
+        
+        // Store swipe in history (LOCAL ONLY - no Firebase)
+        store.addSwipeToHistory({
+            movie: this.movie,
+            action: action,
+            timestamp: Date.now()
+        });
+        
+        document.dispatchEvent(new CustomEvent('swipe-action', {
+            detail: { movie: this.movie, action }
+        }));
+    }
+    
+    getPlatformStyle(platform) {
+        const styles = {
+            'Netflix': { icon: 'N', color: '#E50914' },
+            'Hulu': { icon: 'H', color: '#1CE783' },
+            'Prime Video': { icon: 'P', color: '#00A8E1' },
+            'Disney+': { icon: 'D', color: '#113CCF' },
+            'HBO Max': { icon: 'M', color: '#B200FF' },
+            'Apple TV+': { icon: 'A', color: '#000000' }
+        };
+        
+        return styles[platform] || { icon: '▶', color: '#6366f1' };
     }
     
     destroy() {
-        // Cleanup card
-        if (this.currentCard) {
-            this.currentCard.destroy();
-            this.currentCard = null;
+        if (this.card && this.card.parentNode) {
+            this.card.remove();
         }
         
-        // Remove keyboard listener
-        if (this.keyboardHandler) {
-            document.removeEventListener('keydown', this.keyboardHandler);
-            this.keyboardHandler = null;
-        }
+        document.removeEventListener('mousemove', this.handleMove.bind(this));
+        document.removeEventListener('mouseup', this.handleEnd.bind(this));
+        document.removeEventListener('touchmove', this.handleMove.bind(this));
+        document.removeEventListener('touchend', this.handleEnd.bind(this));
+        document.removeEventListener('keydown', this.handleKeyboard.bind(this));
     }
 }
