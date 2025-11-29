@@ -1,330 +1,353 @@
 /**
- * SwipeCard Component
- * Interactive swipeable movie card
+ * Swipe Card Component
+ * Interactive movie card with gesture controls
+ * DEBUG VERSION - Shows poster URL loading
  */
 
 import { store } from '../state/store.js';
-// REMOVED: import { firebaseService } from '../state/firebase.js';
-import { SWIPE_SCORES, getPlatformStyle } from '../utils/scoring.js';
-import { showSwipeToast, hapticFeedback, announce } from '../utils/notifications.js';
 
 export class SwipeCard {
-    constructor(movie, onSwipe, onShowDetails) {
-        this.movie = movie;
-        this.onSwipe = onSwipe;
-        this.onShowDetails = onShowDetails;
-        this.element = null;
+    constructor(container, movie) {
+        console.log('[SwipeCard] Constructor - Movie:', movie.title);
+        console.log('[SwipeCard] poster_path:', movie.poster_path);
+        console.log('[SwipeCard] backdrop_path:', movie.backdrop_path);
         
-        // Gesture state
-        this.isDragging = false;
+        this.container = container;
+        this.movie = movie;
+        this.card = null;
         this.startX = 0;
         this.startY = 0;
         this.currentX = 0;
         this.currentY = 0;
+        this.isDragging = false;
         
-        // Thresholds
-        this.SWIPE_THRESHOLD = 100;
-        this.LOVE_THRESHOLD = 150;
-    }
-    
-    /**
-     * Render the component
-     * @returns {HTMLElement} Card element
-     */
-    render() {
-        const card = document.createElement('div');
-        card.className = 'swipe-card entering';
-        card.id = `movie-card-${this.movie.id}`;
-        card.innerHTML = this.getTemplate();
-        
-        this.element = card;
+        this.render();
         this.attachListeners();
-        
-        return card;
     }
     
-    /**
-     * Get HTML template
-     * @returns {String} HTML template
-     */
-    getTemplate() {
-        const { icon, color } = getPlatformStyle(this.movie.platform);
+    render() {
+        const { icon, color } = this.getPlatformStyle(this.movie.platform);
         
-        return `
-            <!-- Overlays -->
-            <div class="swipe-overlay overlay-love">LOVE</div>
-            <div class="swipe-overlay overlay-like">LIKE</div>
-            <div class="swipe-overlay overlay-maybe">MAYBE</div>
-            <div class="swipe-overlay overlay-nope">NOPE</div>
-            
-            <!-- Poster Section -->
-            <div class="swipe-card-poster">
+        // FIXED: Use real TMDB poster URL
+        const posterUrl = this.movie.poster_path 
+            || this.movie.backdrop_path 
+            || `https://placehold.co/400x600/${color.replace('#', '')}/ffffff?text=${encodeURIComponent(this.movie.title)}`;
+        
+        console.log('[SwipeCard] Final poster URL:', posterUrl);
+        console.log('[SwipeCard] Platform:', this.movie.platform, 'Color:', color);
+        
+        this.card = document.createElement('div');
+        this.card.className = 'swipe-card';
+        this.card.style.cssText = `
+            position: absolute;
+            width: calc(100% - 3rem);
+            max-width: 450px;
+            aspect-ratio: 2/3;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            cursor: grab;
+            user-select: none;
+            touch-action: none;
+            z-index: 1;
+        `;
+        
+        this.card.innerHTML = `
+            <div style="position: relative; width: 100%; height: 100%; border-radius: 2rem; overflow: hidden; background: ${color}; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);">
+                
+                <!-- DEBUG: Show poster URL -->
+                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 100; background: rgba(0, 0, 0, 0.8); padding: 1rem; border-radius: 0.5rem; max-width: 80%; word-break: break-all; display: none;" class="debug-url">
+                    <div style="color: white; font-size: 0.75rem; margin-bottom: 0.5rem;">Poster URL:</div>
+                    <div style="color: #10b981; font-size: 0.625rem; font-family: monospace;">${posterUrl}</div>
+                </div>
+                
+                <!-- Poster Image -->
                 <img 
-                    src="https://placehold.co/400x300/${color.replace('#', '')}/${this.movie.id}" 
-                    alt="${this.movie.title} poster"
-                    loading="lazy"
-                    onerror="this.src='https://placehold.co/400x300/6b7280/ffffff?text=${encodeURIComponent(this.movie.title)}'"
+                    src="${posterUrl}" 
+                    alt="${this.movie.title}"
+                    style="width: 100%; height: 100%; object-fit: cover; display: block;"
+                    onerror="console.error('[SwipeCard] Image failed to load:', this.src); this.style.display='none'; this.parentElement.querySelector('.poster-fallback').style.display='flex'; this.parentElement.querySelector('.debug-url').style.display='block';"
+                    onload="console.log('[SwipeCard] Image loaded successfully:', this.src);"
+                    draggable="false"
                 >
                 
-                <!-- Badges -->
-                <div class="swipe-card-badges">
-                    <span class="badge badge-imdb">IMDb ${this.movie.imdb}</span>
-                    ${this.movie.rt ? `<span class="badge badge-rt">RT ${this.movie.rt}%</span>` : ''}
+                <!-- Fallback if poster fails to load -->
+                <div class="poster-fallback" style="display: none; position: absolute; inset: 0; align-items: center; justify-content: center; font-size: 8rem; opacity: 0.3; background: linear-gradient(135deg, ${color}, ${color}dd); flex-direction: column;">
+                    <div>🎬</div>
+                    <div style="font-size: 1rem; margin-top: 1rem; opacity: 0.8; color: white;">Poster failed to load</div>
                 </div>
                 
-                <!-- Platform -->
-                <div class="swipe-card-platform">
-                    <span class="platform-icon" style="background-color: ${color};">${icon}</span>
-                    <span class="text-white font-bold">Available on ${this.movie.platform}</span>
-                </div>
-            </div>
-            
-            <!-- Details Section -->
-            <div class="swipe-card-details">
-                <div class="swipe-card-title">
-                    <h2>${this.movie.title} (${this.movie.year})</h2>
-                    <button 
-                        class="btn btn-ghost btn-icon" 
-                        data-action="show-details"
-                        aria-label="More info about ${this.movie.title}">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 20px; height: 20px;">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
-                        </svg>
-                    </button>
-                </div>
+                <!-- Gradient Overlay -->
+                <div style="position: absolute; inset: 0; background: linear-gradient(0deg, rgba(0, 0, 0, 0.9) 0%, transparent 40%, rgba(0, 0, 0, 0.7) 100%); pointer-events: none;"></div>
                 
-                <div class="swipe-card-meta">
-                    ${this.movie.genre} • ${this.movie.runtime} • ${this.movie.type}
-                </div>
-                
-                <div class="swipe-card-synopsis">
-                    <p class="line-clamp-3">${this.movie.synopsis}</p>
-                </div>
-                
-                ${this.movie.trigger && this.movie.trigger.length > 0 ? `
-                    <div style="background-color: rgba(239, 68, 68, 0.2); padding: 0.75rem; border-radius: 0.5rem; border: 1px solid rgba(239, 68, 68, 0.5); margin-bottom: 0.75rem;">
-                        <p style="font-size: 0.75rem; font-weight: 600; color: #fca5a5; margin-bottom: 0.25rem;">
-                            ⚠️ Trigger Warnings:
-                        </p>
-                        <p style="font-size: 0.75rem; color: #fecaca;">
-                            ${this.movie.trigger.join(', ')}
-                        </p>
+                <!-- Top Info -->
+                <div style="position: absolute; top: 1.5rem; left: 1.5rem; right: 1.5rem; display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; pointer-events: none;">
+                    <div style="flex: 1; min-width: 0;">
+                        <div style="display: inline-block; padding: 0.375rem 0.875rem; background: rgba(251, 191, 36, 0.3); backdrop-filter: blur(10px); border: 1px solid rgba(251, 191, 36, 0.5); border-radius: 0.75rem; font-size: 0.875rem; font-weight: 700; color: #fbbf24; margin-bottom: 0.5rem; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);">
+                            IMDb ${this.movie.imdb || 'N/A'}
+                        </div>
                     </div>
-                ` : ''}
-                
-                ${this.movie.mood ? `
-                    <div style="background-color: rgba(255, 46, 99, 0.15); padding: 0.75rem; border-radius: 0.5rem; border: 1px solid rgba(255, 46, 99, 0.3);">
-                        <p style="font-size: 0.75rem; font-weight: 600; color: var(--color-primary); margin-bottom: 0.25rem;">
-                            ✨ Mood:
-                        </p>
-                        <p style="font-size: 0.75rem; color: var(--color-text-secondary);">
-                            ${this.movie.mood}
-                        </p>
+                    <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; background: rgba(10, 10, 15, 0.6); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 0.75rem; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);">
+                        <span style="width: 28px; height: 28px; border-radius: 50%; background: ${color}; display: flex; align-items: center; justify-content: center; font-size: 0.875rem; color: white; font-weight: 800; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);">${icon}</span>
+                        <span style="font-size: 0.875rem; font-weight: 600; color: white;">${this.movie.platform}</span>
                     </div>
-                ` : ''}
+                </div>
+                
+                <!-- Bottom Info -->
+                <div style="position: absolute; bottom: 0; left: 0; right: 0; padding: 2rem 1.5rem; pointer-events: none;">
+                    <h2 style="font-size: 1.75rem; font-weight: 800; color: white; margin: 0 0 0.5rem 0; line-height: 1.2; text-shadow: 0 4px 12px rgba(0, 0, 0, 0.8);">
+                        ${this.movie.title}
+                    </h2>
+                    <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; flex-wrap: wrap;">
+                        <span style="font-size: 0.875rem; color: rgba(255, 255, 255, 0.9); font-weight: 600;">${this.movie.year || 'N/A'}</span>
+                        <span style="width: 4px; height: 4px; border-radius: 50%; background: rgba(255, 255, 255, 0.5);"></span>
+                        <span style="font-size: 0.875rem; color: rgba(255, 255, 255, 0.9); font-weight: 600;">${this.movie.genre || 'Unknown'}</span>
+                        ${this.movie.runtime ? `
+                            <span style="width: 4px; height: 4px; border-radius: 50%; background: rgba(255, 255, 255, 0.5);"></span>
+                            <span style="font-size: 0.875rem; color: rgba(255, 255, 255, 0.9); font-weight: 600;">${this.movie.runtime}</span>
+                        ` : ''}
+                    </div>
+                    <p style="font-size: 0.875rem; color: rgba(255, 255, 255, 0.85); line-height: 1.6; margin: 0; max-height: 4.8em; overflow: hidden; text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);" class="line-clamp-3">
+                        ${this.movie.synopsis || 'No description available.'}
+                    </p>
+                    
+                    ${this.movie.triggerWarnings?.length ? `
+                        <div style="margin-top: 1rem; padding: 0.75rem 1rem; background: rgba(220, 38, 38, 0.2); backdrop-filter: blur(10px); border: 1px solid rgba(220, 38, 38, 0.4); border-radius: 0.75rem; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);">
+                            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
+                                <span style="font-size: 1rem;">⚠️</span>
+                                <span style="font-size: 0.75rem; font-weight: 700; color: #fca5a5; text-transform: uppercase; letter-spacing: 0.05em;">Trigger Warnings:</span>
+                            </div>
+                            <p style="font-size: 0.75rem; color: rgba(255, 255, 255, 0.8); margin: 0;">
+                                ${this.movie.triggerWarnings.join(', ')}
+                            </p>
+                        </div>
+                    ` : ''}
+                </div>
+                
+                <!-- Swipe Overlays -->
+                <div class="swipe-overlay swipe-overlay-love" style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, rgba(255, 0, 110, 0.9), rgba(217, 0, 98, 0.9)); opacity: 0; pointer-events: none; transition: opacity 0.2s;">
+                    <div style="font-size: 4rem; font-weight: 800; color: white; text-transform: uppercase; transform: rotate(-15deg); text-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); letter-spacing: 0.1em;">
+                        LOVE
+                    </div>
+                </div>
+                
+                <div class="swipe-overlay swipe-overlay-like" style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, rgba(16, 185, 129, 0.9), rgba(5, 150, 105, 0.9)); opacity: 0; pointer-events: none; transition: opacity 0.2s;">
+                    <div style="font-size: 4rem; font-weight: 800; color: white; text-transform: uppercase; transform: rotate(-15deg); text-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); letter-spacing: 0.1em;">
+                        LIKE
+                    </div>
+                </div>
+                
+                <div class="swipe-overlay swipe-overlay-maybe" style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, rgba(251, 191, 36, 0.9), rgba(245, 158, 11, 0.9)); opacity: 0; pointer-events: none; transition: opacity 0.2s;">
+                    <div style="font-size: 4rem; font-weight: 800; color: white; text-transform: uppercase; transform: rotate(-15deg); text-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); letter-spacing: 0.1em;">
+                        MAYBE
+                    </div>
+                </div>
+                
+                <div class="swipe-overlay swipe-overlay-nope" style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, rgba(239, 68, 68, 0.9), rgba(220, 38, 38, 0.9)); opacity: 0; pointer-events: none; transition: opacity 0.2s;">
+                    <div style="font-size: 4rem; font-weight: 800; color: white; text-transform: uppercase; transform: rotate(-15deg); text-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); letter-spacing: 0.1em;">
+                        NOPE
+                    </div>
+                </div>
             </div>
         `;
+        
+        this.container.appendChild(this.card);
+        console.log('[SwipeCard] Card element appended to container');
     }
     
-    /**
-     * Attach event listeners
-     */
     attachListeners() {
-        if (!this.element) return;
-        
-        // Touch/mouse events for swiping
-        this.element.addEventListener('mousedown', this.handleStart.bind(this));
-        this.element.addEventListener('touchstart', this.handleStart.bind(this), { passive: true });
-        
+        // Mouse events
+        this.card.addEventListener('mousedown', this.handleStart.bind(this));
         document.addEventListener('mousemove', this.handleMove.bind(this));
-        document.addEventListener('touchmove', this.handleMove.bind(this), { passive: false });
-        
         document.addEventListener('mouseup', this.handleEnd.bind(this));
+        
+        // Touch events
+        this.card.addEventListener('touchstart', this.handleStart.bind(this));
+        document.addEventListener('touchmove', this.handleMove.bind(this));
         document.addEventListener('touchend', this.handleEnd.bind(this));
-        document.addEventListener('touchcancel', this.handleEnd.bind(this));
         
-        // Details button
-        const detailsBtn = this.element.querySelector('[data-action="show-details"]');
-        if (detailsBtn) {
-            detailsBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.onShowDetails(this.movie);
-            });
-        }
+        // Keyboard events
+        document.addEventListener('keydown', this.handleKeyboard.bind(this));
     }
     
-    /**
-     * Handle gesture start
-     * @param {Event} e - Event object
-     */
     handleStart(e) {
-        if (e.target.closest('button')) return; // Don't start drag on buttons
-        
         this.isDragging = true;
-        this.startX = e.type.includes('mouse') ? e.clientX : e.touches[0].clientX;
-        this.startY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
+        this.card.style.cursor = 'grabbing';
         
-        this.element.style.transition = 'none';
-        this.element.classList.remove('entering');
+        const touch = e.type === 'touchstart' ? e.touches[0] : e;
+        this.startX = touch.clientX;
+        this.startY = touch.clientY;
     }
     
-    /**
-     * Handle gesture move
-     * @param {Event} e - Event object
-     */
     handleMove(e) {
         if (!this.isDragging) return;
         
-        this.currentX = e.type.includes('mouse') ? e.clientX : e.touches[0].clientX;
-        this.currentY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
+        e.preventDefault();
         
-        const deltaX = this.currentX - this.startX;
-        const deltaY = this.currentY - this.startY;
+        const touch = e.type === 'touchmove' ? e.touches[0] : e;
+        this.currentX = touch.clientX - this.startX;
+        this.currentY = touch.clientY - this.startY;
         
-        // Prevent default on touch move to prevent scrolling
-        if (Math.abs(deltaX) > 10) {
-            e.preventDefault();
-        }
+        const rotation = this.currentX / 20;
         
-        // Apply transform
-        const rotation = (deltaX / 300) * 15;
-        this.element.style.transform = `translateX(${deltaX}px) translateY(${deltaY * 0.3}px) rotate(${rotation}deg)`;
+        this.card.style.transform = `
+            translate(calc(-50% + ${this.currentX}px), calc(-50% + ${this.currentY}px))
+            rotate(${rotation}deg)
+        `;
         
-        // Update overlays
-        this.updateOverlays(deltaX);
+        this.updateOverlay();
     }
     
-    /**
-     * Handle gesture end
-     * @param {Event} e - Event object
-     */
     handleEnd(e) {
         if (!this.isDragging) return;
         
         this.isDragging = false;
-        this.element.style.transition = 'transform 0.3s ease-out, opacity 0.3s ease-out';
+        this.card.style.cursor = 'grab';
         
-        const deltaX = this.currentX - this.startX;
+        const threshold = 100;
+        const action = this.getSwipeAction(this.currentX, this.currentY, threshold);
         
-        // Hide all overlays
-        this.hideAllOverlays();
-        
-        // Determine action based on swipe distance
-        if (deltaX > this.LOVE_THRESHOLD) {
-            this.executeSwipe('love');
-        } else if (deltaX > this.SWIPE_THRESHOLD) {
-            this.executeSwipe('like');
-        } else if (deltaX < -this.LOVE_THRESHOLD) {
-            this.executeSwipe('pass');
-        } else if (deltaX < -this.SWIPE_THRESHOLD) {
-            this.executeSwipe('maybe');
+        if (action) {
+            this.animateSwipe(action);
         } else {
-            // Reset position
-            this.element.style.transform = 'translateX(0) translateY(0) rotate(0)';
+            this.resetPosition();
         }
     }
     
-    /**
-     * Update overlay visibility based on drag distance
-     * @param {Number} deltaX - Horizontal distance
-     */
-    updateOverlays(deltaX) {
-        const overlays = {
-            love: this.element.querySelector('.overlay-love'),
-            like: this.element.querySelector('.overlay-like'),
-            maybe: this.element.querySelector('.overlay-maybe'),
-            nope: this.element.querySelector('.overlay-nope')
+    handleKeyboard(e) {
+        const keyActions = {
+            'ArrowLeft': 'pass',
+            'ArrowDown': 'maybe',
+            'ArrowUp': 'like',
+            'ArrowRight': 'love'
         };
         
-        // Hide all first
-        Object.values(overlays).forEach(o => {
-            o.style.opacity = '0';
-            o.style.transform = '';
-        });
-        
-        const opacity = Math.min(Math.abs(deltaX) / this.SWIPE_THRESHOLD * 2, 1);
-        
-        if (deltaX > 20) {
-            if (deltaX > this.LOVE_THRESHOLD) {
-                overlays.love.style.opacity = opacity;
-                overlays.love.style.transform = `rotate(-25deg) scale(${0.8 + 0.2 * opacity})`;
-            } else {
-                overlays.like.style.opacity = opacity;
-                overlays.like.style.transform = `rotate(-25deg) scale(${0.8 + 0.2 * opacity})`;
-            }
-        } else if (deltaX < -20) {
-            if (deltaX < -this.LOVE_THRESHOLD) {
-                overlays.nope.style.opacity = opacity;
-                overlays.nope.style.transform = `rotate(25deg) scale(${0.8 + 0.2 * opacity})`;
-            } else {
-                overlays.maybe.style.opacity = opacity;
-                overlays.maybe.style.transform = `rotate(25deg) scale(${0.8 + 0.2 * opacity})`;
-            }
+        if (keyActions[e.key]) {
+            e.preventDefault();
+            this.handleAction(keyActions[e.key]);
         }
     }
     
-    /**
-     * Hide all overlays
-     */
-    hideAllOverlays() {
-        const overlays = this.element.querySelectorAll('.swipe-overlay');
-        overlays.forEach(overlay => {
-            overlay.style.opacity = '0';
-            overlay.style.transform = '';
-        });
+    getSwipeAction(x, y, threshold) {
+        if (Math.abs(x) < threshold && Math.abs(y) < threshold) {
+            return null;
+        }
+        
+        if (Math.abs(x) > Math.abs(y)) {
+            return x > 0 ? 'love' : 'pass';
+        } else {
+            return y < 0 ? 'like' : 'maybe';
+        }
     }
     
-    /**
-     * Execute swipe action
-     * @param {String} action - Swipe action (love, like, maybe, pass)
-     */
-    async executeSwipe(action) {
-        // Haptic feedback
-        hapticFeedback(action === 'love' ? 'heavy' : 'medium');
+    updateOverlay() {
+        const overlays = {
+            love: this.card.querySelector('.swipe-overlay-love'),
+            like: this.card.querySelector('.swipe-overlay-like'),
+            maybe: this.card.querySelector('.swipe-overlay-maybe'),
+            nope: this.card.querySelector('.swipe-overlay-nope')
+        };
         
-        // Announce to screen readers
-        announce(`${action.toUpperCase()}: ${this.movie.title}`, 'polite');
-        
-        // Animate card exit
-        const exitDirection = (action === 'pass' || action === 'maybe') ? '-200vw' : '200vw';
-        const exitRotation = (action === 'pass' || action === 'maybe') ? '-25deg' : '25deg';
-        
-        this.element.style.transform = `translateX(${exitDirection}) rotate(${exitRotation})`;
-        this.element.style.opacity = '0';
-        
-        // Save to history
-        store.addSwipeToHistory({
-            index: store.get('currentMovieIndex'),
-            movie: this.movie,
-            action,
-            timestamp: Date.now()
+        Object.values(overlays).forEach(overlay => {
+            if (overlay) overlay.style.opacity = '0';
         });
         
-        // FIREBASE REMOVED - Just save to local store
-        console.log('[SwipeCard] Swipe saved to local store:', action);
+        const threshold = 50;
+        let activeOverlay = null;
         
-        // Trigger callback
+        if (this.currentX > threshold) {
+            activeOverlay = overlays.love;
+        } else if (this.currentX < -threshold) {
+            activeOverlay = overlays.nope;
+        } else if (this.currentY < -threshold) {
+            activeOverlay = overlays.like;
+        } else if (this.currentY > threshold) {
+            activeOverlay = overlays.maybe;
+        }
+        
+        if (activeOverlay) {
+            const distance = Math.max(Math.abs(this.currentX), Math.abs(this.currentY));
+            const opacity = Math.min(distance / 200, 1);
+            activeOverlay.style.opacity = opacity.toString();
+        }
+    }
+    
+    resetPosition() {
+        this.card.style.transition = 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
+        this.card.style.transform = 'translate(-50%, -50%) rotate(0deg)';
+        
+        const overlays = this.card.querySelectorAll('.swipe-overlay');
+        overlays.forEach(overlay => {
+            overlay.style.opacity = '0';
+        });
+        
         setTimeout(() => {
-            this.onSwipe(action, this.movie);
+            this.card.style.transition = '';
+            this.currentX = 0;
+            this.currentY = 0;
+        }, 300);
+    }
+    
+    animateSwipe(action) {
+        const directions = {
+            love: { x: 1000, y: 0 },
+            like: { x: 0, y: -1000 },
+            maybe: { x: 0, y: 1000 },
+            pass: { x: -1000, y: 0 }
+        };
+        
+        const direction = directions[action];
+        const rotation = action === 'love' ? 30 : action === 'pass' ? -30 : 0;
+        
+        this.card.style.transition = 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)';
+        this.card.style.transform = `
+            translate(calc(-50% + ${direction.x}px), calc(-50% + ${direction.y}px))
+            rotate(${rotation}deg)
+        `;
+        this.card.style.opacity = '0';
+        
+        setTimeout(() => {
+            this.handleAction(action);
         }, 400);
     }
     
-    /**
-     * Programmatically trigger swipe
-     * @param {String} action - Swipe action
-     */
-    swipe(action) {
-        this.executeSwipe(action);
+    handleAction(action) {
+        console.log(`[SwipeCard] Action: ${action} for movie: ${this.movie.title}`);
+        
+        // Store swipe in history (LOCAL ONLY - no Firebase)
+        store.addSwipeToHistory({
+            movie: this.movie,
+            action: action,
+            timestamp: Date.now()
+        });
+        
+        document.dispatchEvent(new CustomEvent('swipe-action', {
+            detail: { movie: this.movie, action }
+        }));
     }
     
-    /**
-     * Destroy component and cleanup
-     */
+    getPlatformStyle(platform) {
+        const styles = {
+            'Netflix': { icon: 'N', color: '#E50914' },
+            'Hulu': { icon: 'H', color: '#1CE783' },
+            'Prime Video': { icon: 'P', color: '#00A8E1' },
+            'Disney+': { icon: 'D', color: '#113CCF' },
+            'HBO Max': { icon: 'M', color: '#B200FF' },
+            'Apple TV+': { icon: 'A', color: '#000000' }
+        };
+        
+        return styles[platform] || { icon: '▶', color: '#6366f1' };
+    }
+    
     destroy() {
-        // Remove event listeners
-        // (In a production app, you'd store references and remove them)
-        if (this.element) {
-            this.element.remove();
+        if (this.card && this.card.parentNode) {
+            this.card.remove();
         }
+        
+        document.removeEventListener('mousemove', this.handleMove.bind(this));
+        document.removeEventListener('mouseup', this.handleEnd.bind(this));
+        document.removeEventListener('touchmove', this.handleMove.bind(this));
+        document.removeEventListener('touchend', this.handleEnd.bind(this));
+        document.removeEventListener('keydown', this.handleKeyboard.bind(this));
     }
 }
