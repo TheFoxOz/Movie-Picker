@@ -14,23 +14,20 @@ export class LibraryTab {
         this.selectedGenre = 'all';
         this.selectedPlatform = 'all';
         this.sortBy = 'title';
-        this.viewMode = 'grid'; // 'grid' or 'list'
+        this.viewMode = 'grid';
     }
     
     render() {
         const movies = store.get('movies');
         const swipeHistory = store.get('swipeHistory');
         
-        // Get unique genres and platforms
         const genres = this.extractUniqueGenres(movies);
         const platforms = this.extractUniquePlatforms(movies);
         
-        // Filter and sort movies
         const filteredMovies = this.filterAndSortMovies(movies);
         
         this.container.innerHTML = `
             <div class="container" style="padding: 1.5rem;">
-                <!-- Header -->
                 <div style="margin-bottom: 1.5rem;">
                     <h1 style="margin-bottom: 0.5rem;">Movie Library</h1>
                     <p style="color: var(--color-text-secondary);">
@@ -38,7 +35,6 @@ export class LibraryTab {
                     </p>
                 </div>
                 
-                <!-- Search Bar -->
                 <div style="margin-bottom: 1rem;">
                     <div style="position: relative;">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); width: 20px; height: 20px; color: var(--color-text-secondary);">
@@ -54,9 +50,7 @@ export class LibraryTab {
                     </div>
                 </div>
                 
-                <!-- Filters & Controls -->
                 <div style="display: flex; gap: 0.75rem; margin-bottom: 1.5rem; overflow-x: auto; padding-bottom: 0.5rem;">
-                    <!-- Genre Filter -->
                     <select id="genre-filter" style="padding: 0.5rem 1rem; border-radius: 0.5rem; background: var(--color-bg-card); border: 1px solid var(--color-border); color: var(--color-text-primary); font-size: 0.875rem; min-width: 120px;">
                         <option value="all">All Genres</option>
                         ${genres.map(genre => `
@@ -64,7 +58,6 @@ export class LibraryTab {
                         `).join('')}
                     </select>
                     
-                    <!-- Platform Filter -->
                     <select id="platform-filter" style="padding: 0.5rem 1rem; border-radius: 0.5rem; background: var(--color-bg-card); border: 1px solid var(--color-border); color: var(--color-text-primary); font-size: 0.875rem; min-width: 140px;">
                         <option value="all">All Platforms</option>
                         ${platforms.map(platform => `
@@ -72,7 +65,6 @@ export class LibraryTab {
                         `).join('')}
                     </select>
                     
-                    <!-- Sort -->
                     <select id="sort-by" style="padding: 0.5rem 1rem; border-radius: 0.5rem; background: var(--color-bg-card); border: 1px solid var(--color-border); color: var(--color-text-primary); font-size: 0.875rem; min-width: 140px;">
                         <option value="title" ${this.sortBy === 'title' ? 'selected' : ''}>Title (A-Z)</option>
                         <option value="year" ${this.sortBy === 'year' ? 'selected' : ''}>Year (Newest)</option>
@@ -80,7 +72,6 @@ export class LibraryTab {
                         <option value="platform" ${this.sortBy === 'platform' ? 'selected' : ''}>Platform</option>
                     </select>
                     
-                    <!-- View Toggle -->
                     <div style="display: flex; gap: 0.25rem; background: var(--color-bg-card); border: 1px solid var(--color-border); border-radius: 0.5rem; padding: 0.25rem;">
                         <button 
                             class="view-toggle ${this.viewMode === 'grid' ? 'active' : ''}" 
@@ -102,7 +93,6 @@ export class LibraryTab {
                         </button>
                     </div>
                     
-                    <!-- Clear Filters -->
                     ${this.hasActiveFilters() ? `
                         <button 
                             id="clear-filters"
@@ -113,12 +103,10 @@ export class LibraryTab {
                     ` : ''}
                 </div>
                 
-                <!-- Quick Stats -->
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem;">
                     ${this.getQuickStats(movies, swipeHistory)}
                 </div>
                 
-                <!-- Movie Grid/List -->
                 <div id="movie-container">
                     ${this.renderMovies(filteredMovies)}
                 </div>
@@ -132,7 +120,6 @@ export class LibraryTab {
         const genreSet = new Set();
         movies.forEach(movie => {
             if (movie.genre) {
-                // Split multiple genres (e.g., "Action / Thriller")
                 movie.genre.split(/[,/]/).forEach(g => {
                     genreSet.add(g.trim());
                 });
@@ -154,7 +141,6 @@ export class LibraryTab {
     filterAndSortMovies(movies) {
         let filtered = [...movies];
         
-        // Search filter
         if (this.searchQuery) {
             const query = this.searchQuery.toLowerCase();
             filtered = filtered.filter(movie => {
@@ -166,21 +152,18 @@ export class LibraryTab {
             });
         }
         
-        // Genre filter
         if (this.selectedGenre !== 'all') {
             filtered = filtered.filter(movie => 
                 movie.genre?.includes(this.selectedGenre)
             );
         }
         
-        // Platform filter
         if (this.selectedPlatform !== 'all') {
             filtered = filtered.filter(movie => 
                 movie.platform === this.selectedPlatform
             );
         }
         
-        // Sort
         filtered.sort((a, b) => {
             switch (this.sortBy) {
                 case 'title':
@@ -263,25 +246,21 @@ export class LibraryTab {
         
         return `
             <div class="card" style="padding: 0; overflow: hidden; cursor: pointer; position: relative;" data-movie-id="${movie.id}">
-                <!-- Swipe Badge -->
                 ${userSwipe ? `
                     <div style="position: absolute; top: 0.5rem; right: 0.5rem; z-index: 2; padding: 0.25rem 0.5rem; background: ${this.getSwipeBadgeColor(userSwipe.action)}; border-radius: 0.375rem; font-size: 0.625rem; font-weight: 700; color: white; text-transform: uppercase;">
                         ${userSwipe.action}
                     </div>
                 ` : ''}
                 
-                <!-- Poster -->
                 <div style="width: 100%; aspect-ratio: 2/3; background: linear-gradient(135deg, ${color}, ${color}dd); position: relative; overflow: hidden;">
                     <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 4rem; opacity: 0.3;">
                         🎬
                     </div>
-                    <!-- Platform Badge -->
                     <div style="position: absolute; bottom: 0.5rem; left: 0.5rem; width: 24px; height: 24px; border-radius: 50%; background: ${color}; display: flex; align-items: center; justify-content: center; font-size: 0.625rem; color: white; font-weight: 800; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">
                         ${icon}
                     </div>
                 </div>
                 
-                <!-- Info -->
                 <div style="padding: 0.75rem;">
                     <h3 style="font-size: 0.875rem; font-weight: 600; margin-bottom: 0.25rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${movie.title}">
                         ${movie.title}
@@ -315,7 +294,6 @@ export class LibraryTab {
         return `
             <div class="card" style="padding: 0; overflow: hidden; cursor: pointer;" data-movie-id="${movie.id}">
                 <div style="display: flex; gap: 1rem;">
-                    <!-- Poster -->
                     <div style="width: 80px; height: 120px; background: linear-gradient(135deg, ${color}, ${color}dd); flex-shrink: 0; position: relative;">
                         <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 2rem; opacity: 0.3;">
                             🎬
@@ -327,7 +305,6 @@ export class LibraryTab {
                         ` : ''}
                     </div>
                     
-                    <!-- Info -->
                     <div style="flex: 1; padding: 0.75rem 0.75rem 0.75rem 0; min-width: 0;">
                         <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 0.25rem;">
                             ${movie.title}
@@ -367,7 +344,6 @@ export class LibraryTab {
     }
     
     attachListeners() {
-        // Search input
         const searchInput = document.getElementById('library-search');
         if (searchInput) {
             searchInput.addEventListener('input', (e) => {
@@ -376,7 +352,6 @@ export class LibraryTab {
             });
         }
         
-        // Genre filter
         const genreFilter = document.getElementById('genre-filter');
         if (genreFilter) {
             genreFilter.addEventListener('change', (e) => {
@@ -385,7 +360,6 @@ export class LibraryTab {
             });
         }
         
-        // Platform filter
         const platformFilter = document.getElementById('platform-filter');
         if (platformFilter) {
             platformFilter.addEventListener('change', (e) => {
@@ -394,7 +368,6 @@ export class LibraryTab {
             });
         }
         
-        // Sort
         const sortBy = document.getElementById('sort-by');
         if (sortBy) {
             sortBy.addEventListener('change', (e) => {
@@ -403,7 +376,6 @@ export class LibraryTab {
             });
         }
         
-        // View toggle
         const viewToggles = this.container.querySelectorAll('.view-toggle');
         viewToggles.forEach(toggle => {
             toggle.addEventListener('click', () => {
@@ -412,7 +384,6 @@ export class LibraryTab {
             });
         });
         
-        // Clear filters
         const clearFilters = document.getElementById('clear-filters');
         if (clearFilters) {
             clearFilters.addEventListener('click', () => {
@@ -424,7 +395,6 @@ export class LibraryTab {
             });
         }
         
-        // Movie cards
         const movieCards = this.container.querySelectorAll('[data-movie-id]');
         movieCards.forEach(card => {
             card.addEventListener('click', () => {
@@ -439,7 +409,6 @@ export class LibraryTab {
     }
     
     destroy() {
-        // Reset filters on tab switch
         this.searchQuery = '';
         this.selectedGenre = 'all';
         this.selectedPlatform = 'all';
