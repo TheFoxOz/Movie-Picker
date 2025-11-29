@@ -64,7 +64,27 @@ export class HomeTab {
                     </div>
                 </div>
 
-                <!-- BECAUSE YOU LOVED -->
+                <!-- YOUR LIKED/LOVED MOVIES -->
+                ${lovedMovies.length > 0 ? `
+                    <div style="padding: 0 1.5rem; margin-bottom: 3rem;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <div style="width: 4px; height: 24px; background: linear-gradient(180deg, #ff006e, #d90062); border-radius: 2px;"></div>
+                                <h2 style="font-size: 1.25rem; font-weight: 700; color: white; margin: 0;">
+                                    Your Favorites
+                                </h2>
+                            </div>
+                            <span style="font-size: 0.75rem; color: rgba(255, 0, 110, 0.8); font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em;">
+                                ${lovedMovies.length} movies
+                            </span>
+                        </div>
+                        <div style="display: flex; gap: 1rem; overflow-x: auto; padding-bottom: 1rem; -webkit-overflow-scrolling: touch; scrollbar-width: none;">
+                            ${lovedMovies.map(movie => this.renderLovedCard(movie)).join('')}
+                        </div>
+                    </div>
+                ` : ''}
+                
+                <!-- BECAUSE YOU LOVED (Recommendations) -->
                 ${lovedMovies.length > 0 ? `
                     <div style="padding: 0 1.5rem; margin-bottom: 3rem;">
                         <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">
@@ -74,7 +94,7 @@ export class HomeTab {
                             </h2>
                         </div>
                         <div style="display: flex; gap: 1rem; overflow-x: auto; padding-bottom: 1rem; -webkit-overflow-scrolling: touch; scrollbar-width: none;">
-                            ${lovedMovies.map(movie => this.renderLovedCard(movie)).join('')}
+                            ${this.getRecommendations(lovedMovies, movies, swipeHistory).map(movie => this.renderRecommendationCard(movie)).join('')}
                         </div>
                     </div>
                 ` : ''}
@@ -187,9 +207,66 @@ export class HomeTab {
                     <h4 style="font-size: 0.875rem; font-weight: 700; color: white; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                         ${movie.title}
                     </h4>
+                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.25rem;">
+                        <span style="font-size: 0.75rem; color: rgba(255, 255, 255, 0.7);">${movie.year}</span>
+                        <span style="padding: 0.125rem 0.5rem; background: rgba(251, 191, 36, 0.3); border-radius: 0.375rem; font-size: 0.625rem; font-weight: 700; color: #fbbf24;">
+                            ⭐ ${movie.imdb}
+                        </span>
+                    </div>
                 </div>
             </div>
         `;
+    }
+    
+    renderRecommendationCard(movie) {
+        const posterUrl = movie.poster_path || `https://placehold.co/300x450/1a1a2e/ffffff?text=${encodeURIComponent(movie.title)}`;
+        const matchPercent = Math.floor(85 + Math.random() * 15); // 85-100% match
+        
+        return `
+            <div data-movie-id="${movie.id}" style="position: relative; flex-shrink: 0; width: 160px; cursor: pointer; transition: transform 0.3s; border-radius: 1rem; overflow: hidden; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                <img 
+                    src="${posterUrl}" 
+                    alt="${movie.title}"
+                    style="width: 100%; height: 240px; object-fit: cover;"
+                >
+                <div style="position: absolute; top: 0.5rem; left: 0.5rem; padding: 0.25rem 0.75rem; background: rgba(16, 185, 129, 0.9); backdrop-filter: blur(10px); border-radius: 0.5rem; font-size: 0.75rem; font-weight: 700; color: white; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.5);">
+                    ${matchPercent}% Match
+                </div>
+                <div style="position: absolute; bottom: 0; left: 0; right: 0; padding: 1rem 0.75rem; background: linear-gradient(0deg, rgba(0, 0, 0, 0.95), transparent);">
+                    <h4 style="font-size: 0.875rem; font-weight: 700; color: white; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                        ${movie.title}
+                    </h4>
+                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.25rem;">
+                        <span style="font-size: 0.75rem; color: rgba(255, 255, 255, 0.7);">${movie.year}</span>
+                        <span style="padding: 0.125rem 0.5rem; background: rgba(251, 191, 36, 0.3); border-radius: 0.375rem; font-size: 0.625rem; font-weight: 700; color: #fbbf24;">
+                            ⭐ ${movie.imdb}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    getRecommendations(lovedMovies, allMovies, swipeHistory) {
+        // Get genres from loved movies
+        const lovedGenres = lovedMovies
+            .flatMap(m => (m.genre || '').split(/[,/]/).map(g => g.trim()))
+            .filter(Boolean);
+        
+        // Get swiped movie IDs
+        const swipedIds = new Set(swipeHistory.map(s => s.movie?.id).filter(Boolean));
+        
+        // Find similar movies based on genre
+        const recommendations = allMovies
+            .filter(m => !swipedIds.has(m.id)) // Not swiped
+            .filter(m => {
+                const movieGenres = (m.genre || '').split(/[,/]/).map(g => g.trim());
+                return movieGenres.some(g => lovedGenres.includes(g));
+            })
+            .sort((a, b) => (b.imdb || 0) - (a.imdb || 0)) // Sort by rating
+            .slice(0, 5); // Top 5
+        
+        return recommendations;
     }
     
     renderTopPickCard(movie) {
