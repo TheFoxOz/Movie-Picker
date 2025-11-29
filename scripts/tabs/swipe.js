@@ -128,7 +128,6 @@ export class SwipeTab {
     loadNextCard() {
         const movies = store.get('movies');
         const swipeHistory = store.get('swipeHistory');
-        const currentMovie = store.get('currentMovie');
         
         // Get unswiped movies
         const swipedIds = new Set(swipeHistory.map(s => s.movie?.id).filter(Boolean));
@@ -139,12 +138,13 @@ export class SwipeTab {
             return;
         }
         
-        // Load next movie
-        const nextMovie = currentMovie && !swipedIds.has(currentMovie.id) 
-            ? currentMovie 
-            : unswipedMovies[0];
+        // Get next movie (first unswiped)
+        const nextMovie = unswipedMovies[0];
         
-        store.set('currentMovie', nextMovie);
+        // Update current movie in store using updateCurrentMovie method
+        if (store.updateCurrentMovie) {
+            store.updateCurrentMovie(nextMovie);
+        }
         
         // Create new card
         const container = this.container.querySelector('#swipe-card-container');
