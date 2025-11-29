@@ -1,10 +1,9 @@
 /**
- * Main Application Entry Point
+ * Main Application Entry Point (NO FIREBASE VERSION)
  * Initializes and coordinates all app modules
  */
 
 import { store } from './state/store.js';
-import { firebaseService } from './state/firebase.js';
 import { initNotifications, showError } from './utils/notifications.js';
 import { SwipeTab } from './tabs/swipe.js';
 import { HomeTab } from './tabs/home.js';
@@ -35,8 +34,8 @@ class App {
             // Initialize notification system
             initNotifications();
             
-            // Initialize Firebase
-            await this.initFirebase();
+            // FIREBASE DISABLED - Use guest mode
+            await this.initGuestMode();
             
             // Initialize TMDB Service
             await this.initTMDB();
@@ -67,7 +66,7 @@ class App {
             // Mark as initialized
             store.setState({ isInitialized: true });
             
-            console.log('[App] Initialization complete');
+            console.log('[App] Initialization complete (Guest Mode)');
             
         } catch (error) {
             console.error('[App] Initialization failed:', error);
@@ -76,77 +75,20 @@ class App {
     }
     
     /**
-     * Initialize Firebase
+     * Initialize Guest Mode (Firebase Disabled)
      */
-    async initFirebase() {
-        // Set a timeout for Firebase initialization
-        const initWithTimeout = Promise.race([
-            this._initFirebaseCore(),
-            new Promise(resolve => setTimeout(() => {
-                console.warn('[App] Firebase initialization timeout - continuing without Firebase');
-                resolve(false);
-            }, 5000))
-        ]);
+    async initGuestMode() {
+        // Create a guest user ID
+        const guestId = 'guest-' + crypto.randomUUID().substring(0, 8);
         
-        try {
-            await initWithTimeout;
-        } catch (error) {
-            console.error('[App] Firebase initialization failed:', error);
-            // Continue with guest mode
-            const guestId = 'guest-' + crypto.randomUUID().substring(0, 8);
-            store.setState({
-                userId: guestId,
-                isAuthenticated: false
-            });
-        }
-    }
-    
-    /**
-     * Core Firebase initialization logic
-     */
-    async _initFirebaseCore() {
-        try {
-            // Get Firebase config from global variables
-            const appId = typeof __app_id !== 'undefined' ? __app_id : 'movie-picker-app';
-            const firebaseConfig = typeof __firebase_config !== 'undefined' 
-                ? JSON.parse(__firebase_config) 
-                : {};
-            const authToken = typeof __initial_auth_token !== 'undefined' 
-                ? __initial_auth_token 
-                : null;
-            
-            // Only initialize if config exists
-            if (Object.keys(firebaseConfig).length > 0) {
-                await firebaseService.initialize(firebaseConfig, appId, authToken);
-                
-                // Update store with user info
-                store.setState({
-                    userId: firebaseService.getUserId() || 'guest-' + crypto.randomUUID().substring(0, 8),
-                    appId: appId,
-                    isAuthenticated: firebaseService.userId ? true : false
-                });
-                
-                console.log('[App] Firebase initialized');
-            } else {
-                // No Firebase config - use guest mode
-                const guestId = 'guest-' + crypto.randomUUID().substring(0, 8);
-                store.setState({
-                    userId: guestId,
-                    appId: appId,
-                    isAuthenticated: false
-                });
-                
-                console.log('[App] Running in guest mode (no Firebase config)');
-            }
-        } catch (error) {
-            console.error('[App] Firebase initialization failed:', error);
-            // Continue with guest mode
-            const guestId = 'guest-' + crypto.randomUUID().substring(0, 8);
-            store.setState({
-                userId: guestId,
-                isAuthenticated: false
-            });
-        }
+        store.setState({
+            userId: guestId,
+            appId: 'movie-picker-app',
+            isAuthenticated: false
+        });
+        
+        console.log('[App] Running in guest mode (Firebase disabled)');
+        console.log('[App] User ID:', guestId);
     }
     
     /**
@@ -366,63 +308,64 @@ class App {
     }
     
     /**
-     * Initialize tab instances
+     * Initialize tabs
      */
     initTabs() {
-        this.tabs.set('home', new HomeTab(this.contentArea));
-        this.tabs.set('library', new LibraryTab(this.contentArea));
-        this.tabs.set('swipe', new SwipeTab(this.contentArea));
-        this.tabs.set('matches', new MatchesTab(this.contentArea));
-        this.tabs.set('profile', new ProfileTab(this.contentArea));
+        this.tabs.set('home', new HomeTab());
+        this.tabs.set('library', new LibraryTab());
+        this.tabs.set('swipe', new SwipeTab());
+        this.tabs.set('matches', new MatchesTab());
+        this.tabs.set('profile', new ProfileTab());
+        
+        console.log('[App] Tabs initialized');
     }
     
     /**
-     * Setup navigation listeners
+     * Setup navigation handlers
      */
     setupNavigation() {
         const navButtons = this.navBar.querySelectorAll('.nav-item');
         
         navButtons.forEach(button => {
-            button.addEventListener('click', () => {
-                const tabName = button.dataset.tab;
+            button.addEventListener('click', (e) => {
+                const tabName = button.getAttribute('data-tab');
                 this.navigateToTab(tabName);
             });
         });
     }
     
     /**
-     * Navigate to a tab
-     * @param {String} tabName - Tab identifier
+     * Navigate to a specific tab
      */
     navigateToTab(tabName) {
-        if (this.currentTab === tabName) return;
-        
-        // Destroy previous tab if needed
-        const prevTab = this.tabs.get(this.currentTab);
-        if (prevTab && typeof prevTab.destroy === 'function') {
-            prevTab.destroy();
+        // Hide current tab if exists
+        if (this.currentTab) {
+            const currentTabInstance = this.tabs.get(this.currentTab);
+            if (currentTabInstance && currentTabInstance.destroy) {
+                currentTabInstance.destroy();
+            }
         }
         
         // Update active state in nav
         const navButtons = this.navBar.querySelectorAll('.nav-item');
         navButtons.forEach(button => {
-            const isActive = button.dataset.tab === tabName;
-            button.classList.toggle('active', isActive);
+            if (button.getAttribute('data-tab') === tabName) {
+                button.classList.add('active');
+            } else {
+                button.classList.remove('active');
+            }
         });
         
         // Render new tab
         const tab = this.tabs.get(tabName);
-        if (tab && typeof tab.render === 'function') {
-            this.contentArea.classList.add('page-entering');
-            tab.render();
+        if (tab) {
+            this.contentArea.innerHTML = '';
+            tab.render(this.contentArea);
+            this.currentTab = tabName;
             
-            setTimeout(() => {
-                this.contentArea.classList.remove('page-entering');
-            }, 500);
+            // Update store
+            store.setState({ currentTab: tabName });
         }
-        
-        this.currentTab = tabName;
-        store.setActiveTab(tabName);
     }
     
     /**
@@ -430,81 +373,50 @@ class App {
      */
     setupKeyboardShortcuts() {
         document.addEventListener('keydown', (e) => {
-            // Don't intercept if user is typing
-            if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
-            
-            const shortcuts = {
-                '1': () => this.navigateToTab('home'),
-                '2': () => this.navigateToTab('library'),
-                '3': () => this.navigateToTab('swipe'),
-                '4': () => this.navigateToTab('matches'),
-                '5': () => this.navigateToTab('profile'),
-                'ArrowLeft': () => this.triggerSwipeAction('pass'),
-                'ArrowRight': () => this.triggerSwipeAction('like'),
-                'ArrowUp': () => this.triggerSwipeAction('love'),
-                'ArrowDown': () => this.triggerSwipeAction('maybe'),
-            };
-            
-            const handler = shortcuts[e.key];
-            if (handler) {
-                e.preventDefault();
-                handler();
+            // Only trigger if not in an input field
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+                return;
             }
+            
+            // Tab shortcuts (1-5 keys)
+            if (e.key === '1') this.navigateToTab('home');
+            if (e.key === '2') this.navigateToTab('library');
+            if (e.key === '3') this.navigateToTab('swipe');
+            if (e.key === '4') this.navigateToTab('matches');
+            if (e.key === '5') this.navigateToTab('profile');
         });
     }
     
     /**
-     * Trigger swipe action from keyboard
-     * @param {String} action - Swipe action
-     */
-    triggerSwipeAction(action) {
-        if (this.currentTab !== 'swipe') return;
-        
-        const swipeTab = this.tabs.get('swipe');
-        if (swipeTab && swipeTab.currentCard) {
-            swipeTab.currentCard.swipe(action);
-        }
-    }
-    
-    /**
      * Handle state changes
-     * @param {Object} state - New state
-     * @param {Object} prevState - Previous state
      */
-    handleStateChange(state, prevState) {
-        // Handle errors
-        if (state.error && state.error !== prevState.error) {
-            showError(state.error);
-        }
-        
-        // Re-render current tab if movies changed
-        if (state.movies !== prevState.movies) {
-            const currentTab = this.tabs.get(this.currentTab);
-            if (currentTab && typeof currentTab.render === 'function') {
-                currentTab.render();
-            }
-        }
+    handleStateChange(state) {
+        // Update UI based on state changes if needed
     }
     
     /**
      * Show error screen
-     * @param {Error} error - Error object
      */
     showErrorScreen(error) {
-        if (this.loadingScreen) {
-            this.loadingScreen.innerHTML = `
-                <div class="error-state">
-                    <svg class="error-state-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.446-.866 3.376 0 4.822 1.065 1.76 2.983 2.377 4.779 2.377h11.048c1.796 0 3.713-.617 4.778-2.377.866-1.446.866-3.376 0-4.822-1.065-1.76-2.982-2.377-4.778-2.377H6.476c-1.796 0-3.714.617-4.779 2.377z" />
-                    </svg>
-                    <h2>Oops! Something went wrong</h2>
-                    <p>${error.message || 'An unexpected error occurred'}</p>
-                    <button class="btn btn-primary" onclick="location.reload()">
-                        Reload App
-                    </button>
-                </div>
-            `;
-        }
+        this.loadingScreen.innerHTML = `
+            <div class="loading-content">
+                <div style="font-size: 48px; margin-bottom: 20px;">⚠️</div>
+                <h2>Something Went Wrong</h2>
+                <p>${error.message || 'Unknown error occurred'}</p>
+                <button onclick="location.reload()" style="
+                    margin-top: 20px;
+                    padding: 12px 24px;
+                    background: var(--marquee);
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    font-size: 16px;
+                ">
+                    Reload App
+                </button>
+            </div>
+        `;
     }
 }
 
@@ -518,3 +430,5 @@ if (document.readyState === 'loading') {
     const app = new App();
     app.init();
 }
+
+export default App;
