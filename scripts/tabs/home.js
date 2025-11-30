@@ -416,6 +416,8 @@ export class HomeTab {
     }
     
     attachListeners() {
+        console.log('[HomeTab] Attaching listeners...');
+        
         // Hero indicators
         const indicators = this.container.querySelectorAll('.hero-indicator');
         indicators.forEach((indicator, index) => {
@@ -436,16 +438,38 @@ export class HomeTab {
         
         // Movie cards
         const movieCards = this.container.querySelectorAll('[data-movie-id]');
-        movieCards.forEach(card => {
+        console.log('[HomeTab] Found movie cards:', movieCards.length);
+        
+        movieCards.forEach((card, index) => {
             card.addEventListener('click', () => {
+                console.log('[HomeTab] Card clicked, index:', index);
+                
                 const movieId = card.dataset.movieId;
+                console.log('[HomeTab] Movie ID from card:', movieId, typeof movieId);
+                
                 const movies = store.get('movies');
-                const movie = movies.find(m => m.id === movieId);
+                console.log('[HomeTab] Total movies in store:', movies?.length);
+                
+                // Convert both to strings for comparison (handles string vs number mismatch)
+                const movie = movies.find(m => String(m.id) === String(movieId));
+                console.log('[HomeTab] Found movie:', movie?.title || 'NOT FOUND');
+                
                 if (movie) {
-                    movieModal.show(movie);
+                    console.log('[HomeTab] Calling movieModal.show()...');
+                    try {
+                        movieModal.show(movie);
+                        console.log('[HomeTab] Modal opened successfully');
+                    } catch (error) {
+                        console.error('[HomeTab] Error opening modal:', error);
+                    }
+                } else {
+                    console.error('[HomeTab] Movie not found for ID:', movieId);
+                    console.log('[HomeTab] Available IDs:', movies.slice(0, 5).map(m => m.id));
                 }
             });
         });
+        
+        console.log('[HomeTab] All listeners attached');
     }
     
     destroy() {
