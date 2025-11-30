@@ -1,30 +1,36 @@
 /**
- * Home Tab - ULTRA PREMIUM NETFLIX REDESIGN
- * Hero carousel, personalized sections, cinematic atmosphere
+ * Home Tab - ULTRA PREMIUM WITH TMDB TRENDING
+ * Trending this week (UK), all-time best, category rankings
  */
 
 import { store } from '../state/store.js';
 import { movieModal } from '../components/movie-modal.js';
-import { getPlatformStyle } from '../utils/scoring.js';
+import { getTMDBService } from '../services/tmdb.js';
 
 export class HomeTab {
     constructor(container) {
         this.container = container;
         this.currentHeroIndex = 0;
         this.heroInterval = null;
+        this.trendingMovies = [];
+        this.allTimeBest = [];
+        this.categoryMovies = {};
     }
     
-    render() {
+    async render() {
         const movies = store.get('movies');
         const swipeHistory = store.get('swipeHistory');
         const currentMovie = store.get('currentMovie');
         
-        // Get loved movies for "Because You Loved" section
+        // Get loved movies for "Your Favorites" section
         const lovedMovies = swipeHistory
             .filter(s => s.action === 'love')
             .map(s => s.movie)
             .filter(Boolean)
             .slice(0, 5);
+        
+        // Fetch trending and best movies from TMDB
+        await this.fetchTMDBData();
         
         // Get top picks (high rated, matching genres)
         const topPicks = movies
@@ -32,13 +38,13 @@ export class HomeTab {
             .sort((a, b) => b.imdb - a.imdb)
             .slice(0, 6);
         
-        // Hero movies (top 4 highest rated)
-        const heroMovies = movies
-            .sort((a, b) => b.imdb - a.imdb)
-            .slice(0, 4);
+        // Hero movies (use trending if available, otherwise top rated)
+        const heroMovies = this.trendingMovies.length > 0 
+            ? this.trendingMovies.slice(0, 4)
+            : movies.sort((a, b) => b.imdb - a.imdb).slice(0, 4);
         
         this.container.innerHTML = `
-            <div style="background: linear-gradient(180deg, #0a0a0f 0%, #12121a 50%, #0a0a0f 100%); min-height: 100vh; overflow-x: hidden;">
+            <div style="background: linear-gradient(180deg, #0a0a0f 0%, #12121a 50%, #0a0a0f 100%); min-height: 100vh; overflow-x: hidden; padding-bottom: 100px;">
                 
                 <!-- Gradient Greeting -->
                 <div style="padding: 2rem 1.5rem 1rem; background: linear-gradient(135deg, rgba(255, 46, 99, 0.15), rgba(255, 153, 0, 0.1)); border-bottom: 1px solid rgba(255, 46, 99, 0.2);">
@@ -46,32 +52,52 @@ export class HomeTab {
                         Welcome back!
                     </h1>
                     <p style="color: rgba(255, 255, 255, 0.6); margin-top: 0.5rem; font-size: 0.875rem;">
-                        Your personalized movie feed awaits
+                        Trending movies and personalized picks
                     </p>
                 </div>
-
-                <!-- HERO CAROUSEL -->
-                <div style="position: relative; height: 70vh; margin-bottom: 2rem; overflow: hidden;">
-                    <div id="hero-carousel" style="position: relative; width: 100%; height: 100%; transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);">
-                        ${heroMovies.map((movie, index) => this.renderHeroSlide(movie, index)).join('')}
-                    </div>
+                
+                <!-- Hero Carousel -->
+                <div style="position: relative; height: 70vh; overflow: hidden; margin-bottom: 2rem;">
+                    ${heroMovies.map((movie, index) => this.renderHeroSlide(movie, index)).join('')}
                     
                     <!-- Carousel Indicators -->
                     <div style="position: absolute; bottom: 2rem; left: 50%; transform: translateX(-50%); display: flex; gap: 0.5rem; z-index: 10;">
                         ${heroMovies.map((_, index) => `
-                            <div class="hero-indicator" data-index="${index}" style="width: ${index === 0 ? '32px' : '8px'}; height: 8px; border-radius: 4px; background: ${index === 0 ? 'rgba(255, 46, 99, 1)' : 'rgba(255, 255, 255, 0.3)'}; cursor: pointer; transition: all 0.3s;"></div>
+                            <button 
+                                class="hero-indicator" 
+                                data-index="${index}"
+                                style="width: ${index === 0 ? '32px' : '12px'}; height: 12px; border-radius: 6px; background: ${index === 0 ? 'linear-gradient(90deg, #ff2e63, #ff9900)' : 'rgba(255, 255, 255, 0.3)'}; border: none; cursor: pointer; transition: all 0.3s; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);"
+                            ></button>
                         `).join('')}
                     </div>
                 </div>
-
-                <!-- YOUR LIKED/LOVED MOVIES -->
+                
+                <!-- TRENDING THIS WEEK IN UK -->
+                ${this.trendingMovies.length > 0 ? `
+                    <div style="padding: 0 1.5rem; margin-bottom: 3rem;">
+                        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">
+                            <div style="width: 4px; height: 24px; background: linear-gradient(180deg, #ff2e63, #ff9900); border-radius: 2px;"></div>
+                            <h2 style="font-size: 1.25rem; font-weight: 700; color: white; margin: 0;">
+                                🔥 Trending This Week in UK
+                            </h2>
+                            <span style="padding: 0.25rem 0.75rem; background: rgba(255, 46, 99, 0.2); border: 1px solid rgba(255, 46, 99, 0.4); border-radius: 0.5rem; font-size: 0.75rem; font-weight: 700; color: #ff2e63; margin-left: auto; text-transform: uppercase;">
+                                HOT
+                            </span>
+                        </div>
+                        <div style="display: flex; gap: 1rem; overflow-x: auto; padding-bottom: 1rem; -webkit-overflow-scrolling: touch; scrollbar-width: none;">
+                            ${this.trendingMovies.slice(0, 10).map((movie, index) => this.renderTrendingCard(movie, index + 1)).join('')}
+                        </div>
+                    </div>
+                ` : ''}
+                
+                <!-- YOUR FAVORITES -->
                 ${lovedMovies.length > 0 ? `
                     <div style="padding: 0 1.5rem; margin-bottom: 3rem;">
                         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
                             <div style="display: flex; align-items: center; gap: 0.5rem;">
                                 <div style="width: 4px; height: 24px; background: linear-gradient(180deg, #ff006e, #d90062); border-radius: 2px;"></div>
                                 <h2 style="font-size: 1.25rem; font-weight: 700; color: white; margin: 0;">
-                                    Your Favorites
+                                    💜 Your Favorites
                                 </h2>
                             </div>
                             <span style="font-size: 0.75rem; color: rgba(255, 0, 110, 0.8); font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em;">
@@ -84,77 +110,137 @@ export class HomeTab {
                     </div>
                 ` : ''}
                 
-                <!-- BECAUSE YOU LOVED (Recommendations) -->
-                ${lovedMovies.length > 0 ? `
+                <!-- ALL-TIME BEST MOVIES -->
+                ${this.allTimeBest.length > 0 ? `
                     <div style="padding: 0 1.5rem; margin-bottom: 3rem;">
                         <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">
-                            <div style="width: 4px; height: 24px; background: linear-gradient(180deg, #ff2e63, #ff9900); border-radius: 2px;"></div>
+                            <div style="width: 4px; height: 24px; background: linear-gradient(180deg, #fbbf24, #f59e0b); border-radius: 2px;"></div>
                             <h2 style="font-size: 1.25rem; font-weight: 700; color: white; margin: 0;">
-                                Because You Loved ${lovedMovies[0]?.title?.split(':')[0] || 'These'}
+                                👑 All-Time Best Movies
                             </h2>
+                            <span style="padding: 0.25rem 0.75rem; background: rgba(251, 191, 36, 0.2); border: 1px solid rgba(251, 191, 36, 0.4); border-radius: 0.5rem; font-size: 0.75rem; font-weight: 700; color: #fbbf24; margin-left: auto; text-transform: uppercase;">
+                                IMDb Top Rated
+                            </span>
                         </div>
-                        <div style="display: flex; gap: 1rem; overflow-x: auto; padding-bottom: 1rem; -webkit-overflow-scrolling: touch; scrollbar-width: none;">
-                            ${this.getRecommendations(lovedMovies, movies, swipeHistory).map(movie => this.renderRecommendationCard(movie)).join('')}
+                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem;">
+                            ${this.allTimeBest.slice(0, 6).map((movie, index) => this.renderBestMovieCard(movie, index + 1)).join('')}
                         </div>
                     </div>
                 ` : ''}
-
-                <!-- TOP PICKS FOR YOU -->
-                <div style="padding: 0 1.5rem; margin-bottom: 3rem;">
-                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
-                        <div style="display: flex; align-items: center; gap: 0.5rem;">
-                            <div style="width: 4px; height: 24px; background: linear-gradient(180deg, #8b5cf6, #ec4899); border-radius: 2px;"></div>
+                
+                <!-- BEST ACTION MOVIES -->
+                ${this.categoryMovies.action?.length > 0 ? `
+                    <div style="padding: 0 1.5rem; margin-bottom: 3rem;">
+                        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">
+                            <div style="width: 4px; height: 24px; background: linear-gradient(180deg, #ef4444, #dc2626); border-radius: 2px;"></div>
                             <h2 style="font-size: 1.25rem; font-weight: 700; color: white; margin: 0;">
-                                Top Picks For You
+                                💥 Best Action Movies
                             </h2>
                         </div>
-                        <span style="font-size: 0.75rem; color: rgba(255, 46, 99, 0.8); font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em;">
-                            Sci-Fi · Thriller
-                        </span>
+                        <div style="display: flex; gap: 1rem; overflow-x: auto; padding-bottom: 1rem; -webkit-overflow-scrolling: touch; scrollbar-width: none;">
+                            ${this.categoryMovies.action.slice(0, 8).map(movie => this.renderCategoryCard(movie)).join('')}
+                        </div>
                     </div>
-                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;">
-                        ${topPicks.map(movie => this.renderTopPickCard(movie)).join('')}
+                ` : ''}
+                
+                <!-- BEST SCI-FI MOVIES -->
+                ${this.categoryMovies.scifi?.length > 0 ? `
+                    <div style="padding: 0 1.5rem; margin-bottom: 3rem;">
+                        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">
+                            <div style="width: 4px; height: 24px; background: linear-gradient(180deg, #8b5cf6, #7c3aed); border-radius: 2px;"></div>
+                            <h2 style="font-size: 1.25rem; font-weight: 700; color: white; margin: 0;">
+                                🚀 Best Sci-Fi Movies
+                            </h2>
+                        </div>
+                        <div style="display: flex; gap: 1rem; overflow-x: auto; padding-bottom: 1rem; -webkit-overflow-scrolling: touch; scrollbar-width: none;">
+                            ${this.categoryMovies.scifi.slice(0, 8).map(movie => this.renderCategoryCard(movie)).join('')}
+                        </div>
                     </div>
-                </div>
-
-                <!-- TRENDING NOW -->
-                <div style="padding: 0 1.5rem; margin-bottom: 3rem;">
-                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">
-                        <div style="width: 4px; height: 24px; background: linear-gradient(180deg, #ff9900, #ff2e63); border-radius: 2px;"></div>
-                        <h2 style="font-size: 1.25rem; font-weight: 700; color: white; margin: 0;">
-                            Trending Now in the UK
-                        </h2>
+                ` : ''}
+                
+                <!-- BEST COMEDY MOVIES -->
+                ${this.categoryMovies.comedy?.length > 0 ? `
+                    <div style="padding: 0 1.5rem; margin-bottom: 3rem;">
+                        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">
+                            <div style="width: 4px; height: 24px; background: linear-gradient(180deg, #10b981, #059669); border-radius: 2px;"></div>
+                            <h2 style="font-size: 1.25rem; font-weight: 700; color: white; margin: 0;">
+                                😂 Best Comedy Movies
+                            </h2>
+                        </div>
+                        <div style="display: flex; gap: 1rem; overflow-x: auto; padding-bottom: 1rem; -webkit-overflow-scrolling: touch; scrollbar-width: none;">
+                            ${this.categoryMovies.comedy.slice(0, 8).map(movie => this.renderCategoryCard(movie)).join('')}
+                        </div>
                     </div>
-                    ${movies.slice(0, 10).map((movie, index) => this.renderTrendingRow(movie, index)).join('')}
-                </div>
-
+                ` : ''}
+                
+                <!-- BEST HORROR MOVIES -->
+                ${this.categoryMovies.horror?.length > 0 ? `
+                    <div style="padding: 0 1.5rem; margin-bottom: 3rem;">
+                        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">
+                            <div style="width: 4px; height: 24px; background: linear-gradient(180deg, #7c3aed, #6d28d9); border-radius: 2px;"></div>
+                            <h2 style="font-size: 1.25rem; font-weight: 700; color: white; margin: 0;">
+                                👻 Best Horror Movies
+                            </h2>
+                        </div>
+                        <div style="display: flex; gap: 1rem; overflow-x: auto; padding-bottom: 1rem; -webkit-overflow-scrolling: touch; scrollbar-width: none;">
+                            ${this.categoryMovies.horror.slice(0, 8).map(movie => this.renderCategoryCard(movie)).join('')}
+                        </div>
+                    </div>
+                ` : ''}
+                
                 <!-- CONTINUE SWIPING -->
                 ${currentMovie ? `
-                    <div style="padding: 0 1.5rem; margin-bottom: 2rem;">
+                    <div style="padding: 0 1.5rem; margin-bottom: 3rem;">
                         <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">
-                            <div style="width: 4px; height: 24px; background: linear-gradient(180deg, #ff2e63, #8b5cf6); border-radius: 2px;"></div>
+                            <div style="width: 4px; height: 24px; background: linear-gradient(180deg, #ec4899, #db2777); border-radius: 2px;"></div>
                             <h2 style="font-size: 1.25rem; font-weight: 700; color: white; margin: 0;">
                                 Continue Swiping
                             </h2>
                         </div>
-                        ${this.renderContinueCard(currentMovie, swipeHistory)}
+                        ${this.renderContinueSwiping(currentMovie, swipeHistory, movies)}
                     </div>
                 ` : ''}
-
-                <div style="height: 100px;"></div>
             </div>
         `;
         
         this.attachListeners();
-        this.startHeroCarousel(heroMovies.length);
+        this.startHeroCarousel();
+    }
+    
+    async fetchTMDBData() {
+        const tmdbService = getTMDBService();
+        
+        try {
+            // Fetch trending movies this week in UK
+            console.log('[HomeTab] Fetching trending movies...');
+            this.trendingMovies = await tmdbService.fetchTrendingWeek('GB');
+            console.log('[HomeTab] Trending movies:', this.trendingMovies.length);
+            
+            // Fetch all-time best movies (top rated)
+            console.log('[HomeTab] Fetching all-time best...');
+            this.allTimeBest = await tmdbService.fetchTopRated();
+            console.log('[HomeTab] All-time best:', this.allTimeBest.length);
+            
+            // Fetch best movies by category
+            console.log('[HomeTab] Fetching category movies...');
+            this.categoryMovies = {
+                action: await tmdbService.fetchByGenre(28, 'Action'), // Genre ID 28 = Action
+                scifi: await tmdbService.fetchByGenre(878, 'Sci-Fi'),  // Genre ID 878 = Sci-Fi
+                comedy: await tmdbService.fetchByGenre(35, 'Comedy'),  // Genre ID 35 = Comedy
+                horror: await tmdbService.fetchByGenre(27, 'Horror')   // Genre ID 27 = Horror
+            };
+            console.log('[HomeTab] Categories fetched');
+            
+        } catch (error) {
+            console.error('[HomeTab] Error fetching TMDB data:', error);
+        }
     }
     
     renderHeroSlide(movie, index) {
-        const posterUrl = movie.poster_path || movie.backdrop_path || `https://placehold.co/800x1200/1a1a2e/ffffff?text=${encodeURIComponent(movie.title)}`;
-        const matchScore = Math.floor(85 + Math.random() * 15);
+        const posterUrl = movie.backdrop_path || movie.poster_path || 'https://placehold.co/1280x720/1a1a2e/ffffff?text=' + encodeURIComponent(movie.title);
         
         return `
-            <div class="hero-slide" data-index="${index}" style="position: absolute; width: 100%; height: 100%; opacity: ${index === 0 ? '1' : '0'}; transition: opacity 0.6s; ${index !== 0 ? 'pointer-events: none;' : ''}">
+            <div class="hero-slide" data-index="${index}" style="position: absolute; inset: 0; opacity: ${index === 0 ? 1 : 0}; transition: opacity 0.6s ease-in-out; pointer-events: ${index === 0 ? 'auto' : 'none'};">
                 <!-- Background Image -->
                 <div style="position: absolute; inset: 0; overflow: hidden;">
                     <img 
@@ -162,29 +248,127 @@ export class HomeTab {
                         alt="${movie.title}"
                         style="width: 100%; height: 100%; object-fit: cover; filter: brightness(0.4);"
                     >
-                    <div style="position: absolute; inset: 0; background: linear-gradient(0deg, #0a0a0f 0%, transparent 50%, #0a0a0f 100%);"></div>
+                    <div style="position: absolute; inset: 0; background: linear-gradient(180deg, transparent 0%, rgba(10, 10, 15, 0.8) 70%, #0a0a0f 100%);"></div>
                 </div>
                 
-                <!-- Glassmorphism Card -->
-                <div style="position: absolute; bottom: 3rem; left: 1.5rem; right: 1.5rem; backdrop-filter: blur(20px); background: rgba(10, 10, 15, 0.75); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 1.5rem; padding: 1.5rem; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);">
-                    <h2 style="font-size: 2rem; font-weight: 800; color: white; margin: 0 0 0.5rem 0; line-height: 1.2;">
+                <!-- Content -->
+                <div style="position: absolute; bottom: 4rem; left: 1.5rem; right: 1.5rem; z-index: 1;">
+                    <h2 style="font-size: 2rem; font-weight: 800; color: white; margin: 0 0 1rem 0; line-height: 1.2; text-shadow: 0 4px 12px rgba(0, 0, 0, 0.8);">
                         ${movie.title}
                     </h2>
-                    <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; flex-wrap: wrap;">
-                        <span style="font-size: 0.875rem; color: rgba(255, 255, 255, 0.7);">${movie.year}</span>
-                        <span style="padding: 0.25rem 0.75rem; background: linear-gradient(135deg, #10b981, #059669); border-radius: 1rem; font-size: 0.75rem; font-weight: 700; color: white; box-shadow: 0 0 20px rgba(16, 185, 129, 0.4);">
-                            ${matchScore}% Match
+                    <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap;">
+                        <span style="padding: 0.5rem 1rem; background: rgba(251, 191, 36, 0.3); backdrop-filter: blur(10px); border: 1px solid rgba(251, 191, 36, 0.5); border-radius: 0.75rem; font-size: 0.875rem; font-weight: 700; color: #fbbf24; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);">
+                            ⭐ ${movie.imdb || movie.vote_average?.toFixed(1) || 'N/A'}
                         </span>
-                        <span style="padding: 0.25rem 0.75rem; background: rgba(251, 191, 36, 0.2); border: 1px solid rgba(251, 191, 36, 0.4); border-radius: 1rem; font-size: 0.75rem; font-weight: 700; color: #fbbf24;">
-                            ⭐ ${movie.imdb}
+                        <span style="font-size: 0.875rem; color: rgba(255, 255, 255, 0.9); font-weight: 600;">${movie.year || 'N/A'}</span>
+                        <span style="font-size: 0.875rem; color: rgba(255, 255, 255, 0.9); font-weight: 600;">${movie.genre || 'N/A'}</span>
+                    </div>
+                    <p style="font-size: 0.875rem; color: rgba(255, 255, 255, 0.85); line-height: 1.6; margin: 0 0 1.5rem 0; max-height: 4.8em; overflow: hidden; text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);">
+                        ${(movie.synopsis || movie.overview || 'No description available.').slice(0, 150)}...
+                    </p>
+                    <button 
+                        class="hero-cta" 
+                        data-movie-id="${movie.id}"
+                        style="padding: 1rem 2rem; background: linear-gradient(135deg, #ff2e63, #ff9900); border: none; border-radius: 0.75rem; color: white; font-size: 1rem; font-weight: 700; cursor: pointer; box-shadow: 0 8px 24px rgba(255, 46, 99, 0.4); transition: all 0.3s;"
+                        onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='0 12px 32px rgba(255, 46, 99, 0.6)'"
+                        onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 8px 24px rgba(255, 46, 99, 0.4)'"
+                    >
+                        ▶ Watch Trailer
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+    
+    renderTrendingCard(movie, rank) {
+        const posterUrl = movie.poster_path || `https://placehold.co/300x450/1a1a2e/ffffff?text=${encodeURIComponent(movie.title)}`;
+        
+        const rankColors = {
+            1: 'linear-gradient(135deg, #fbbf24, #f59e0b)', // Gold
+            2: 'linear-gradient(135deg, #d1d5db, #9ca3af)', // Silver
+            3: 'linear-gradient(135deg, #f97316, #ea580c)'  // Bronze
+        };
+        const rankColor = rankColors[rank] || 'linear-gradient(135deg, #6366f1, #4f46e5)';
+        
+        return `
+            <div data-movie-id="${movie.id}" style="position: relative; flex-shrink: 0; width: 160px; cursor: pointer; transition: transform 0.3s; border-radius: 1rem; overflow: hidden; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                <img 
+                    src="${posterUrl}" 
+                    alt="${movie.title}"
+                    style="width: 100%; height: 240px; object-fit: cover;"
+                >
+                <!-- Rank Badge -->
+                <div style="position: absolute; top: 0.5rem; left: 0.5rem; width: 40px; height: 40px; border-radius: 50%; background: ${rankColor}; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; font-weight: 800; color: white; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5); border: 2px solid rgba(255, 255, 255, 0.3);">
+                    ${rank}
+                </div>
+                <!-- Trending Badge -->
+                <div style="position: absolute; top: 0.5rem; right: 0.5rem; padding: 0.25rem 0.75rem; background: linear-gradient(135deg, #ff2e63, #ff9900); border-radius: 0.5rem; font-size: 0.625rem; font-weight: 700; color: white; text-transform: uppercase; box-shadow: 0 4px 12px rgba(255, 46, 99, 0.5);">
+                    🔥 HOT
+                </div>
+                <div style="position: absolute; bottom: 0; left: 0; right: 0; padding: 1rem 0.75rem; background: linear-gradient(0deg, rgba(0, 0, 0, 0.95), transparent);">
+                    <h4 style="font-size: 0.875rem; font-weight: 700; color: white; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                        ${movie.title}
+                    </h4>
+                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.25rem;">
+                        <span style="font-size: 0.75rem; color: rgba(255, 255, 255, 0.7);">${movie.year || 'N/A'}</span>
+                        <span style="padding: 0.125rem 0.5rem; background: rgba(251, 191, 36, 0.3); border-radius: 0.375rem; font-size: 0.625rem; font-weight: 700; color: #fbbf24;">
+                            ⭐ ${movie.imdb || movie.vote_average?.toFixed(1) || 'N/A'}
                         </span>
                     </div>
-                    <p style="font-size: 0.875rem; color: rgba(255, 255, 255, 0.8); line-height: 1.6; margin: 0;" class="line-clamp-3">
-                        ${movie.synopsis}
-                    </p>
-                    <button class="btn btn-primary" data-movie-id="${movie.id}" style="width: 100%; margin-top: 1rem; padding: 1rem; font-size: 1rem; background: linear-gradient(135deg, #ff2e63, #ff9900); box-shadow: 0 8px 24px rgba(255, 46, 99, 0.4);">
-                        ▶ Play Now
-                    </button>
+                </div>
+            </div>
+        `;
+    }
+    
+    renderBestMovieCard(movie, rank) {
+        const posterUrl = movie.poster_path || `https://placehold.co/300x450/1a1a2e/ffffff?text=${encodeURIComponent(movie.title)}`;
+        
+        return `
+            <div data-movie-id="${movie.id}" style="position: relative; cursor: pointer; transition: transform 0.3s; border-radius: 1rem; overflow: hidden; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4); border: 2px solid ${rank <= 3 ? 'rgba(251, 191, 36, 0.5)' : 'rgba(255, 255, 255, 0.1)'};" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                <img 
+                    src="${posterUrl}" 
+                    alt="${movie.title}"
+                    style="width: 100%; height: 260px; object-fit: cover;"
+                >
+                <!-- Rank Badge -->
+                <div style="position: absolute; top: 0.75rem; left: 0.75rem; width: 48px; height: 48px; border-radius: 50%; background: linear-gradient(135deg, #fbbf24, #f59e0b); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: 800; color: white; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5); border: 3px solid rgba(255, 255, 255, 0.3);">
+                    ${rank}
+                </div>
+                <div style="position: absolute; bottom: 0; left: 0; right: 0; padding: 1.25rem; background: linear-gradient(0deg, rgba(0, 0, 0, 0.95), transparent);">
+                    <h4 style="font-size: 1rem; font-weight: 700; color: white; margin: 0 0 0.5rem 0; line-height: 1.3;">
+                        ${movie.title}
+                    </h4>
+                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                        <span style="padding: 0.375rem 0.75rem; background: rgba(251, 191, 36, 0.3); border-radius: 0.5rem; font-size: 0.875rem; font-weight: 700; color: #fbbf24;">
+                            ⭐ ${movie.imdb || movie.vote_average?.toFixed(1) || 'N/A'}
+                        </span>
+                        <span style="font-size: 0.875rem; color: rgba(255, 255, 255, 0.7);">${movie.year || 'N/A'}</span>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    renderCategoryCard(movie) {
+        const posterUrl = movie.poster_path || `https://placehold.co/300x450/1a1a2e/ffffff?text=${encodeURIComponent(movie.title)}`;
+        
+        return `
+            <div data-movie-id="${movie.id}" style="position: relative; flex-shrink: 0; width: 160px; cursor: pointer; transition: transform 0.3s; border-radius: 1rem; overflow: hidden; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                <img 
+                    src="${posterUrl}" 
+                    alt="${movie.title}"
+                    style="width: 100%; height: 240px; object-fit: cover;"
+                >
+                <div style="position: absolute; bottom: 0; left: 0; right: 0; padding: 1rem 0.75rem; background: linear-gradient(0deg, rgba(0, 0, 0, 0.95), transparent);">
+                    <h4 style="font-size: 0.875rem; font-weight: 700; color: white; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                        ${movie.title}
+                    </h4>
+                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.25rem;">
+                        <span style="padding: 0.125rem 0.5rem; background: rgba(251, 191, 36, 0.3); border-radius: 0.375rem; font-size: 0.625rem; font-weight: 700; color: #fbbf24;">
+                            ⭐ ${movie.imdb || movie.vote_average?.toFixed(1) || 'N/A'}
+                        </span>
+                        <span style="font-size: 0.75rem; color: rgba(255, 255, 255, 0.7);">${movie.year || 'N/A'}</span>
+                    </div>
                 </div>
             </div>
         `;
@@ -218,161 +402,61 @@ export class HomeTab {
         `;
     }
     
-    renderRecommendationCard(movie) {
-        const posterUrl = movie.poster_path || `https://placehold.co/300x450/1a1a2e/ffffff?text=${encodeURIComponent(movie.title)}`;
-        const matchPercent = Math.floor(85 + Math.random() * 15); // 85-100% match
+    renderContinueSwiping(currentMovie, swipeHistory, allMovies) {
+        const remaining = allMovies.length - swipeHistory.length;
+        const progress = ((swipeHistory.length / allMovies.length) * 100).toFixed(0);
+        const posterUrl = currentMovie.poster_path || `https://placehold.co/300x450/1a1a2e/ffffff?text=${encodeURIComponent(currentMovie.title)}`;
         
         return `
-            <div data-movie-id="${movie.id}" style="position: relative; flex-shrink: 0; width: 160px; cursor: pointer; transition: transform 0.3s; border-radius: 1rem; overflow: hidden; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
-                <img 
-                    src="${posterUrl}" 
-                    alt="${movie.title}"
-                    style="width: 100%; height: 240px; object-fit: cover;"
-                >
-                <div style="position: absolute; top: 0.5rem; left: 0.5rem; padding: 0.25rem 0.75rem; background: rgba(16, 185, 129, 0.9); backdrop-filter: blur(10px); border-radius: 0.5rem; font-size: 0.75rem; font-weight: 700; color: white; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.5);">
-                    ${matchPercent}% Match
-                </div>
-                <div style="position: absolute; bottom: 0; left: 0; right: 0; padding: 1rem 0.75rem; background: linear-gradient(0deg, rgba(0, 0, 0, 0.95), transparent);">
-                    <h4 style="font-size: 0.875rem; font-weight: 700; color: white; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                        ${movie.title}
-                    </h4>
-                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.25rem;">
-                        <span style="font-size: 0.75rem; color: rgba(255, 255, 255, 0.7);">${movie.year}</span>
-                        <span style="padding: 0.125rem 0.5rem; background: rgba(251, 191, 36, 0.3); border-radius: 0.375rem; font-size: 0.625rem; font-weight: 700; color: #fbbf24;">
-                            ⭐ ${movie.imdb}
-                        </span>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-    
-    getRecommendations(lovedMovies, allMovies, swipeHistory) {
-        // Get genres from loved movies
-        const lovedGenres = lovedMovies
-            .flatMap(m => (m.genre || '').split(/[,/]/).map(g => g.trim()))
-            .filter(Boolean);
-        
-        // Get swiped movie IDs
-        const swipedIds = new Set(swipeHistory.map(s => s.movie?.id).filter(Boolean));
-        
-        // Find similar movies based on genre
-        const recommendations = allMovies
-            .filter(m => !swipedIds.has(m.id)) // Not swiped
-            .filter(m => {
-                const movieGenres = (m.genre || '').split(/[,/]/).map(g => g.trim());
-                return movieGenres.some(g => lovedGenres.includes(g));
-            })
-            .sort((a, b) => (b.imdb || 0) - (a.imdb || 0)) // Sort by rating
-            .slice(0, 5); // Top 5
-        
-        return recommendations;
-    }
-    
-    renderTopPickCard(movie) {
-        const posterUrl = movie.poster_path || `https://placehold.co/300x450/1a1a2e/ffffff?text=${encodeURIComponent(movie.title)}`;
-        
-        return `
-            <div data-movie-id="${movie.id}" style="position: relative; cursor: pointer; border-radius: 1rem; overflow: hidden; aspect-ratio: 2/3; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4); transition: transform 0.3s;" onmouseover="this.style.transform='translateY(-8px)'" onmouseout="this.style.transform='translateY(0)'">
-                <img 
-                    src="${posterUrl}" 
-                    alt="${movie.title}"
-                    style="width: 100%; height: 100%; object-fit: cover;"
-                >
-                <div style="position: absolute; inset: 0; background: linear-gradient(0deg, rgba(0, 0, 0, 0.9) 0%, transparent 50%);"></div>
-                <div style="position: absolute; bottom: 0; left: 0; right: 0; padding: 1rem 0.75rem;">
-                    <div style="display: inline-block; padding: 0.125rem 0.5rem; background: rgba(139, 92, 246, 0.3); border: 1px solid rgba(139, 92, 246, 0.6); border-radius: 0.5rem; font-size: 0.625rem; font-weight: 700; color: #a78bfa; margin-bottom: 0.5rem;">
-                        ⭐ ${movie.imdb}
-                    </div>
-                    <h4 style="font-size: 0.75rem; font-weight: 700; color: white; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                        ${movie.title}
-                    </h4>
-                </div>
-            </div>
-        `;
-    }
-    
-    renderTrendingRow(movie, index) {
-        const posterUrl = movie.poster_path || `https://placehold.co/100x150/1a1a2e/ffffff?text=${encodeURIComponent(movie.title)}`;
-        const { icon, color } = getPlatformStyle(movie.platform);
-        
-        const rankColors = [
-            'linear-gradient(135deg, #fbbf24, #f59e0b)', // Gold
-            'linear-gradient(135deg, #d1d5db, #9ca3af)', // Silver
-            'linear-gradient(135deg, #f97316, #ea580c)', // Bronze
-            'linear-gradient(135deg, #8b5cf6, #7c3aed)'  // Purple for rest
-        ];
-        
-        const rankColor = index < 3 ? rankColors[index] : rankColors[3];
-        
-        return `
-            <div data-movie-id="${movie.id}" style="display: flex; align-items: center; gap: 1rem; padding: 0.75rem; margin-bottom: 0.75rem; background: rgba(255, 255, 255, 0.02); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 1rem; cursor: pointer; transition: all 0.3s;" onmouseover="this.style.background='rgba(255, 46, 99, 0.1)'; this.style.borderColor='rgba(255, 46, 99, 0.3)'" onmouseout="this.style.background='rgba(255, 255, 255, 0.02)'; this.style.borderColor='rgba(255, 255, 255, 0.05)'">
-                <div style="width: 48px; height: 48px; border-radius: 50%; background: ${rankColor}; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; font-weight: 800; color: white; flex-shrink: 0; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);">
-                    ${index + 1}
-                </div>
-                <img 
-                    src="${posterUrl}" 
-                    alt="${movie.title}"
-                    style="width: 60px; height: 90px; object-fit: cover; border-radius: 0.5rem; flex-shrink: 0; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);"
-                >
-                <div style="flex: 1; min-width: 0;">
-                    <h4 style="font-size: 0.875rem; font-weight: 700; color: white; margin: 0 0 0.25rem 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                        ${movie.title}
-                    </h4>
-                    <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
-                        <span style="padding: 0.125rem 0.5rem; background: rgba(251, 191, 36, 0.2); border: 1px solid rgba(251, 191, 36, 0.4); border-radius: 0.5rem; font-size: 0.625rem; font-weight: 700; color: #fbbf24;">
-                            ⭐ ${movie.imdb}
-                        </span>
-                        <div style="display: flex; align-items: center; gap: 0.25rem;">
-                            <span style="width: 20px; height: 20px; border-radius: 50%; background: ${color}; display: flex; align-items: center; justify-content: center; font-size: 0.625rem; color: white; font-weight: 800;">${icon}</span>
-                            <span style="font-size: 0.625rem; color: rgba(255, 255, 255, 0.5);">${movie.platform}</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-    
-    renderContinueCard(movie, swipeHistory) {
-        const posterUrl = movie.poster_path || `https://placehold.co/400x600/1a1a2e/ffffff?text=${encodeURIComponent(movie.title)}`;
-        const totalMovies = store.get('movies').length;
-        const swipedCount = swipeHistory.length;
-        const progress = Math.round((swipedCount / totalMovies) * 100);
-        
-        return `
-            <div data-nav="swipe" style="position: relative; background: linear-gradient(135deg, rgba(255, 46, 99, 0.1), rgba(139, 92, 246, 0.1)); backdrop-filter: blur(20px); border: 1px solid rgba(255, 46, 99, 0.3); border-radius: 1.5rem; padding: 1.5rem; cursor: pointer; overflow: hidden; box-shadow: 0 12px 40px rgba(255, 46, 99, 0.2);">
+            <div style="backdrop-filter: blur(10px); background: linear-gradient(135deg, rgba(236, 72, 153, 0.15), rgba(219, 39, 119, 0.15)); border: 1px solid rgba(236, 72, 153, 0.3); border-radius: 1.5rem; padding: 1.5rem; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);">
                 <div style="display: flex; gap: 1.5rem; align-items: center;">
-                    <div style="position: relative; flex-shrink: 0;">
+                    <!-- Poster -->
+                    <div style="width: 100px; height: 150px; border-radius: 0.75rem; overflow: hidden; flex-shrink: 0; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);">
                         <img 
                             src="${posterUrl}" 
-                            alt="${movie.title}"
-                            style="width: 100px; height: 150px; object-fit: cover; border-radius: 1rem; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);"
+                            alt="${currentMovie.title}"
+                            style="width: 100%; height: 100%; object-fit: cover;"
                         >
-                        <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;">
+                    </div>
+                    
+                    <!-- Info -->
+                    <div style="flex: 1; min-width: 0;">
+                        <h3 style="font-size: 1.125rem; font-weight: 700; color: white; margin: 0 0 0.5rem 0;">
+                            ${currentMovie.title}
+                        </h3>
+                        <p style="font-size: 0.875rem; color: rgba(255, 255, 255, 0.7); margin: 0 0 1rem 0;">
+                            ${remaining} movies remaining
+                        </p>
+                        
+                        <!-- Progress Circle -->
+                        <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem;">
                             <svg width="60" height="60" style="transform: rotate(-90deg);">
-                                <circle cx="30" cy="30" r="25" fill="none" stroke="rgba(255, 255, 255, 0.2)" stroke-width="4"/>
-                                <circle cx="30" cy="30" r="25" fill="none" stroke="url(#progressGradient)" stroke-width="4" stroke-dasharray="${157 * progress / 100} 157" stroke-linecap="round"/>
+                                <circle cx="30" cy="30" r="26" fill="none" stroke="rgba(255, 255, 255, 0.1)" stroke-width="4"></circle>
+                                <circle cx="30" cy="30" r="26" fill="none" stroke="url(#gradient)" stroke-width="4" stroke-dasharray="${163.36 * progress / 100} 163.36" stroke-linecap="round"></circle>
                                 <defs>
-                                    <linearGradient id="progressGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                                        <stop offset="0%" style="stop-color:#ff2e63;stop-opacity:1" />
-                                        <stop offset="100%" style="stop-color:#8b5cf6;stop-opacity:1" />
+                                    <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                        <stop offset="0%" style="stop-color:#ec4899" />
+                                        <stop offset="100%" style="stop-color:#db2777" />
                                     </linearGradient>
                                 </defs>
                             </svg>
-                            <span style="position: absolute; font-size: 0.75rem; font-weight: 700; color: white;">${progress}%</span>
+                            <div>
+                                <div style="font-size: 1.5rem; font-weight: 800; color: white; line-height: 1;">
+                                    ${progress}%
+                                </div>
+                                <div style="font-size: 0.75rem; color: rgba(255, 255, 255, 0.6); margin-top: 0.25rem;">
+                                    Complete
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                    <div style="flex: 1;">
-                        <div style="font-size: 0.75rem; color: rgba(255, 46, 99, 0.8); font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.5rem;">
-                            Currently Swiping
-                        </div>
-                        <h3 style="font-size: 1.25rem; font-weight: 800; color: white; margin: 0 0 0.5rem 0;">
-                            ${movie.title}
-                        </h3>
-                        <p style="font-size: 0.75rem; color: rgba(255, 255, 255, 0.6); margin-bottom: 1rem;">
-                            ${swipedCount} of ${totalMovies} movies rated
-                        </p>
-                        <button class="btn" style="padding: 0.75rem 1.5rem; background: linear-gradient(135deg, #ff2e63, #8b5cf6); color: white; font-weight: 700; border-radius: 0.75rem; box-shadow: 0 4px 16px rgba(255, 46, 99, 0.4);">
+                        
+                        <!-- CTA Button -->
+                        <button 
+                            data-nav="swipe"
+                            style="width: 100%; padding: 1rem; background: linear-gradient(135deg, #ec4899, #db2777); border: none; border-radius: 0.75rem; color: white; font-size: 1rem; font-weight: 700; cursor: pointer; box-shadow: 0 4px 16px rgba(236, 72, 153, 0.4); transition: all 0.3s;"
+                            onmouseover="this.style.transform='scale(1.02)'; this.style.boxShadow='0 6px 20px rgba(236, 72, 153, 0.6)'"
+                            onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 4px 16px rgba(236, 72, 153, 0.4)'"
+                        >
                             Continue Swiping →
                         </button>
                     </div>
@@ -381,42 +465,23 @@ export class HomeTab {
         `;
     }
     
-    startHeroCarousel(totalSlides) {
-        if (this.heroInterval) clearInterval(this.heroInterval);
-        
-        this.heroInterval = setInterval(() => {
-            this.currentHeroIndex = (this.currentHeroIndex + 1) % totalSlides;
-            this.updateHeroSlides();
-        }, 5000);
-    }
-    
-    updateHeroSlides() {
-        const slides = this.container.querySelectorAll('.hero-slide');
-        const indicators = this.container.querySelectorAll('.hero-indicator');
-        
-        slides.forEach((slide, index) => {
-            if (index === this.currentHeroIndex) {
-                slide.style.opacity = '1';
-                slide.style.pointerEvents = 'auto';
-            } else {
-                slide.style.opacity = '0';
-                slide.style.pointerEvents = 'none';
-            }
-        });
-        
-        indicators.forEach((indicator, index) => {
-            if (index === this.currentHeroIndex) {
-                indicator.style.width = '32px';
-                indicator.style.background = 'rgba(255, 46, 99, 1)';
-            } else {
-                indicator.style.width = '8px';
-                indicator.style.background = 'rgba(255, 255, 255, 0.3)';
-            }
-        });
-    }
-    
     attachListeners() {
         console.log('[HomeTab] Attaching listeners...');
+        
+        // Hero CTAs
+        const heroCtas = this.container.querySelectorAll('.hero-cta');
+        heroCtas.forEach(button => {
+            button.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const movieId = button.dataset.movieId;
+                const allMovies = [...this.trendingMovies, ...this.allTimeBest, ...Object.values(this.categoryMovies).flat()];
+                const movie = allMovies.find(m => String(m.id) === String(movieId));
+                if (movie) {
+                    console.log('[HomeTab] Opening hero movie modal:', movie.title);
+                    movieModal.show(movie);
+                }
+            });
+        });
         
         // Hero indicators
         const indicators = this.container.querySelectorAll('.hero-indicator');
@@ -445,13 +510,17 @@ export class HomeTab {
                 console.log('[HomeTab] Card clicked, index:', index);
                 
                 const movieId = card.dataset.movieId;
-                console.log('[HomeTab] Movie ID from card:', movieId, typeof movieId);
+                console.log('[HomeTab] Movie ID from card:', movieId);
                 
-                const movies = store.get('movies');
-                console.log('[HomeTab] Total movies in store:', movies?.length);
+                // Search in all movie sources
+                const allMovies = [
+                    ...store.get('movies'),
+                    ...this.trendingMovies,
+                    ...this.allTimeBest,
+                    ...Object.values(this.categoryMovies).flat()
+                ];
                 
-                // Convert both to strings for comparison (handles string vs number mismatch)
-                const movie = movies.find(m => String(m.id) === String(movieId));
+                const movie = allMovies.find(m => String(m.id) === String(movieId));
                 console.log('[HomeTab] Found movie:', movie?.title || 'NOT FOUND');
                 
                 if (movie) {
@@ -464,12 +533,42 @@ export class HomeTab {
                     }
                 } else {
                     console.error('[HomeTab] Movie not found for ID:', movieId);
-                    console.log('[HomeTab] Available IDs:', movies.slice(0, 5).map(m => m.id));
                 }
             });
         });
         
         console.log('[HomeTab] All listeners attached');
+    }
+    
+    startHeroCarousel() {
+        if (this.heroInterval) {
+            clearInterval(this.heroInterval);
+        }
+        
+        this.heroInterval = setInterval(() => {
+            const slides = this.container.querySelectorAll('.hero-slide');
+            if (slides.length === 0) return;
+            
+            this.currentHeroIndex = (this.currentHeroIndex + 1) % slides.length;
+            this.updateHeroSlides();
+        }, 5000);
+    }
+    
+    updateHeroSlides() {
+        const slides = this.container.querySelectorAll('.hero-slide');
+        const indicators = this.container.querySelectorAll('.hero-indicator');
+        
+        slides.forEach((slide, index) => {
+            slide.style.opacity = index === this.currentHeroIndex ? '1' : '0';
+            slide.style.pointerEvents = index === this.currentHeroIndex ? 'auto' : 'none';
+        });
+        
+        indicators.forEach((indicator, index) => {
+            indicator.style.width = index === this.currentHeroIndex ? '32px' : '12px';
+            indicator.style.background = index === this.currentHeroIndex 
+                ? 'linear-gradient(90deg, #ff2e63, #ff9900)'
+                : 'rgba(255, 255, 255, 0.3)';
+        });
     }
     
     destroy() {
