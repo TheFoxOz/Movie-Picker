@@ -455,3 +455,8 @@ export function getTMDBService() {
     }
     return tmdbServiceInstance;
 }
+
+// Backwards compatibility - initTMDBService does the same as getTMDBService
+export function initTMDBService() {
+    return getTMDBService();
+}
