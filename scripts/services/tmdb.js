@@ -1,580 +1,582 @@
 /**
- * Home Tab - ULTRA PREMIUM WITH TMDB TRENDING
- * Trending this week (UK), all-time best, category rankings
+ * TMDB Service - WITH TRAILER SUPPORT
+ * Handles all TMDB API interactions including trailers
  */
 
-import { store } from '../state/store.js';
-import { movieModal } from '../components/movie-modal.js';
-import { getTMDBService } from '../services/tmdb.js';
+const TMDB_API_BASE = 'https://api.themoviedb.org/3';
+const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p';
+const CACHE_EXPIRY = 1000 * 60 * 30; // 30 minutes
 
-export class HomeTab {
-    constructor(container) {
-        this.container = container;
-        this.currentHeroIndex = 0;
-        this.heroInterval = null;
-        this.trendingMovies = [];
-        this.allTimeBest = [];
-        this.categoryMovies = {};
+class TMDBService {
+    constructor() {
+        this.apiKey = window.__tmdb_api_key || null;
+        this.cache = new Map();
+        console.log('[TMDB] Service initialized with API key:', this.apiKey ? 'Present' : 'Missing');
     }
     
-    async render() {
-        const movies = store.get('movies');
-        const swipeHistory = store.get('swipeHistory');
-        const currentMovie = store.get('currentMovie');
+    /**
+     * Fetch trending movies this week in specific region
+     */
+    async fetchTrendingWeek(region = 'GB') {
+        if (!this.apiKey) {
+            console.warn('[TMDB] No API key - cannot fetch trending');
+            return [];
+        }
         
-        // Get loved movies for "Your Favorites" section
-        const lovedMovies = swipeHistory
-            .filter(s => s.action === 'love')
-            .map(s => s.movie)
-            .filter(Boolean)
-            .slice(0, 5);
-        
-        // Fetch trending and best movies from TMDB
-        await this.fetchTMDBData();
-        
-        // Get top picks (high rated, matching genres)
-        const topPicks = movies
-            .filter(m => m.imdb >= 7.5)
-            .sort((a, b) => b.imdb - a.imdb)
-            .slice(0, 6);
-        
-        // Hero movies (use trending if available, otherwise top rated)
-        const heroMovies = this.trendingMovies.length > 0 
-            ? this.trendingMovies.slice(0, 4)
-            : movies.sort((a, b) => b.imdb - a.imdb).slice(0, 4);
-        
-        this.container.innerHTML = `
-            <div style="background: linear-gradient(180deg, #0a0a0f 0%, #12121a 50%, #0a0a0f 100%); min-height: 100vh; overflow-x: hidden; padding-bottom: 100px;">
-                
-                <!-- Gradient Greeting -->
-                <div style="padding: 2rem 1.5rem 1rem; background: linear-gradient(135deg, rgba(255, 46, 99, 0.15), rgba(255, 153, 0, 0.1)); border-bottom: 1px solid rgba(255, 46, 99, 0.2);">
-                    <h1 style="font-size: 2rem; font-weight: 800; margin: 0; background: linear-gradient(135deg, #fff, #ff2e63); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">
-                        Welcome back!
-                    </h1>
-                    <p style="color: rgba(255, 255, 255, 0.6); margin-top: 0.5rem; font-size: 0.875rem;">
-                        Trending movies and personalized picks
-                    </p>
-                </div>
-                
-                <!-- Hero Carousel -->
-                <div style="position: relative; height: 70vh; overflow: hidden; margin-bottom: 2rem;">
-                    ${heroMovies.map((movie, index) => this.renderHeroSlide(movie, index)).join('')}
-                    
-                    <!-- Carousel Indicators -->
-                    <div style="position: absolute; bottom: 2rem; left: 50%; transform: translateX(-50%); display: flex; gap: 0.5rem; z-index: 10;">
-                        ${heroMovies.map((_, index) => `
-                            <button 
-                                class="hero-indicator" 
-                                data-index="${index}"
-                                style="width: ${index === 0 ? '32px' : '12px'}; height: 12px; border-radius: 6px; background: ${index === 0 ? 'linear-gradient(90deg, #ff2e63, #ff9900)' : 'rgba(255, 255, 255, 0.3)'}; border: none; cursor: pointer; transition: all 0.3s; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);"
-                            ></button>
-                        `).join('')}
-                    </div>
-                </div>
-                
-                <!-- TRENDING THIS WEEK IN UK -->
-                ${this.trendingMovies.length > 0 ? `
-                    <div style="padding: 0 1.5rem; margin-bottom: 3rem;">
-                        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">
-                            <div style="width: 4px; height: 24px; background: linear-gradient(180deg, #ff2e63, #ff9900); border-radius: 2px;"></div>
-                            <h2 style="font-size: 1.25rem; font-weight: 700; color: white; margin: 0;">
-                                🔥 Trending This Week in UK
-                            </h2>
-                            <span style="padding: 0.25rem 0.75rem; background: rgba(255, 46, 99, 0.2); border: 1px solid rgba(255, 46, 99, 0.4); border-radius: 0.5rem; font-size: 0.75rem; font-weight: 700; color: #ff2e63; margin-left: auto; text-transform: uppercase;">
-                                HOT
-                            </span>
-                        </div>
-                        <div style="display: flex; gap: 1rem; overflow-x: auto; padding-bottom: 1rem; -webkit-overflow-scrolling: touch; scrollbar-width: none;">
-                            ${this.trendingMovies.slice(0, 10).map((movie, index) => this.renderTrendingCard(movie, index + 1)).join('')}
-                        </div>
-                    </div>
-                ` : ''}
-                
-                <!-- YOUR FAVORITES -->
-                ${lovedMovies.length > 0 ? `
-                    <div style="padding: 0 1.5rem; margin-bottom: 3rem;">
-                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
-                            <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                <div style="width: 4px; height: 24px; background: linear-gradient(180deg, #ff006e, #d90062); border-radius: 2px;"></div>
-                                <h2 style="font-size: 1.25rem; font-weight: 700; color: white; margin: 0;">
-                                    💜 Your Favorites
-                                </h2>
-                            </div>
-                            <span style="font-size: 0.75rem; color: rgba(255, 0, 110, 0.8); font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em;">
-                                ${lovedMovies.length} movies
-                            </span>
-                        </div>
-                        <div style="display: flex; gap: 1rem; overflow-x: auto; padding-bottom: 1rem; -webkit-overflow-scrolling: touch; scrollbar-width: none;">
-                            ${lovedMovies.map(movie => this.renderLovedCard(movie)).join('')}
-                        </div>
-                    </div>
-                ` : ''}
-                
-                <!-- ALL-TIME BEST MOVIES -->
-                ${this.allTimeBest.length > 0 ? `
-                    <div style="padding: 0 1.5rem; margin-bottom: 3rem;">
-                        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">
-                            <div style="width: 4px; height: 24px; background: linear-gradient(180deg, #fbbf24, #f59e0b); border-radius: 2px;"></div>
-                            <h2 style="font-size: 1.25rem; font-weight: 700; color: white; margin: 0;">
-                                👑 All-Time Best Movies
-                            </h2>
-                            <span style="padding: 0.25rem 0.75rem; background: rgba(251, 191, 36, 0.2); border: 1px solid rgba(251, 191, 36, 0.4); border-radius: 0.5rem; font-size: 0.75rem; font-weight: 700; color: #fbbf24; margin-left: auto; text-transform: uppercase;">
-                                IMDb Top Rated
-                            </span>
-                        </div>
-                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem;">
-                            ${this.allTimeBest.slice(0, 6).map((movie, index) => this.renderBestMovieCard(movie, index + 1)).join('')}
-                        </div>
-                    </div>
-                ` : ''}
-                
-                <!-- BEST ACTION MOVIES -->
-                ${this.categoryMovies.action?.length > 0 ? `
-                    <div style="padding: 0 1.5rem; margin-bottom: 3rem;">
-                        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">
-                            <div style="width: 4px; height: 24px; background: linear-gradient(180deg, #ef4444, #dc2626); border-radius: 2px;"></div>
-                            <h2 style="font-size: 1.25rem; font-weight: 700; color: white; margin: 0;">
-                                💥 Best Action Movies
-                            </h2>
-                        </div>
-                        <div style="display: flex; gap: 1rem; overflow-x: auto; padding-bottom: 1rem; -webkit-overflow-scrolling: touch; scrollbar-width: none;">
-                            ${this.categoryMovies.action.slice(0, 8).map(movie => this.renderCategoryCard(movie)).join('')}
-                        </div>
-                    </div>
-                ` : ''}
-                
-                <!-- BEST SCI-FI MOVIES -->
-                ${this.categoryMovies.scifi?.length > 0 ? `
-                    <div style="padding: 0 1.5rem; margin-bottom: 3rem;">
-                        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">
-                            <div style="width: 4px; height: 24px; background: linear-gradient(180deg, #8b5cf6, #7c3aed); border-radius: 2px;"></div>
-                            <h2 style="font-size: 1.25rem; font-weight: 700; color: white; margin: 0;">
-                                🚀 Best Sci-Fi Movies
-                            </h2>
-                        </div>
-                        <div style="display: flex; gap: 1rem; overflow-x: auto; padding-bottom: 1rem; -webkit-overflow-scrolling: touch; scrollbar-width: none;">
-                            ${this.categoryMovies.scifi.slice(0, 8).map(movie => this.renderCategoryCard(movie)).join('')}
-                        </div>
-                    </div>
-                ` : ''}
-                
-                <!-- BEST COMEDY MOVIES -->
-                ${this.categoryMovies.comedy?.length > 0 ? `
-                    <div style="padding: 0 1.5rem; margin-bottom: 3rem;">
-                        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">
-                            <div style="width: 4px; height: 24px; background: linear-gradient(180deg, #10b981, #059669); border-radius: 2px;"></div>
-                            <h2 style="font-size: 1.25rem; font-weight: 700; color: white; margin: 0;">
-                                😂 Best Comedy Movies
-                            </h2>
-                        </div>
-                        <div style="display: flex; gap: 1rem; overflow-x: auto; padding-bottom: 1rem; -webkit-overflow-scrolling: touch; scrollbar-width: none;">
-                            ${this.categoryMovies.comedy.slice(0, 8).map(movie => this.renderCategoryCard(movie)).join('')}
-                        </div>
-                    </div>
-                ` : ''}
-                
-                <!-- BEST HORROR MOVIES -->
-                ${this.categoryMovies.horror?.length > 0 ? `
-                    <div style="padding: 0 1.5rem; margin-bottom: 3rem;">
-                        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">
-                            <div style="width: 4px; height: 24px; background: linear-gradient(180deg, #7c3aed, #6d28d9); border-radius: 2px;"></div>
-                            <h2 style="font-size: 1.25rem; font-weight: 700; color: white; margin: 0;">
-                                👻 Best Horror Movies
-                            </h2>
-                        </div>
-                        <div style="display: flex; gap: 1rem; overflow-x: auto; padding-bottom: 1rem; -webkit-overflow-scrolling: touch; scrollbar-width: none;">
-                            ${this.categoryMovies.horror.slice(0, 8).map(movie => this.renderCategoryCard(movie)).join('')}
-                        </div>
-                    </div>
-                ` : ''}
-                
-                <!-- CONTINUE SWIPING -->
-                ${currentMovie ? `
-                    <div style="padding: 0 1.5rem; margin-bottom: 3rem;">
-                        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">
-                            <div style="width: 4px; height: 24px; background: linear-gradient(180deg, #ec4899, #db2777); border-radius: 2px;"></div>
-                            <h2 style="font-size: 1.25rem; font-weight: 700; color: white; margin: 0;">
-                                Continue Swiping
-                            </h2>
-                        </div>
-                        ${this.renderContinueSwiping(currentMovie, swipeHistory, movies)}
-                    </div>
-                ` : ''}
-            </div>
-        `;
-        
-        this.attachListeners();
-        this.startHeroCarousel();
-    }
-    
-    async fetchTMDBData() {
-        const tmdbService = getTMDBService();
+        const cacheKey = `trending_week_${region}`;
+        const cached = this.getFromCache(cacheKey);
+        if (cached) {
+            console.log('[TMDB] Trending from cache');
+            return cached;
+        }
         
         try {
-            // Fetch trending movies this week in UK
-            console.log('[HomeTab] Fetching trending movies...');
-            this.trendingMovies = await tmdbService.fetchTrendingWeek('GB');
-            console.log('[HomeTab] Trending movies:', this.trendingMovies.length);
+            const url = `${TMDB_API_BASE}/trending/movie/week?api_key=${this.apiKey}&region=${region}`;
+            const response = await fetch(url);
             
-            // Fetch all-time best movies (top rated)
-            console.log('[HomeTab] Fetching all-time best...');
-            this.allTimeBest = await tmdbService.fetchTopRated();
-            console.log('[HomeTab] All-time best:', this.allTimeBest.length);
+            if (!response.ok) {
+                throw new Error(`TMDB API error: ${response.status}`);
+            }
             
-            // Fetch best movies by category
-            console.log('[HomeTab] Fetching category movies...');
-            this.categoryMovies = {
-                action: await tmdbService.fetchByGenre(28, 'Action'), // Genre ID 28 = Action
-                scifi: await tmdbService.fetchByGenre(878, 'Sci-Fi'),  // Genre ID 878 = Sci-Fi
-                comedy: await tmdbService.fetchByGenre(35, 'Comedy'),  // Genre ID 35 = Comedy
-                horror: await tmdbService.fetchByGenre(27, 'Horror')   // Genre ID 27 = Horror
-            };
-            console.log('[HomeTab] Categories fetched');
+            const data = await response.json();
+            const movies = data.results
+                .filter(movie => movie.poster_path)
+                .map(movie => this.transformMovieBasic(movie))
+                .slice(0, 10); // Top 10 trending
+            
+            this.setToCache(cacheKey, movies);
+            console.log('[TMDB] Fetched trending:', movies.length);
+            return movies;
             
         } catch (error) {
-            console.error('[HomeTab] Error fetching TMDB data:', error);
+            console.error('[TMDB] Error fetching trending:', error);
+            return [];
         }
     }
     
-    renderHeroSlide(movie, index) {
-        const posterUrl = movie.backdrop_path || movie.poster_path || 'https://placehold.co/1280x720/1a1a2e/ffffff?text=' + encodeURIComponent(movie.title);
-        
-        return `
-            <div class="hero-slide" data-index="${index}" style="position: absolute; inset: 0; opacity: ${index === 0 ? 1 : 0}; transition: opacity 0.6s ease-in-out; pointer-events: ${index === 0 ? 'auto' : 'none'};">
-                <!-- Background Image -->
-                <div style="position: absolute; inset: 0; overflow: hidden;">
-                    <img 
-                        src="${posterUrl}" 
-                        alt="${movie.title}"
-                        style="width: 100%; height: 100%; object-fit: cover; filter: brightness(0.4);"
-                    >
-                    <div style="position: absolute; inset: 0; background: linear-gradient(180deg, transparent 0%, rgba(10, 10, 15, 0.8) 70%, #0a0a0f 100%);"></div>
-                </div>
-                
-                <!-- Content -->
-                <div style="position: absolute; bottom: 4rem; left: 1.5rem; right: 1.5rem; z-index: 1;">
-                    <h2 style="font-size: 2rem; font-weight: 800; color: white; margin: 0 0 1rem 0; line-height: 1.2; text-shadow: 0 4px 12px rgba(0, 0, 0, 0.8);">
-                        ${movie.title}
-                    </h2>
-                    <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap;">
-                        <span style="padding: 0.5rem 1rem; background: rgba(251, 191, 36, 0.3); backdrop-filter: blur(10px); border: 1px solid rgba(251, 191, 36, 0.5); border-radius: 0.75rem; font-size: 0.875rem; font-weight: 700; color: #fbbf24; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);">
-                            ⭐ ${movie.imdb || movie.vote_average?.toFixed(1) || 'N/A'}
-                        </span>
-                        <span style="font-size: 0.875rem; color: rgba(255, 255, 255, 0.9); font-weight: 600;">${movie.year || 'N/A'}</span>
-                        <span style="font-size: 0.875rem; color: rgba(255, 255, 255, 0.9); font-weight: 600;">${movie.genre || 'N/A'}</span>
-                    </div>
-                    <p style="font-size: 0.875rem; color: rgba(255, 255, 255, 0.85); line-height: 1.6; margin: 0 0 1.5rem 0; max-height: 4.8em; overflow: hidden; text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);">
-                        ${(movie.synopsis || movie.overview || 'No description available.').slice(0, 150)}...
-                    </p>
-                    <button 
-                        class="hero-cta" 
-                        data-movie-id="${movie.id}"
-                        style="padding: 1rem 2rem; background: linear-gradient(135deg, #ff2e63, #ff9900); border: none; border-radius: 0.75rem; color: white; font-size: 1rem; font-weight: 700; cursor: pointer; box-shadow: 0 8px 24px rgba(255, 46, 99, 0.4); transition: all 0.3s;"
-                        onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='0 12px 32px rgba(255, 46, 99, 0.6)'"
-                        onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 8px 24px rgba(255, 46, 99, 0.4)'"
-                    >
-                        ▶ Watch Trailer
-                    </button>
-                </div>
-            </div>
-        `;
-    }
-    
-    renderTrendingCard(movie, rank) {
-        const posterUrl = movie.poster_path || `https://placehold.co/300x450/1a1a2e/ffffff?text=${encodeURIComponent(movie.title)}`;
-        
-        const rankColors = {
-            1: 'linear-gradient(135deg, #fbbf24, #f59e0b)', // Gold
-            2: 'linear-gradient(135deg, #d1d5db, #9ca3af)', // Silver
-            3: 'linear-gradient(135deg, #f97316, #ea580c)'  // Bronze
-        };
-        const rankColor = rankColors[rank] || 'linear-gradient(135deg, #6366f1, #4f46e5)';
-        
-        return `
-            <div data-movie-id="${movie.id}" style="position: relative; flex-shrink: 0; width: 160px; cursor: pointer; transition: transform 0.3s; border-radius: 1rem; overflow: hidden; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
-                <img 
-                    src="${posterUrl}" 
-                    alt="${movie.title}"
-                    style="width: 100%; height: 240px; object-fit: cover;"
-                >
-                <!-- Rank Badge -->
-                <div style="position: absolute; top: 0.5rem; left: 0.5rem; width: 40px; height: 40px; border-radius: 50%; background: ${rankColor}; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; font-weight: 800; color: white; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5); border: 2px solid rgba(255, 255, 255, 0.3);">
-                    ${rank}
-                </div>
-                <!-- Trending Badge -->
-                <div style="position: absolute; top: 0.5rem; right: 0.5rem; padding: 0.25rem 0.75rem; background: linear-gradient(135deg, #ff2e63, #ff9900); border-radius: 0.5rem; font-size: 0.625rem; font-weight: 700; color: white; text-transform: uppercase; box-shadow: 0 4px 12px rgba(255, 46, 99, 0.5);">
-                    🔥 HOT
-                </div>
-                <div style="position: absolute; bottom: 0; left: 0; right: 0; padding: 1rem 0.75rem; background: linear-gradient(0deg, rgba(0, 0, 0, 0.95), transparent);">
-                    <h4 style="font-size: 0.875rem; font-weight: 700; color: white; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                        ${movie.title}
-                    </h4>
-                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.25rem;">
-                        <span style="font-size: 0.75rem; color: rgba(255, 255, 255, 0.7);">${movie.year || 'N/A'}</span>
-                        <span style="padding: 0.125rem 0.5rem; background: rgba(251, 191, 36, 0.3); border-radius: 0.375rem; font-size: 0.625rem; font-weight: 700; color: #fbbf24;">
-                            ⭐ ${movie.imdb || movie.vote_average?.toFixed(1) || 'N/A'}
-                        </span>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-    
-    renderBestMovieCard(movie, rank) {
-        const posterUrl = movie.poster_path || `https://placehold.co/300x450/1a1a2e/ffffff?text=${encodeURIComponent(movie.title)}`;
-        
-        return `
-            <div data-movie-id="${movie.id}" style="position: relative; cursor: pointer; transition: transform 0.3s; border-radius: 1rem; overflow: hidden; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4); border: 2px solid ${rank <= 3 ? 'rgba(251, 191, 36, 0.5)' : 'rgba(255, 255, 255, 0.1)'};" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
-                <img 
-                    src="${posterUrl}" 
-                    alt="${movie.title}"
-                    style="width: 100%; height: 260px; object-fit: cover;"
-                >
-                <!-- Rank Badge -->
-                <div style="position: absolute; top: 0.75rem; left: 0.75rem; width: 48px; height: 48px; border-radius: 50%; background: linear-gradient(135deg, #fbbf24, #f59e0b); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: 800; color: white; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5); border: 3px solid rgba(255, 255, 255, 0.3);">
-                    ${rank}
-                </div>
-                <div style="position: absolute; bottom: 0; left: 0; right: 0; padding: 1.25rem; background: linear-gradient(0deg, rgba(0, 0, 0, 0.95), transparent);">
-                    <h4 style="font-size: 1rem; font-weight: 700; color: white; margin: 0 0 0.5rem 0; line-height: 1.3;">
-                        ${movie.title}
-                    </h4>
-                    <div style="display: flex; align-items: center; gap: 0.75rem;">
-                        <span style="padding: 0.375rem 0.75rem; background: rgba(251, 191, 36, 0.3); border-radius: 0.5rem; font-size: 0.875rem; font-weight: 700; color: #fbbf24;">
-                            ⭐ ${movie.imdb || movie.vote_average?.toFixed(1) || 'N/A'}
-                        </span>
-                        <span style="font-size: 0.875rem; color: rgba(255, 255, 255, 0.7);">${movie.year || 'N/A'}</span>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-    
-    renderCategoryCard(movie) {
-        const posterUrl = movie.poster_path || `https://placehold.co/300x450/1a1a2e/ffffff?text=${encodeURIComponent(movie.title)}`;
-        
-        return `
-            <div data-movie-id="${movie.id}" style="position: relative; flex-shrink: 0; width: 160px; cursor: pointer; transition: transform 0.3s; border-radius: 1rem; overflow: hidden; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
-                <img 
-                    src="${posterUrl}" 
-                    alt="${movie.title}"
-                    style="width: 100%; height: 240px; object-fit: cover;"
-                >
-                <div style="position: absolute; bottom: 0; left: 0; right: 0; padding: 1rem 0.75rem; background: linear-gradient(0deg, rgba(0, 0, 0, 0.95), transparent);">
-                    <h4 style="font-size: 0.875rem; font-weight: 700; color: white; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                        ${movie.title}
-                    </h4>
-                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.25rem;">
-                        <span style="padding: 0.125rem 0.5rem; background: rgba(251, 191, 36, 0.3); border-radius: 0.375rem; font-size: 0.625rem; font-weight: 700; color: #fbbf24;">
-                            ⭐ ${movie.imdb || movie.vote_average?.toFixed(1) || 'N/A'}
-                        </span>
-                        <span style="font-size: 0.75rem; color: rgba(255, 255, 255, 0.7);">${movie.year || 'N/A'}</span>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-    
-    renderLovedCard(movie) {
-        const posterUrl = movie.poster_path || `https://placehold.co/300x450/1a1a2e/ffffff?text=${encodeURIComponent(movie.title)}`;
-        
-        return `
-            <div data-movie-id="${movie.id}" style="position: relative; flex-shrink: 0; width: 160px; cursor: pointer; transition: transform 0.3s; border-radius: 1rem; overflow: hidden; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
-                <img 
-                    src="${posterUrl}" 
-                    alt="${movie.title}"
-                    style="width: 100%; height: 240px; object-fit: cover;"
-                >
-                <div style="position: absolute; top: 0.5rem; right: 0.5rem; padding: 0.25rem 0.5rem; background: linear-gradient(135deg, #ff006e, #d90062); border-radius: 0.5rem; font-size: 0.625rem; font-weight: 700; color: white; text-transform: uppercase; box-shadow: 0 4px 12px rgba(255, 0, 110, 0.5);">
-                    LOVE
-                </div>
-                <div style="position: absolute; bottom: 0; left: 0; right: 0; padding: 1rem 0.75rem; background: linear-gradient(0deg, rgba(0, 0, 0, 0.95), transparent);">
-                    <h4 style="font-size: 0.875rem; font-weight: 700; color: white; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                        ${movie.title}
-                    </h4>
-                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.25rem;">
-                        <span style="font-size: 0.75rem; color: rgba(255, 255, 255, 0.7);">${movie.year}</span>
-                        <span style="padding: 0.125rem 0.5rem; background: rgba(251, 191, 36, 0.3); border-radius: 0.375rem; font-size: 0.625rem; font-weight: 700; color: #fbbf24;">
-                            ⭐ ${movie.imdb}
-                        </span>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-    
-    renderContinueSwiping(currentMovie, swipeHistory, allMovies) {
-        const remaining = allMovies.length - swipeHistory.length;
-        const progress = ((swipeHistory.length / allMovies.length) * 100).toFixed(0);
-        const posterUrl = currentMovie.poster_path || `https://placehold.co/300x450/1a1a2e/ffffff?text=${encodeURIComponent(currentMovie.title)}`;
-        
-        return `
-            <div style="backdrop-filter: blur(10px); background: linear-gradient(135deg, rgba(236, 72, 153, 0.15), rgba(219, 39, 119, 0.15)); border: 1px solid rgba(236, 72, 153, 0.3); border-radius: 1.5rem; padding: 1.5rem; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);">
-                <div style="display: flex; gap: 1.5rem; align-items: center;">
-                    <!-- Poster -->
-                    <div style="width: 100px; height: 150px; border-radius: 0.75rem; overflow: hidden; flex-shrink: 0; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);">
-                        <img 
-                            src="${posterUrl}" 
-                            alt="${currentMovie.title}"
-                            style="width: 100%; height: 100%; object-fit: cover;"
-                        >
-                    </div>
-                    
-                    <!-- Info -->
-                    <div style="flex: 1; min-width: 0;">
-                        <h3 style="font-size: 1.125rem; font-weight: 700; color: white; margin: 0 0 0.5rem 0;">
-                            ${currentMovie.title}
-                        </h3>
-                        <p style="font-size: 0.875rem; color: rgba(255, 255, 255, 0.7); margin: 0 0 1rem 0;">
-                            ${remaining} movies remaining
-                        </p>
-                        
-                        <!-- Progress Circle -->
-                        <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem;">
-                            <svg width="60" height="60" style="transform: rotate(-90deg);">
-                                <circle cx="30" cy="30" r="26" fill="none" stroke="rgba(255, 255, 255, 0.1)" stroke-width="4"></circle>
-                                <circle cx="30" cy="30" r="26" fill="none" stroke="url(#gradient)" stroke-width="4" stroke-dasharray="${163.36 * progress / 100} 163.36" stroke-linecap="round"></circle>
-                                <defs>
-                                    <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                                        <stop offset="0%" style="stop-color:#ec4899" />
-                                        <stop offset="100%" style="stop-color:#db2777" />
-                                    </linearGradient>
-                                </defs>
-                            </svg>
-                            <div>
-                                <div style="font-size: 1.5rem; font-weight: 800; color: white; line-height: 1;">
-                                    ${progress}%
-                                </div>
-                                <div style="font-size: 0.75rem; color: rgba(255, 255, 255, 0.6); margin-top: 0.25rem;">
-                                    Complete
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- CTA Button -->
-                        <button 
-                            data-nav="swipe"
-                            style="width: 100%; padding: 1rem; background: linear-gradient(135deg, #ec4899, #db2777); border: none; border-radius: 0.75rem; color: white; font-size: 1rem; font-weight: 700; cursor: pointer; box-shadow: 0 4px 16px rgba(236, 72, 153, 0.4); transition: all 0.3s;"
-                            onmouseover="this.style.transform='scale(1.02)'; this.style.boxShadow='0 6px 20px rgba(236, 72, 153, 0.6)'"
-                            onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 4px 16px rgba(236, 72, 153, 0.4)'"
-                        >
-                            Continue Swiping →
-                        </button>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-    
-    attachListeners() {
-        console.log('[HomeTab] Attaching listeners...');
-        
-        // Hero CTAs
-        const heroCtas = this.container.querySelectorAll('.hero-cta');
-        heroCtas.forEach(button => {
-            button.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const movieId = button.dataset.movieId;
-                const allMovies = [...this.trendingMovies, ...this.allTimeBest, ...Object.values(this.categoryMovies).flat()];
-                const movie = allMovies.find(m => String(m.id) === String(movieId));
-                if (movie) {
-                    console.log('[HomeTab] Opening hero movie modal:', movie.title);
-                    movieModal.show(movie);
-                }
-            });
-        });
-        
-        // Hero indicators
-        const indicators = this.container.querySelectorAll('.hero-indicator');
-        indicators.forEach((indicator, index) => {
-            indicator.addEventListener('click', () => {
-                this.currentHeroIndex = index;
-                this.updateHeroSlides();
-            });
-        });
-        
-        // Navigation buttons
-        const navButtons = this.container.querySelectorAll('[data-nav]');
-        navButtons.forEach(button => {
-            button.addEventListener('click', () => {
-                const tab = button.dataset.nav;
-                document.dispatchEvent(new CustomEvent('navigate-tab', { detail: { tab } }));
-            });
-        });
-        
-        // Movie cards
-        const movieCards = this.container.querySelectorAll('[data-movie-id]');
-        console.log('[HomeTab] Found movie cards:', movieCards.length);
-        
-        movieCards.forEach((card, index) => {
-            card.addEventListener('click', () => {
-                console.log('[HomeTab] Card clicked, index:', index);
-                
-                const movieId = card.dataset.movieId;
-                console.log('[HomeTab] Movie ID from card:', movieId);
-                
-                // Search in all movie sources
-                const allMovies = [
-                    ...store.get('movies'),
-                    ...this.trendingMovies,
-                    ...this.allTimeBest,
-                    ...Object.values(this.categoryMovies).flat()
-                ];
-                
-                const movie = allMovies.find(m => String(m.id) === String(movieId));
-                console.log('[HomeTab] Found movie:', movie?.title || 'NOT FOUND');
-                
-                if (movie) {
-                    console.log('[HomeTab] Calling movieModal.show()...');
-                    try {
-                        movieModal.show(movie);
-                        console.log('[HomeTab] Modal opened successfully');
-                    } catch (error) {
-                        console.error('[HomeTab] Error opening modal:', error);
-                    }
-                } else {
-                    console.error('[HomeTab] Movie not found for ID:', movieId);
-                }
-            });
-        });
-        
-        console.log('[HomeTab] All listeners attached');
-    }
-    
-    startHeroCarousel() {
-        if (this.heroInterval) {
-            clearInterval(this.heroInterval);
+    /**
+     * Fetch top rated movies of all time
+     */
+    async fetchTopRated() {
+        if (!this.apiKey) {
+            console.warn('[TMDB] No API key - cannot fetch top rated');
+            return [];
         }
         
-        this.heroInterval = setInterval(() => {
-            const slides = this.container.querySelectorAll('.hero-slide');
-            if (slides.length === 0) return;
+        const cacheKey = 'top_rated_all_time';
+        const cached = this.getFromCache(cacheKey);
+        if (cached) {
+            console.log('[TMDB] Top rated from cache');
+            return cached;
+        }
+        
+        try {
+            const url = `${TMDB_API_BASE}/movie/top_rated?api_key=${this.apiKey}`;
+            const response = await fetch(url);
             
-            this.currentHeroIndex = (this.currentHeroIndex + 1) % slides.length;
-            this.updateHeroSlides();
-        }, 5000);
-    }
-    
-    updateHeroSlides() {
-        const slides = this.container.querySelectorAll('.hero-slide');
-        const indicators = this.container.querySelectorAll('.hero-indicator');
-        
-        slides.forEach((slide, index) => {
-            slide.style.opacity = index === this.currentHeroIndex ? '1' : '0';
-            slide.style.pointerEvents = index === this.currentHeroIndex ? 'auto' : 'none';
-        });
-        
-        indicators.forEach((indicator, index) => {
-            indicator.style.width = index === this.currentHeroIndex ? '32px' : '12px';
-            indicator.style.background = index === this.currentHeroIndex 
-                ? 'linear-gradient(90deg, #ff2e63, #ff9900)'
-                : 'rgba(255, 255, 255, 0.3)';
-        });
-    }
-    
-    destroy() {
-        if (this.heroInterval) {
-            clearInterval(this.heroInterval);
-            this.heroInterval = null;
+            if (!response.ok) {
+                throw new Error(`TMDB API error: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            const movies = data.results
+                .filter(movie => movie.poster_path)
+                .map(movie => this.transformMovieBasic(movie))
+                .slice(0, 10); // Top 10 rated
+            
+            this.setToCache(cacheKey, movies);
+            console.log('[TMDB] Fetched top rated:', movies.length);
+            return movies;
+            
+        } catch (error) {
+            console.error('[TMDB] Error fetching top rated:', error);
+            return [];
         }
     }
+    
+    /**
+     * Fetch best movies by genre
+     */
+    async fetchByGenre(genreId, genreName) {
+        if (!this.apiKey) {
+            console.warn('[TMDB] No API key - cannot fetch by genre');
+            return [];
+        }
+        
+        const cacheKey = `genre_${genreId}`;
+        const cached = this.getFromCache(cacheKey);
+        if (cached) {
+            console.log(`[TMDB] ${genreName} from cache`);
+            return cached;
+        }
+        
+        try {
+            const url = `${TMDB_API_BASE}/discover/movie?api_key=${this.apiKey}&with_genres=${genreId}&sort_by=vote_average.desc&vote_count.gte=1000`;
+            const response = await fetch(url);
+            
+            if (!response.ok) {
+                throw new Error(`TMDB API error: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            const movies = data.results
+                .filter(movie => movie.poster_path)
+                .map(movie => this.transformMovieBasic(movie))
+                .slice(0, 8); // Top 8 per genre
+            
+            this.setToCache(cacheKey, movies);
+            console.log(`[TMDB] Fetched ${genreName}:`, movies.length);
+            return movies;
+            
+        } catch (error) {
+            console.error(`[TMDB] Error fetching ${genreName}:`, error);
+            return [];
+        }
+    }
+    
+    /**
+     * Get movie trailer from TMDB
+     */
+    async getMovieTrailer(movieId) {
+        if (!this.apiKey) {
+            console.warn('[TMDB] No API key - cannot fetch trailer');
+            return null;
+        }
+        
+        const cacheKey = `trailer_${movieId}`;
+        const cached = this.getFromCache(cacheKey);
+        if (cached) {
+            console.log('[TMDB] Trailer from cache:', cached);
+            return cached;
+        }
+        
+        try {
+            const url = `${TMDB_API_BASE}/movie/${movieId}/videos?api_key=${this.apiKey}`;
+            const response = await fetch(url);
+            
+            if (!response.ok) {
+                throw new Error(`TMDB API error: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            
+            // Find official YouTube trailer
+            const trailer = data.results?.find(video => 
+                video.type === 'Trailer' && 
+                video.site === 'YouTube' && 
+                video.official === true
+            ) || data.results?.find(video => 
+                video.type === 'Trailer' && 
+                video.site === 'YouTube'
+            );
+            
+            const trailerKey = trailer?.key || null;
+            
+            // Cache the result
+            this.setToCache(cacheKey, trailerKey);
+            
+            console.log('[TMDB] Trailer key:', trailerKey);
+            return trailerKey;
+            
+        } catch (error) {
+            console.error('[TMDB] Error fetching trailer:', error);
+            return null;
+        }
+    }
+    
+    /**
+     * Fetch popular movies from TMDB (fast version - basic data only)
+     */
+    async fetchPopularMovies() {
+        if (!this.apiKey) {
+            console.warn('[TMDB] No API key provided');
+            return this.getFallbackMovies();
+        }
+        
+        try {
+            const allMovies = [];
+            const totalPages = 5; // Fetch 5 pages = 100 movies
+            
+            for (let page = 1; page <= totalPages; page++) {
+                console.log(`[TMDB] Loaded page ${page}/${totalPages}`);
+                const movies = await this.fetchPage(page);
+                allMovies.push(...movies);
+            }
+            
+            console.log(`[TMDB] Successfully loaded ${allMovies.length} movies`);
+            return allMovies;
+            
+        } catch (error) {
+            console.error('[TMDB] Error fetching movies:', error);
+            return this.getFallbackMovies();
+        }
+    }
+    
+    async fetchPage(page) {
+        const cacheKey = `popular_page_${page}`;
+        const cached = this.getFromCache(cacheKey);
+        if (cached) return cached;
+        
+        const url = `${TMDB_API_BASE}/movie/popular?api_key=${this.apiKey}&page=${page}`;
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+            throw new Error(`TMDB API error: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        const movies = data.results
+            .filter(movie => movie.poster_path) // Only movies with posters
+            .map(movie => this.transformMovieBasic(movie));
+        
+        this.setToCache(cacheKey, movies);
+        return movies;
+    }
+    
+    /**
+     * Search movies on TMDB
+     */
+    async searchMovies(query) {
+        if (!this.apiKey) {
+            console.warn('[TMDB] No API key - cannot search');
+            return [];
+        }
+        
+        const cacheKey = `search_${query}`;
+        const cached = this.getFromCache(cacheKey);
+        if (cached) return cached;
+        
+        try {
+            const url = `${TMDB_API_BASE}/search/movie?api_key=${this.apiKey}&query=${encodeURIComponent(query)}`;
+            const response = await fetch(url);
+            
+            if (!response.ok) {
+                throw new Error(`TMDB API error: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            const movies = data.results
+                .filter(movie => movie.poster_path) // Only movies with posters
+                .map(movie => this.transformMovieBasic(movie));
+            
+            this.setToCache(cacheKey, movies);
+            return movies;
+            
+        } catch (error) {
+            console.error('[TMDB] Search error:', error);
+            return [];
+        }
+    }
+    
+    /**
+     * Transform TMDB movie data (FAST - basic info only, no extra API calls)
+     */
+    transformMovieBasic(tmdbMovie) {
+        return {
+            id: tmdbMovie.id,
+            title: tmdbMovie.title,
+            year: tmdbMovie.release_date ? new Date(tmdbMovie.release_date).getFullYear() : 'N/A',
+            imdb: tmdbMovie.vote_average ? tmdbMovie.vote_average.toFixed(1) : 'N/A',
+            vote_count: tmdbMovie.vote_count || 0,
+            popularity: tmdbMovie.popularity || 0,
+            synopsis: tmdbMovie.overview || 'No description available.',
+            genre: this.getGenres(tmdbMovie.genre_ids),
+            poster_path: tmdbMovie.poster_path 
+                ? `${TMDB_IMAGE_BASE}/w500${tmdbMovie.poster_path}`
+                : null,
+            backdrop_path: tmdbMovie.backdrop_path
+                ? `${TMDB_IMAGE_BASE}/w1280${tmdbMovie.backdrop_path}`
+                : null,
+            platform: this.inferPlatform(tmdbMovie),
+            runtime: 'N/A', // Not available without extra API call
+            cast: [], // Not available without extra API call
+            mood: this.inferMood(tmdbMovie.genre_ids),
+            triggerWarnings: this.inferTriggerWarnings(tmdbMovie.genre_ids)
+        };
+    }
+    
+    /**
+     * Transform TMDB movie data (DETAILED - with extra API calls for full data)
+     */
+    async transformMovie(tmdbMovie) {
+        // Start with basic data
+        const movie = this.transformMovieBasic(tmdbMovie);
+        
+        // Fetch additional details if API key available
+        if (this.apiKey && tmdbMovie.id) {
+            try {
+                const details = await this.fetchMovieDetails(tmdbMovie.id);
+                if (details) {
+                    movie.runtime = details.runtime ? `${details.runtime} min` : 'N/A';
+                    movie.cast = details.cast || [];
+                }
+            } catch (error) {
+                console.error('[TMDB] Error fetching details:', error);
+            }
+        }
+        
+        return movie;
+    }
+    
+    async fetchMovieDetails(movieId) {
+        const cacheKey = `details_${movieId}`;
+        const cached = this.getFromCache(cacheKey);
+        if (cached) return cached;
+        
+        try {
+            const url = `${TMDB_API_BASE}/movie/${movieId}?api_key=${this.apiKey}&append_to_response=credits`;
+            const response = await fetch(url);
+            
+            if (!response.ok) return null;
+            
+            const data = await response.json();
+            const details = {
+                runtime: data.runtime,
+                cast: data.credits?.cast?.slice(0, 6).map(c => c.name) || []
+            };
+            
+            this.setToCache(cacheKey, details);
+            return details;
+            
+        } catch (error) {
+            console.error('[TMDB] Error fetching details:', error);
+            return null;
+        }
+    }
+    
+    getGenres(genreIds) {
+        const genreMap = {
+            28: 'Action', 12: 'Adventure', 16: 'Animation', 35: 'Comedy',
+            80: 'Crime', 99: 'Documentary', 18: 'Drama', 10751: 'Family',
+            14: 'Fantasy', 36: 'History', 27: 'Horror', 10402: 'Music',
+            9648: 'Mystery', 10749: 'Romance', 878: 'Sci-Fi', 10770: 'TV Movie',
+            53: 'Thriller', 10752: 'War', 37: 'Western'
+        };
+        
+        return genreIds?.map(id => genreMap[id]).filter(Boolean).join(', ') || 'Unknown';
+    }
+    
+    inferPlatform(movie) {
+        // Simple platform inference based on popularity/year
+        const platforms = ['Netflix', 'Hulu', 'Prime Video', 'Disney+', 'HBO Max', 'Apple TV+'];
+        const hash = (movie.id || 0) % platforms.length;
+        return platforms[hash];
+    }
+    
+    inferMood(genreIds) {
+        if (!genreIds || genreIds.length === 0) return 'Entertaining';
+        
+        if (genreIds.includes(27)) return 'Scary';
+        if (genreIds.includes(35)) return 'Funny';
+        if (genreIds.includes(10749)) return 'Romantic';
+        if (genreIds.includes(28)) return 'Action-Packed';
+        if (genreIds.includes(878)) return 'Mind-Bending';
+        if (genreIds.includes(18)) return 'Emotional';
+        if (genreIds.includes(9648)) return 'Mysterious';
+        if (genreIds.includes(16)) return 'Whimsical';
+        if (genreIds.includes(12)) return 'Adventurous';
+        if (genreIds.includes(53)) return 'Suspenseful';
+        if (genreIds.includes(14)) return 'Magical';
+        
+        return 'Entertaining';
+    }
+    
+    inferTriggerWarnings(genreIds) {
+        const warnings = [];
+        
+        if (genreIds?.includes(27)) {
+            warnings.push('Jump Scares', 'Gore', 'Supernatural Horror');
+        }
+        if (genreIds?.includes(28)) {
+            warnings.push('High Violence', 'Intense Action');
+        }
+        if (genreIds?.includes(10752)) {
+            warnings.push('War Violence', 'Emotional Loss');
+        }
+        if (genreIds?.includes(80)) {
+            warnings.push('Crime Violence', 'Disturbing Themes');
+        }
+        
+        return warnings;
+    }
+    
+    getFromCache(key) {
+        const cached = this.cache.get(key);
+        if (!cached) return null;
+        
+        if (Date.now() - cached.timestamp > CACHE_EXPIRY) {
+            this.cache.delete(key);
+            return null;
+        }
+        
+        return cached.data;
+    }
+    
+    setToCache(key, data) {
+        this.cache.set(key, {
+            data,
+            timestamp: Date.now()
+        });
+    }
+    
+    getFallbackMovies() {
+        console.log('[TMDB] Using fallback movies');
+        return [
+            {
+                id: '603',
+                title: 'The Matrix',
+                year: 1999,
+                imdb: '8.7',
+                synopsis: 'A computer hacker learns about the true nature of reality.',
+                genre: 'Action, Sci-Fi',
+                poster_path: null,
+                platform: 'HBO Max',
+                runtime: '136 min',
+                cast: ['Keanu Reeves', 'Laurence Fishburne'],
+                mood: 'Mind-Bending',
+                triggerWarnings: ['High Violence']
+            },
+            {
+                id: '27205',
+                title: 'Inception',
+                year: 2010,
+                imdb: '8.8',
+                synopsis: 'A thief who steals corporate secrets through dream-sharing technology.',
+                genre: 'Action, Sci-Fi, Thriller',
+                poster_path: null,
+                platform: 'Netflix',
+                runtime: '148 min',
+                cast: ['Leonardo DiCaprio', 'Joseph Gordon-Levitt'],
+                mood: 'Mind-Bending',
+                triggerWarnings: []
+            },
+            {
+                id: '278',
+                title: 'The Shawshank Redemption',
+                year: 1994,
+                imdb: '9.3',
+                synopsis: 'Two imprisoned men bond over years, finding redemption.',
+                genre: 'Drama',
+                poster_path: null,
+                platform: 'Prime Video',
+                runtime: '142 min',
+                cast: ['Tim Robbins', 'Morgan Freeman'],
+                mood: 'Emotional',
+                triggerWarnings: []
+            },
+            {
+                id: '680',
+                title: 'Pulp Fiction',
+                year: 1994,
+                imdb: '8.9',
+                synopsis: 'The lives of two mob hitmen, a boxer, and a gangster intertwine.',
+                genre: 'Crime, Drama',
+                poster_path: null,
+                platform: 'Netflix',
+                runtime: '154 min',
+                cast: ['John Travolta', 'Uma Thurman'],
+                mood: 'Intense',
+                triggerWarnings: ['Crime Violence']
+            },
+            {
+                id: '155',
+                title: 'The Dark Knight',
+                year: 2008,
+                imdb: '9.0',
+                synopsis: 'Batman faces the Joker, a criminal mastermind.',
+                genre: 'Action, Crime, Drama',
+                poster_path: null,
+                platform: 'HBO Max',
+                runtime: '152 min',
+                cast: ['Christian Bale', 'Heath Ledger'],
+                mood: 'Dark',
+                triggerWarnings: ['High Violence']
+            },
+            {
+                id: '13',
+                title: 'Forrest Gump',
+                year: 1994,
+                imdb: '8.8',
+                synopsis: 'The presidencies of Kennedy and Johnson unfold through a slow-witted man.',
+                genre: 'Drama, Romance',
+                poster_path: null,
+                platform: 'Prime Video',
+                runtime: '142 min',
+                cast: ['Tom Hanks', 'Robin Wright'],
+                mood: 'Heartwarming',
+                triggerWarnings: []
+            },
+            {
+                id: '157336',
+                title: 'Interstellar',
+                year: 2014,
+                imdb: '8.6',
+                synopsis: 'A team of explorers travel through a wormhole in space.',
+                genre: 'Adventure, Drama, Sci-Fi',
+                poster_path: null,
+                platform: 'Hulu',
+                runtime: '169 min',
+                cast: ['Matthew McConaughey', 'Anne Hathaway'],
+                mood: 'Epic',
+                triggerWarnings: []
+            },
+            {
+                id: '238',
+                title: 'The Godfather',
+                year: 1972,
+                imdb: '9.2',
+                synopsis: 'The aging patriarch of an organized crime dynasty transfers control.',
+                genre: 'Crime, Drama',
+                poster_path: null,
+                platform: 'Prime Video',
+                runtime: '175 min',
+                cast: ['Marlon Brando', 'Al Pacino'],
+                mood: 'Intense',
+                triggerWarnings: ['Crime Violence']
+            },
+            {
+                id: '550',
+                title: 'Fight Club',
+                year: 1999,
+                imdb: '8.8',
+                synopsis: 'An insomniac office worker forms an underground fight club.',
+                genre: 'Drama',
+                poster_path: null,
+                platform: 'Netflix',
+                runtime: '139 min',
+                cast: ['Brad Pitt', 'Edward Norton'],
+                mood: 'Mind-Bending',
+                triggerWarnings: ['High Violence']
+            },
+            {
+                id: '1124',
+                title: 'The Prestige',
+                year: 2006,
+                imdb: '8.5',
+                synopsis: 'Two stage magicians engage in competitive one-upmanship.',
+                genre: 'Drama, Mystery, Thriller',
+                poster_path: null,
+                platform: 'HBO Max',
+                runtime: '130 min',
+                cast: ['Christian Bale', 'Hugh Jackman'],
+                mood: 'Mysterious',
+                triggerWarnings: []
+            }
+        ];
+    }
+}
+
+// Singleton instance
+let tmdbServiceInstance = null;
+
+export function getTMDBService() {
+    if (!tmdbServiceInstance) {
+        tmdbServiceInstance = new TMDBService();
+    }
+    return tmdbServiceInstance;
+}
+
+// Backwards compatibility - initTMDBService does the same as getTMDBService
+export function initTMDBService() {
+    return getTMDBService();
 }
