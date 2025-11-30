@@ -427,6 +427,8 @@ export class LibraryTab {
     }
     
     attachListeners() {
+        console.log('[LibraryTab] Attaching listeners...');
+        
         const searchInput = document.getElementById('library-search');
         if (searchInput) {
             let searchTimeout;
@@ -489,16 +491,39 @@ export class LibraryTab {
         }
         
         const movieCards = this.container.querySelectorAll('[data-movie-id]');
-        movieCards.forEach(card => {
+        console.log('[LibraryTab] Found movie cards:', movieCards.length);
+        
+        movieCards.forEach((card, index) => {
             card.addEventListener('click', () => {
+                console.log('[LibraryTab] Card clicked, index:', index);
+                
                 const movieId = card.dataset.movieId;
+                console.log('[LibraryTab] Movie ID from card:', movieId, typeof movieId);
+                
                 const movies = this.searchResults || store.get('movies');
-                const movie = movies.find(m => m.id === movieId);
+                console.log('[LibraryTab] Total movies available:', movies?.length);
+                console.log('[LibraryTab] Using search results:', !!this.searchResults);
+                
+                // Convert both to strings for comparison (handles string vs number mismatch)
+                const movie = movies.find(m => String(m.id) === String(movieId));
+                console.log('[LibraryTab] Found movie:', movie?.title || 'NOT FOUND');
+                
                 if (movie) {
-                    movieModal.show(movie);
+                    console.log('[LibraryTab] Calling movieModal.show()...');
+                    try {
+                        movieModal.show(movie);
+                        console.log('[LibraryTab] Modal opened successfully');
+                    } catch (error) {
+                        console.error('[LibraryTab] Error opening modal:', error);
+                    }
+                } else {
+                    console.error('[LibraryTab] Movie not found for ID:', movieId);
+                    console.log('[LibraryTab] Available IDs (first 5):', movies.slice(0, 5).map(m => ({ id: m.id, title: m.title })));
                 }
             });
         });
+        
+        console.log('[LibraryTab] All listeners attached');
     }
     
     destroy() {
