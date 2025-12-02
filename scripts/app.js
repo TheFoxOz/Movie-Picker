@@ -11,6 +11,7 @@ import { MatchesTab } from './tabs/matches.js';
 import { ProfileTab } from './tabs/profile.js';
 import { LibraryTab } from './tabs/library.js';
 import { initTMDBService, getTMDBService } from './services/tmdb.js';
+import { ENV } from './config/env.js';
 
 class App {
     constructor() {
@@ -63,10 +64,10 @@ class App {
             // Mark as initialized
             store.setState({ isInitialized: true });
             
-            console.log('[App] Initialization complete (Guest Mode)');
+            console.log('[App] ✅ Initialization complete (Guest Mode)');
             
         } catch (error) {
-            console.error('[App] Initialization failed:', error);
+            console.error('[App] ❌ Initialization failed:', error);
             showError('Failed to initialize app: ' + error.message);
         }
     }
@@ -84,8 +85,10 @@ class App {
             isAuthenticated: false
         });
         
-        console.log('[App] Running in guest mode (Firebase disabled)');
-        console.log('[App] User ID:', guestId);
+        if (ENV.APP.debug) {
+            console.log('[App] Running in guest mode (Firebase disabled)');
+            console.log('[App] User ID:', guestId);
+        }
     }
     
     /**
@@ -97,17 +100,22 @@ class App {
             const tmdbApiKey = window.__tmdb_api_key;
             
             if (!tmdbApiKey || tmdbApiKey === 'YOUR_TMDB_API_KEY_HERE') {
-                console.warn('[App] TMDB API key not configured. Using fallback data.');
-                console.warn('[App] Add your API key to index.html to load real movies.');
+                console.error('[App] ⚠️  TMDB API key not configured!');
+                console.error('[App] 📝 Get your free API key at: https://www.themoviedb.org/settings/api');
+                console.error('[App] 🔧 Update window.__tmdb_api_key in index.html');
+                
+                // Show user-friendly error
+                showError('TMDB API key missing. Using demo movies. Get your free key at themoviedb.org');
+                
                 return false;
             }
             
             initTMDBService(tmdbApiKey);
-            console.log('[App] TMDB Service initialized');
+            console.log('[App] ✅ TMDB Service initialized');
             return true;
             
         } catch (error) {
-            console.error('[App] TMDB initialization failed:', error);
+            console.error('[App] ❌ TMDB initialization failed:', error);
             return false;
         }
     }
@@ -125,19 +133,21 @@ class App {
                 tmdbService = getTMDBService();
             } catch (error) {
                 // TMDB not initialized, use fallback
-                console.warn('[App] TMDB not available, using fallback movies');
+                console.warn('[App] ⚠️  TMDB not available, using fallback movies');
                 store.setMovies(this.getFallbackMovies());
                 store.setLoading(false);
                 return;
             }
             
             // Fetch popular movies (5 pages = 100 movies)
-            console.log('[App] Loading movies from TMDB...');
+            if (ENV.APP.debug) {
+                console.log('[App] Loading movies from TMDB...');
+            }
             const movies = await tmdbService.fetchPopularMovies(5);
             
             if (movies && movies.length > 0) {
                 store.setMovies(movies);
-                console.log(`[App] Loaded ${movies.length} movies from TMDB`);
+                console.log(`[App] ✅ Loaded ${movies.length} movies from TMDB`);
             } else {
                 throw new Error('No movies returned from TMDB');
             }
@@ -145,7 +155,7 @@ class App {
             store.setLoading(false);
             
         } catch (error) {
-            console.error('[App] Error loading movies:', error);
+            console.error('[App] ❌ Error loading movies:', error);
             store.setLoading(false);
             
             // Use fallback data if TMDB fails
@@ -168,10 +178,12 @@ class App {
                 runtime: "136 min",
                 imdb: 8.7,
                 platform: "Netflix",
-                actors: ["Keanu Reeves", "Laurence Fishburne", "Carrie-Anne Moss"],
-                trigger: ["Flashing Lights", "Violence"],
+                cast: ["Keanu Reeves", "Laurence Fishburne", "Carrie-Anne Moss"],
+                triggerWarnings: ["Flashing Lights", "Violence"],
                 synopsis: "A computer hacker learns from mysterious rebels about the true nature of his reality and his role in the war against its controllers.",
-                mood: "Mind-bending, Action-packed"
+                mood: "Mind-bending, Action-packed",
+                poster_path: null,
+                backdrop_path: null
             },
             {
                 id: "fallback-2",
@@ -182,10 +194,12 @@ class App {
                 runtime: "148 min",
                 imdb: 8.8,
                 platform: "Hulu",
-                actors: ["Leonardo DiCaprio", "Joseph Gordon-Levitt", "Ellen Page"],
-                trigger: [],
+                cast: ["Leonardo DiCaprio", "Joseph Gordon-Levitt", "Ellen Page"],
+                triggerWarnings: [],
                 synopsis: "A thief who steals corporate secrets through the use of dream-sharing technology is given the inverse task of planting an idea into the mind of a C.E.O.",
-                mood: "Complex, Thrilling"
+                mood: "Complex, Thrilling",
+                poster_path: null,
+                backdrop_path: null
             },
             {
                 id: "fallback-3",
@@ -196,10 +210,12 @@ class App {
                 runtime: "142 min",
                 imdb: 9.3,
                 platform: "Prime Video",
-                actors: ["Tim Robbins", "Morgan Freeman"],
-                trigger: ["Violence", "Prison Content"],
+                cast: ["Tim Robbins", "Morgan Freeman"],
+                triggerWarnings: ["Violence", "Prison Content"],
                 synopsis: "Two imprisoned men bond over a number of years, finding solace and eventual redemption through acts of common decency.",
-                mood: "Hopeful, Emotional"
+                mood: "Hopeful, Emotional",
+                poster_path: null,
+                backdrop_path: null
             },
             {
                 id: "fallback-4",
@@ -210,10 +226,12 @@ class App {
                 runtime: "154 min",
                 imdb: 8.9,
                 platform: "Netflix",
-                actors: ["John Travolta", "Uma Thurman", "Samuel L. Jackson"],
-                trigger: ["Violence", "Drug Use", "Strong Language"],
+                cast: ["John Travolta", "Uma Thurman", "Samuel L. Jackson"],
+                triggerWarnings: ["Violence", "Drug Use", "Strong Language"],
                 synopsis: "The lives of two mob hitmen, a boxer, a gangster and his wife intertwine in four tales of violence and redemption.",
-                mood: "Stylish, Intense"
+                mood: "Stylish, Intense",
+                poster_path: null,
+                backdrop_path: null
             },
             {
                 id: "fallback-5",
@@ -224,10 +242,12 @@ class App {
                 runtime: "152 min",
                 imdb: 9.0,
                 platform: "Max (HBO)",
-                actors: ["Christian Bale", "Heath Ledger", "Aaron Eckhart"],
-                trigger: ["Violence", "Intense Scenes"],
+                cast: ["Christian Bale", "Heath Ledger", "Aaron Eckhart"],
+                triggerWarnings: ["Violence", "Intense Scenes"],
                 synopsis: "When the menace known as the Joker wreaks havoc and chaos on the people of Gotham, Batman must accept one of the greatest psychological and physical tests.",
-                mood: "Dark, Epic"
+                mood: "Dark, Epic",
+                poster_path: null,
+                backdrop_path: null
             },
             {
                 id: "fallback-6",
@@ -238,10 +258,12 @@ class App {
                 runtime: "142 min",
                 imdb: 8.8,
                 platform: "Hulu",
-                actors: ["Tom Hanks", "Robin Wright", "Gary Sinise"],
-                trigger: ["War Violence", "Emotional Loss"],
+                cast: ["Tom Hanks", "Robin Wright", "Gary Sinise"],
+                triggerWarnings: ["War Violence", "Emotional Loss"],
                 synopsis: "The presidencies of Kennedy and Johnson, the Vietnam War, and other historical events unfold from the perspective of an Alabama man.",
-                mood: "Heartwarming, Inspiring"
+                mood: "Heartwarming, Inspiring",
+                poster_path: null,
+                backdrop_path: null
             },
             {
                 id: "fallback-7",
@@ -252,10 +274,12 @@ class App {
                 runtime: "169 min",
                 imdb: 8.6,
                 platform: "Prime Video",
-                actors: ["Matthew McConaughey", "Anne Hathaway", "Jessica Chastain"],
-                trigger: [],
+                cast: ["Matthew McConaughey", "Anne Hathaway", "Jessica Chastain"],
+                triggerWarnings: [],
                 synopsis: "A team of explorers travel through a wormhole in space in an attempt to ensure humanity's survival.",
-                mood: "Epic, Emotional"
+                mood: "Epic, Emotional",
+                poster_path: null,
+                backdrop_path: null
             },
             {
                 id: "fallback-8",
@@ -266,10 +290,12 @@ class App {
                 runtime: "175 min",
                 imdb: 9.2,
                 platform: "Netflix",
-                actors: ["Marlon Brando", "Al Pacino", "James Caan"],
-                trigger: ["Violence"],
+                cast: ["Marlon Brando", "Al Pacino", "James Caan"],
+                triggerWarnings: ["Violence"],
                 synopsis: "The aging patriarch of an organized crime dynasty transfers control of his clandestine empire to his reluctant son.",
-                mood: "Classic, Intense"
+                mood: "Classic, Intense",
+                poster_path: null,
+                backdrop_path: null
             },
             {
                 id: "fallback-9",
@@ -280,10 +306,12 @@ class App {
                 runtime: "139 min",
                 imdb: 8.8,
                 platform: "Hulu",
-                actors: ["Brad Pitt", "Edward Norton", "Helena Bonham Carter"],
-                trigger: ["Violence", "Disturbing Content"],
+                cast: ["Brad Pitt", "Edward Norton", "Helena Bonham Carter"],
+                triggerWarnings: ["Violence", "Disturbing Content"],
                 synopsis: "An insomniac office worker and a devil-may-care soap maker form an underground fight club that evolves into much more.",
-                mood: "Dark, Thought-provoking"
+                mood: "Dark, Thought-provoking",
+                poster_path: null,
+                backdrop_path: null
             },
             {
                 id: "fallback-10",
@@ -294,10 +322,12 @@ class App {
                 runtime: "130 min",
                 imdb: 8.5,
                 platform: "Prime Video",
-                actors: ["Christian Bale", "Hugh Jackman", "Scarlett Johansson"],
-                trigger: [],
+                cast: ["Christian Bale", "Hugh Jackman", "Scarlett Johansson"],
+                triggerWarnings: [],
                 synopsis: "After a tragic accident, two stage magicians engage in a battle to create the ultimate illusion while sacrificing everything they have to outwit each other.",
-                mood: "Mysterious, Clever"
+                mood: "Mysterious, Clever",
+                poster_path: null,
+                backdrop_path: null
             }
         ];
     }
@@ -312,7 +342,9 @@ class App {
         this.tabs.set('matches', new MatchesTab(this.contentArea));
         this.tabs.set('profile', new ProfileTab(this.contentArea));
         
-        console.log('[App] Tabs initialized');
+        if (ENV.APP.debug) {
+            console.log('[App] Tabs initialized');
+        }
     }
     
     /**
