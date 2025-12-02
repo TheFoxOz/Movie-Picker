@@ -3,6 +3,8 @@
  * Handles all TMDB API interactions including trailers
  */
 
+import { ENV } from '../config/env.js';
+
 const TMDB_API_BASE = 'https://api.themoviedb.org/3';
 const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p';
 const CACHE_EXPIRY = 1000 * 60 * 30; // 30 minutes
@@ -11,7 +13,10 @@ class TMDBService {
     constructor() {
         this.apiKey = window.__tmdb_api_key || null;
         this.cache = new Map();
-        console.log('[TMDB] Service initialized with API key:', this.apiKey ? 'Present' : 'Missing');
+        
+        if (ENV.APP.debug) {
+            console.log('[TMDB] Service initialized with API key:', this.apiKey ? 'Present' : 'Missing');
+        }
     }
     
     /**
@@ -26,7 +31,9 @@ class TMDBService {
         const cacheKey = `trending_week_${region}`;
         const cached = this.getFromCache(cacheKey);
         if (cached) {
-            console.log('[TMDB] Trending from cache');
+            if (ENV.APP.debug) {
+                console.log('[TMDB] Trending from cache');
+            }
             return cached;
         }
         
@@ -45,7 +52,11 @@ class TMDBService {
                 .slice(0, 10); // Top 10 trending
             
             this.setToCache(cacheKey, movies);
-            console.log('[TMDB] Fetched trending:', movies.length);
+            
+            if (ENV.APP.debug) {
+                console.log('[TMDB] Fetched trending:', movies.length);
+            }
+            
             return movies;
             
         } catch (error) {
@@ -66,7 +77,9 @@ class TMDBService {
         const cacheKey = 'top_rated_all_time';
         const cached = this.getFromCache(cacheKey);
         if (cached) {
-            console.log('[TMDB] Top rated from cache');
+            if (ENV.APP.debug) {
+                console.log('[TMDB] Top rated from cache');
+            }
             return cached;
         }
         
@@ -85,7 +98,11 @@ class TMDBService {
                 .slice(0, 10); // Top 10 rated
             
             this.setToCache(cacheKey, movies);
-            console.log('[TMDB] Fetched top rated:', movies.length);
+            
+            if (ENV.APP.debug) {
+                console.log('[TMDB] Fetched top rated:', movies.length);
+            }
+            
             return movies;
             
         } catch (error) {
@@ -106,7 +123,9 @@ class TMDBService {
         const cacheKey = `genre_${genreId}`;
         const cached = this.getFromCache(cacheKey);
         if (cached) {
-            console.log(`[TMDB] ${genreName} from cache`);
+            if (ENV.APP.debug) {
+                console.log(`[TMDB] ${genreName} from cache`);
+            }
             return cached;
         }
         
@@ -125,7 +144,11 @@ class TMDBService {
                 .slice(0, 8); // Top 8 per genre
             
             this.setToCache(cacheKey, movies);
-            console.log(`[TMDB] Fetched ${genreName}:`, movies.length);
+            
+            if (ENV.APP.debug) {
+                console.log(`[TMDB] Fetched ${genreName}:`, movies.length);
+            }
+            
             return movies;
             
         } catch (error) {
@@ -146,7 +169,9 @@ class TMDBService {
         const cacheKey = `trailer_${movieId}`;
         const cached = this.getFromCache(cacheKey);
         if (cached) {
-            console.log('[TMDB] Trailer from cache:', cached);
+            if (ENV.APP.debug) {
+                console.log('[TMDB] Trailer from cache:', cached);
+            }
             return cached;
         }
         
@@ -175,7 +200,10 @@ class TMDBService {
             // Cache the result
             this.setToCache(cacheKey, trailerKey);
             
-            console.log('[TMDB] Trailer key:', trailerKey);
+            if (ENV.APP.debug) {
+                console.log('[TMDB] Trailer key:', trailerKey);
+            }
+            
             return trailerKey;
             
         } catch (error) {
@@ -198,12 +226,14 @@ class TMDBService {
             const totalPages = 5; // Fetch 5 pages = 100 movies
             
             for (let page = 1; page <= totalPages; page++) {
-                console.log(`[TMDB] Loaded page ${page}/${totalPages}`);
+                if (ENV.APP.debug) {
+                    console.log(`[TMDB] Loading page ${page}/${totalPages}`);
+                }
                 const movies = await this.fetchPage(page);
                 allMovies.push(...movies);
             }
             
-            console.log(`[TMDB] Successfully loaded ${allMovies.length} movies`);
+            console.log(`[TMDB] ✅ Successfully loaded ${allMovies.length} movies`);
             return allMovies;
             
         } catch (error) {
@@ -289,7 +319,7 @@ class TMDBService {
                 : null,
             platform: this.inferPlatform(tmdbMovie),
             runtime: 'N/A', // Not available without extra API call
-            cast: [], // Not available without extra API call
+            cast: [], // Changed from 'actors' to 'cast' for consistency
             mood: this.inferMood(tmdbMovie.genre_ids),
             triggerWarnings: this.inferTriggerWarnings(tmdbMovie.genre_ids)
         };
@@ -420,7 +450,9 @@ class TMDBService {
     }
     
     getFallbackMovies() {
-        console.log('[TMDB] Using fallback movies');
+        if (ENV.APP.debug) {
+            console.log('[TMDB] Using fallback movies');
+        }
         return [
             {
                 id: '603',
@@ -435,132 +467,6 @@ class TMDBService {
                 cast: ['Keanu Reeves', 'Laurence Fishburne'],
                 mood: 'Mind-Bending',
                 triggerWarnings: ['High Violence']
-            },
-            {
-                id: '27205',
-                title: 'Inception',
-                year: 2010,
-                imdb: '8.8',
-                synopsis: 'A thief who steals corporate secrets through dream-sharing technology.',
-                genre: 'Action, Sci-Fi, Thriller',
-                poster_path: null,
-                platform: 'Netflix',
-                runtime: '148 min',
-                cast: ['Leonardo DiCaprio', 'Joseph Gordon-Levitt'],
-                mood: 'Mind-Bending',
-                triggerWarnings: []
-            },
-            {
-                id: '278',
-                title: 'The Shawshank Redemption',
-                year: 1994,
-                imdb: '9.3',
-                synopsis: 'Two imprisoned men bond over years, finding redemption.',
-                genre: 'Drama',
-                poster_path: null,
-                platform: 'Prime Video',
-                runtime: '142 min',
-                cast: ['Tim Robbins', 'Morgan Freeman'],
-                mood: 'Emotional',
-                triggerWarnings: []
-            },
-            {
-                id: '680',
-                title: 'Pulp Fiction',
-                year: 1994,
-                imdb: '8.9',
-                synopsis: 'The lives of two mob hitmen, a boxer, and a gangster intertwine.',
-                genre: 'Crime, Drama',
-                poster_path: null,
-                platform: 'Netflix',
-                runtime: '154 min',
-                cast: ['John Travolta', 'Uma Thurman'],
-                mood: 'Intense',
-                triggerWarnings: ['Crime Violence']
-            },
-            {
-                id: '155',
-                title: 'The Dark Knight',
-                year: 2008,
-                imdb: '9.0',
-                synopsis: 'Batman faces the Joker, a criminal mastermind.',
-                genre: 'Action, Crime, Drama',
-                poster_path: null,
-                platform: 'HBO Max',
-                runtime: '152 min',
-                cast: ['Christian Bale', 'Heath Ledger'],
-                mood: 'Dark',
-                triggerWarnings: ['High Violence']
-            },
-            {
-                id: '13',
-                title: 'Forrest Gump',
-                year: 1994,
-                imdb: '8.8',
-                synopsis: 'The presidencies of Kennedy and Johnson unfold through a slow-witted man.',
-                genre: 'Drama, Romance',
-                poster_path: null,
-                platform: 'Prime Video',
-                runtime: '142 min',
-                cast: ['Tom Hanks', 'Robin Wright'],
-                mood: 'Heartwarming',
-                triggerWarnings: []
-            },
-            {
-                id: '157336',
-                title: 'Interstellar',
-                year: 2014,
-                imdb: '8.6',
-                synopsis: 'A team of explorers travel through a wormhole in space.',
-                genre: 'Adventure, Drama, Sci-Fi',
-                poster_path: null,
-                platform: 'Hulu',
-                runtime: '169 min',
-                cast: ['Matthew McConaughey', 'Anne Hathaway'],
-                mood: 'Epic',
-                triggerWarnings: []
-            },
-            {
-                id: '238',
-                title: 'The Godfather',
-                year: 1972,
-                imdb: '9.2',
-                synopsis: 'The aging patriarch of an organized crime dynasty transfers control.',
-                genre: 'Crime, Drama',
-                poster_path: null,
-                platform: 'Prime Video',
-                runtime: '175 min',
-                cast: ['Marlon Brando', 'Al Pacino'],
-                mood: 'Intense',
-                triggerWarnings: ['Crime Violence']
-            },
-            {
-                id: '550',
-                title: 'Fight Club',
-                year: 1999,
-                imdb: '8.8',
-                synopsis: 'An insomniac office worker forms an underground fight club.',
-                genre: 'Drama',
-                poster_path: null,
-                platform: 'Netflix',
-                runtime: '139 min',
-                cast: ['Brad Pitt', 'Edward Norton'],
-                mood: 'Mind-Bending',
-                triggerWarnings: ['High Violence']
-            },
-            {
-                id: '1124',
-                title: 'The Prestige',
-                year: 2006,
-                imdb: '8.5',
-                synopsis: 'Two stage magicians engage in competitive one-upmanship.',
-                genre: 'Drama, Mystery, Thriller',
-                poster_path: null,
-                platform: 'HBO Max',
-                runtime: '130 min',
-                cast: ['Christian Bale', 'Hugh Jackman'],
-                mood: 'Mysterious',
-                triggerWarnings: []
             }
         ];
     }
