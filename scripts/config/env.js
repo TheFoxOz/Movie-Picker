@@ -24,7 +24,8 @@ export const ENV = {
   APP: {
     name: 'Movie Picker',
     version: '2.0.0',
-    environment: 'production'
+    environment: 'production',
+    debug: window.__debug || false
   }
 };
 
@@ -43,7 +44,10 @@ const validateEnv = () => {
     errors.forEach(error => console.warn(`  - ${error}`));
   } else {
     console.log('[ENV] ✅ Environment configured successfully');
-    console.log('[ENV] TMDB API Key:', ENV.TMDB_API_KEY ? '✅ Present' : '❌ Missing');
+    if (ENV.APP.debug) {
+      console.log('[ENV] TMDB API Key:', ENV.TMDB_API_KEY ? '✅ Present' : '❌ Missing');
+      console.log('[ENV] Debug mode:', ENV.APP.debug ? 'ENABLED' : 'DISABLED');
+    }
   }
   
   return errors.length === 0;
