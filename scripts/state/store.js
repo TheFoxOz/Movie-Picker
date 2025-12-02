@@ -23,6 +23,10 @@ export class AppStore {
             matches: {},
             selectedGroup: null,
             
+            // Friends & Groups
+            groups: [],
+            friends: [],
+            
             // UI State
             activeTab: 'swipe',
             isLoading: true,
