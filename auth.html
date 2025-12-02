@@ -1,205 +1,444 @@
-/**
- * Authentication Service
- * Handles user sign up, sign in, and authentication state
- */
-
-import { auth, db } from './firebase-config.js';
-import { 
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  signInWithPopup,
-  GoogleAuthProvider,
-  signOut as firebaseSignOut,
-  onAuthStateChanged,
-  updateProfile
-} from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
-import { 
-  doc, 
-  setDoc, 
-  getDoc,
-  serverTimestamp 
-} from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
-
-class AuthService {
-  constructor() {
-    this.currentUser = null;
-    this.unsubscribe = null;
-  }
-  
-  /**
-   * Sign up with email and password
-   */
-  async signUp(email, password, displayName) {
-    try {
-      console.log('[Auth] Creating account for:', email);
-      
-      // Create user account
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-      
-      // Update profile with display name
-      await updateProfile(user, {
-        displayName: displayName
-      });
-      
-      // Create user profile in Firestore
-      await this.createUserProfile(user.uid, {
-        name: displayName,
-        email: email,
-        avatar: '😊'
-      });
-      
-      console.log('[Auth] ✅ Account created successfully');
-      return user;
-      
-    } catch (error) {
-      console.error('[Auth] Sign up error:', error);
-      throw this.formatError(error);
-    }
-  }
-  
-  /**
-   * Sign in with email and password
-   */
-  async signIn(email, password) {
-    try {
-      console.log('[Auth] Signing in:', email);
-      
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      console.log('[Auth] ✅ Signed in successfully');
-      return userCredential.user;
-      
-    } catch (error) {
-      console.error('[Auth] Sign in error:', error);
-      throw this.formatError(error);
-    }
-  }
-  
-  /**
-   * Sign in with Google
-   */
-  async signInWithGoogle() {
-    try {
-      console.log('[Auth] Starting Google sign in...');
-      
-      const provider = new GoogleAuthProvider();
-      const userCredential = await signInWithPopup(auth, provider);
-      const user = userCredential.user;
-      
-      // Check if this is first time sign in
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
-      if (!userDoc.exists()) {
-        // Create profile for new Google user
-        await this.createUserProfile(user.uid, {
-          name: user.displayName || 'User',
-          email: user.email,
-          avatar: user.photoURL || '😊'
-        });
-      }
-      
-      console.log('[Auth] ✅ Google sign in successful');
-      return user;
-      
-    } catch (error) {
-      console.error('[Auth] Google sign in error:', error);
-      throw this.formatError(error);
-    }
-  }
-  
-  /**
-   * Sign out
-   */
-  async signOut() {
-    try {
-      console.log('[Auth] Signing out...');
-      await firebaseSignOut(auth);
-      console.log('[Auth] ✅ Signed out successfully');
-    } catch (error) {
-      console.error('[Auth] Sign out error:', error);
-      throw error;
-    }
-  }
-  
-  /**
-   * Listen to authentication state changes
-   */
-  onAuthStateChange(callback) {
-    this.unsubscribe = onAuthStateChanged(auth, (user) => {
-      this.currentUser = user;
-      console.log('[Auth] Auth state changed:', user ? user.email : 'No user');
-      callback(user);
-    });
-    return this.unsubscribe;
-  }
-  
-  /**
-   * Stop listening to auth state changes
-   */
-  stopListening() {
-    if (this.unsubscribe) {
-      this.unsubscribe();
-      this.unsubscribe = null;
-    }
-  }
-  
-  /**
-   * Get current user
-   */
-  getCurrentUser() {
-    return auth.currentUser || this.currentUser;
-  }
-  
-  /**
-   * Create user profile in Firestore
-   */
-  async createUserProfile(userId, data) {
-    try {
-      console.log('[Auth] Creating user profile in Firestore...');
-      
-      await setDoc(doc(db, 'users', userId), {
-        name: data.name,
-        email: data.email,
-        avatar: data.avatar,
-        createdAt: serverTimestamp(),
-        friends: [],
-        groups: [],
-        stats: {
-          moviesRated: 0,
-          friendsCount: 0,
-          groupsCount: 0
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign In - Movie Picker</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
-      });
-      
-      console.log('[Auth] ✅ User profile created');
-    } catch (error) {
-      console.error('[Auth] Error creating profile:', error);
-      throw error;
-    }
-  }
-  
-  /**
-   * Format Firebase error messages to be user-friendly
-   */
-  formatError(error) {
-    const errorMessages = {
-      'auth/email-already-in-use': 'This email is already registered. Try signing in instead.',
-      'auth/invalid-email': 'Please enter a valid email address.',
-      'auth/operation-not-allowed': 'Email/password accounts are not enabled.',
-      'auth/weak-password': 'Password should be at least 6 characters.',
-      'auth/user-disabled': 'This account has been disabled.',
-      'auth/user-not-found': 'No account found with this email.',
-      'auth/wrong-password': 'Incorrect password. Please try again.',
-      'auth/invalid-credential': 'Invalid email or password.',
-      'auth/too-many-requests': 'Too many failed attempts. Please try again later.',
-      'auth/network-request-failed': 'Network error. Please check your connection.',
-      'auth/popup-closed-by-user': 'Sign-in cancelled.',
-      'auth/cancelled-popup-request': 'Sign-in cancelled.'
-    };
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: linear-gradient(135deg, #0a0a0f 0%, #1a1a2e 50%, #0a0a0f 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+        }
+        
+        .auth-container {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 2rem;
+            padding: 3rem 2.5rem;
+            max-width: 420px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        }
+        
+        .logo {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        
+        .logo-emoji {
+            font-size: 4rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        h1 {
+            font-size: 2rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #fff, #ff2e63);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin: 0 0 0.5rem 0;
+            text-align: center;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: rgba(255, 255, 255, 0.6);
+            margin-bottom: 2rem;
+            font-size: 0.95rem;
+        }
+        
+        .error-message, .success-message {
+            padding: 1rem;
+            border-radius: 0.75rem;
+            margin-bottom: 1.5rem;
+            font-size: 0.875rem;
+            display: none;
+        }
+        
+        .error-message {
+            background: rgba(239, 68, 68, 0.2);
+            border: 1px solid rgba(239, 68, 68, 0.4);
+            color: #fca5a5;
+        }
+        
+        .success-message {
+            background: rgba(34, 197, 94, 0.2);
+            border: 1px solid rgba(34, 197, 94, 0.4);
+            color: #86efac;
+        }
+        
+        .error-message.show, .success-message.show {
+            display: block;
+        }
+        
+        .input-group {
+            margin-bottom: 1.25rem;
+        }
+        
+        label {
+            display: block;
+            color: rgba(255, 255, 255, 0.85);
+            font-size: 0.875rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+        
+        input {
+            width: 100%;
+            padding: 1rem 1.25rem;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 0.75rem;
+            color: white;
+            font-size: 1rem;
+            transition: all 0.3s;
+        }
+        
+        input::placeholder {
+            color: rgba(255, 255, 255, 0.3);
+        }
+        
+        input:focus {
+            outline: none;
+            border-color: #ff2e63;
+            box-shadow: 0 0 0 3px rgba(255, 46, 99, 0.2);
+            background: rgba(255, 255, 255, 0.08);
+        }
+        
+        .btn {
+            width: 100%;
+            padding: 1rem;
+            border: none;
+            border-radius: 0.75rem;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+        
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #ff2e63, #ff9900);
+            color: white;
+            box-shadow: 0 8px 24px rgba(255, 46, 99, 0.4);
+            margin-bottom: 1rem;
+        }
+        
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 32px rgba(255, 46, 99, 0.6);
+        }
+        
+        .btn-google {
+            background: white;
+            color: #1a1a1a;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+        }
+        
+        .btn-google:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+        }
+        
+        .divider {
+            text-align: center;
+            margin: 1.5rem 0;
+            color: rgba(255, 255, 255, 0.4);
+            position: relative;
+            font-size: 0.875rem;
+        }
+        
+        .divider::before,
+        .divider::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            width: 40%;
+            height: 1px;
+            background: rgba(255, 255, 255, 0.1);
+        }
+        
+        .divider::before {
+            left: 0;
+        }
+        
+        .divider::after {
+            right: 0;
+        }
+        
+        .toggle-auth {
+            text-align: center;
+            margin-top: 1.5rem;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.9rem;
+        }
+        
+        .toggle-auth a {
+            color: #ff2e63;
+            text-decoration: none;
+            font-weight: 600;
+            transition: color 0.3s;
+        }
+        
+        .toggle-auth a:hover {
+            color: #ff5588;
+        }
+        
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        @media (max-width: 480px) {
+            .auth-container {
+                padding: 2rem 1.5rem;
+            }
+            
+            h1 {
+                font-size: 1.75rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="auth-container">
+        <div class="logo">
+            <div class="logo-emoji">🎬</div>
+            <h1>Movie Picker</h1>
+            <p class="subtitle">Find movies with friends</p>
+        </div>
+        
+        <div id="error-message" class="error-message"></div>
+        <div id="success-message" class="success-message"></div>
+        
+        <form id="auth-form">
+            <div class="input-group" id="name-group" style="display: none;">
+                <label for="name-input">Name</label>
+                <input 
+                    type="text" 
+                    id="name-input" 
+                    placeholder="Your name"
+                    autocomplete="name"
+                >
+            </div>
+            
+            <div class="input-group">
+                <label for="email-input">Email</label>
+                <input 
+                    type="email" 
+                    id="email-input" 
+                    placeholder="you@example.com" 
+                    required
+                    autocomplete="email"
+                >
+            </div>
+            
+            <div class="input-group">
+                <label for="password-input">Password</label>
+                <input 
+                    type="password" 
+                    id="password-input" 
+                    placeholder="••••••••" 
+                    required
+                    autocomplete="current-password"
+                >
+            </div>
+            
+            <button type="submit" class="btn btn-primary" id="submit-btn">
+                <span id="submit-text">Sign In</span>
+                <div class="spinner" id="submit-spinner" style="display: none;"></div>
+            </button>
+        </form>
+        
+        <div class="divider">or</div>
+        
+        <button class="btn btn-google" id="google-btn">
+            <svg width="18" height="18" viewBox="0 0 18 18">
+                <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/>
+                <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/>
+                <path fill="#FBBC05" d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707 0-.593.102-1.17.282-1.707V4.961H.957C.347 6.175 0 7.548 0 9s.348 2.825.957 4.039l3.007-2.332z"/>
+                <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.961L3.964 7.293C4.672 5.163 6.656 3.58 9 3.58z"/>
+            </svg>
+            <span id="google-text">Continue with Google</span>
+            <div class="spinner" id="google-spinner" style="display: none;"></div>
+        </button>
+        
+        <div class="toggle-auth">
+            <span id="toggle-text">Don't have an account?</span>
+            <a href="#" id="toggle-link">Sign Up</a>
+        </div>
+    </div>
     
-    const message = errorMessages[error.code] || error.message || 'An error occurred. Please try again.';
-    return new Error(message);
-  }
-}
-
-// Export singleton instance
-export const authService = new AuthService();
+    <script type="module">
+        import { authService } from './scripts/services/auth-service.js';
+        
+        let isSignUp = false;
+        
+        const form = document.getElementById('auth-form');
+        const nameGroup = document.getElementById('name-group');
+        const emailInput = document.getElementById('email-input');
+        const passwordInput = document.getElementById('password-input');
+        const nameInput = document.getElementById('name-input');
+        const submitBtn = document.getElementById('submit-btn');
+        const submitText = document.getElementById('submit-text');
+        const submitSpinner = document.getElementById('submit-spinner');
+        const googleBtn = document.getElementById('google-btn');
+        const googleText = document.getElementById('google-text');
+        const googleSpinner = document.getElementById('google-spinner');
+        const toggleLink = document.getElementById('toggle-link');
+        const toggleText = document.getElementById('toggle-text');
+        const errorMessage = document.getElementById('error-message');
+        const successMessage = document.getElementById('success-message');
+        
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.classList.add('show');
+            successMessage.classList.remove('show');
+        }
+        
+        function showSuccess(message) {
+            successMessage.textContent = message;
+            successMessage.classList.add('show');
+            errorMessage.classList.remove('show');
+        }
+        
+        function clearMessages() {
+            errorMessage.classList.remove('show');
+            successMessage.classList.remove('show');
+        }
+        
+        // Toggle between sign in and sign up
+        toggleLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            isSignUp = !isSignUp;
+            clearMessages();
+            
+            if (isSignUp) {
+                nameGroup.style.display = 'block';
+                nameInput.required = true;
+                submitText.textContent = 'Sign Up';
+                toggleText.textContent = 'Already have an account?';
+                toggleLink.textContent = 'Sign In';
+                passwordInput.setAttribute('autocomplete', 'new-password');
+            } else {
+                nameGroup.style.display = 'none';
+                nameInput.required = false;
+                submitText.textContent = 'Sign In';
+                toggleText.textContent = "Don't have an account?";
+                toggleLink.textContent = 'Sign Up';
+                passwordInput.setAttribute('autocomplete', 'current-password');
+            }
+        });
+        
+        // Handle form submission
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            clearMessages();
+            
+            const email = emailInput.value.trim();
+            const password = passwordInput.value;
+            const name = nameInput.value.trim();
+            
+            // Disable buttons
+            submitBtn.disabled = true;
+            googleBtn.disabled = true;
+            submitText.style.display = 'none';
+            submitSpinner.style.display = 'block';
+            
+            try {
+                if (isSignUp) {
+                    if (!name) {
+                        throw new Error('Please enter your name');
+                    }
+                    await authService.signUp(email, password, name);
+                    showSuccess('Account created! Redirecting...');
+                } else {
+                    await authService.signIn(email, password);
+                    showSuccess('Signed in! Redirecting...');
+                }
+                
+                // Redirect to app after short delay
+                setTimeout(() => {
+                    window.location.href = '/';
+                }, 1000);
+                
+            } catch (error) {
+                showError(error.message);
+                
+                // Re-enable buttons
+                submitBtn.disabled = false;
+                googleBtn.disabled = false;
+                submitText.style.display = 'block';
+                submitSpinner.style.display = 'none';
+            }
+        });
+        
+        // Handle Google sign in
+        googleBtn.addEventListener('click', async () => {
+            clearMessages();
+            
+            // Disable buttons
+            submitBtn.disabled = true;
+            googleBtn.disabled = true;
+            googleText.style.display = 'none';
+            googleSpinner.style.display = 'block';
+            
+            try {
+                await authService.signInWithGoogle();
+                showSuccess('Signed in with Google! Redirecting...');
+                
+                // Redirect to app after short delay
+                setTimeout(() => {
+                    window.location.href = '/';
+                }, 1000);
+                
+            } catch (error) {
+                showError(error.message);
+                
+                // Re-enable buttons
+                submitBtn.disabled = false;
+                googleBtn.disabled = false;
+                googleText.style.display = 'block';
+                googleSpinner.style.display = 'none';
+            }
+        });
+        
+        // Check if already signed in
+        authService.onAuthStateChange((user) => {
+            if (user) {
+                console.log('[Auth Page] User already signed in, redirecting...');
+                window.location.href = '/';
+            }
+        });
+    </script>
+</body>
+</html>
