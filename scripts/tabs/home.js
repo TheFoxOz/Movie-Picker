@@ -6,6 +6,7 @@
 import { store } from '../state/store.js';
 import { movieModal } from '../components/movie-modal.js';
 import { getTMDBService } from '../services/tmdb.js';
+import { ENV } from '../config/env.js';
 
 export class HomeTab {
     constructor(container) {
@@ -208,31 +209,49 @@ export class HomeTab {
     }
     
     async fetchTMDBData() {
-        const tmdbService = getTMDBService();
-        
         try {
-            // Fetch trending movies this week in UK
-            console.log('[HomeTab] Fetching trending movies...');
+            const tmdbService = getTMDBService();
+            
+            if (ENV.APP.debug) {
+                console.log('[HomeTab] Fetching trending movies...');
+            }
             this.trendingMovies = await tmdbService.fetchTrendingWeek('GB');
-            console.log('[HomeTab] Trending movies:', this.trendingMovies.length);
+            if (ENV.APP.debug) {
+                console.log('[HomeTab] Trending movies:', this.trendingMovies.length);
+            }
             
-            // Fetch all-time best movies (top rated)
-            console.log('[HomeTab] Fetching all-time best...');
+            if (ENV.APP.debug) {
+                console.log('[HomeTab] Fetching all-time best...');
+            }
             this.allTimeBest = await tmdbService.fetchTopRated();
-            console.log('[HomeTab] All-time best:', this.allTimeBest.length);
+            if (ENV.APP.debug) {
+                console.log('[HomeTab] All-time best:', this.allTimeBest.length);
+            }
             
-            // Fetch best movies by category
-            console.log('[HomeTab] Fetching category movies...');
+            if (ENV.APP.debug) {
+                console.log('[HomeTab] Fetching category movies...');
+            }
             this.categoryMovies = {
-                action: await tmdbService.fetchByGenre(28, 'Action'), // Genre ID 28 = Action
-                scifi: await tmdbService.fetchByGenre(878, 'Sci-Fi'),  // Genre ID 878 = Sci-Fi
-                comedy: await tmdbService.fetchByGenre(35, 'Comedy'),  // Genre ID 35 = Comedy
-                horror: await tmdbService.fetchByGenre(27, 'Horror')   // Genre ID 27 = Horror
+                action: await tmdbService.fetchByGenre(28, 'Action'),
+                scifi: await tmdbService.fetchByGenre(878, 'Sci-Fi'),
+                comedy: await tmdbService.fetchByGenre(35, 'Comedy'),
+                horror: await tmdbService.fetchByGenre(27, 'Horror')
             };
-            console.log('[HomeTab] Categories fetched');
+            if (ENV.APP.debug) {
+                console.log('[HomeTab] Categories fetched');
+            }
             
         } catch (error) {
             console.error('[HomeTab] Error fetching TMDB data:', error);
+            // Set empty arrays so UI doesn't break
+            this.trendingMovies = [];
+            this.allTimeBest = [];
+            this.categoryMovies = {
+                action: [],
+                scifi: [],
+                comedy: [],
+                horror: []
+            };
         }
     }
     
@@ -466,7 +485,9 @@ export class HomeTab {
     }
     
     attachListeners() {
-        console.log('[HomeTab] Attaching listeners...');
+        if (ENV.APP.debug) {
+            console.log('[HomeTab] Attaching listeners...');
+        }
         
         // Hero CTAs
         const heroCtas = this.container.querySelectorAll('.hero-cta');
@@ -477,7 +498,9 @@ export class HomeTab {
                 const allMovies = [...this.trendingMovies, ...this.allTimeBest, ...Object.values(this.categoryMovies).flat()];
                 const movie = allMovies.find(m => String(m.id) === String(movieId));
                 if (movie) {
-                    console.log('[HomeTab] Opening hero movie modal:', movie.title);
+                    if (ENV.APP.debug) {
+                        console.log('[HomeTab] Opening hero movie modal:', movie.title);
+                    }
                     movieModal.show(movie);
                 }
             });
@@ -503,14 +526,13 @@ export class HomeTab {
         
         // Movie cards
         const movieCards = this.container.querySelectorAll('[data-movie-id]');
-        console.log('[HomeTab] Found movie cards:', movieCards.length);
+        if (ENV.APP.debug) {
+            console.log('[HomeTab] Found movie cards:', movieCards.length);
+        }
         
         movieCards.forEach((card, index) => {
             card.addEventListener('click', () => {
-                console.log('[HomeTab] Card clicked, index:', index);
-                
                 const movieId = card.dataset.movieId;
-                console.log('[HomeTab] Movie ID from card:', movieId);
                 
                 // Search in all movie sources
                 const allMovies = [
@@ -521,23 +543,21 @@ export class HomeTab {
                 ];
                 
                 const movie = allMovies.find(m => String(m.id) === String(movieId));
-                console.log('[HomeTab] Found movie:', movie?.title || 'NOT FOUND');
                 
                 if (movie) {
-                    console.log('[HomeTab] Calling movieModal.show()...');
-                    try {
-                        movieModal.show(movie);
-                        console.log('[HomeTab] Modal opened successfully');
-                    } catch (error) {
-                        console.error('[HomeTab] Error opening modal:', error);
+                    if (ENV.APP.debug) {
+                        console.log('[HomeTab] Opening modal for:', movie.title);
                     }
+                    movieModal.show(movie);
                 } else {
                     console.error('[HomeTab] Movie not found for ID:', movieId);
                 }
             });
         });
         
-        console.log('[HomeTab] All listeners attached');
+        if (ENV.APP.debug) {
+            console.log('[HomeTab] All listeners attached');
+        }
     }
     
     startHeroCarousel() {
