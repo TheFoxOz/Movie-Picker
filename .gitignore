@@ -4,10 +4,6 @@
 .env.production
 .env.development
 
-# API keys and secrets
-*-config.js
-config.js
-
 # Dependencies
 node_modules/
 package-lock.json
