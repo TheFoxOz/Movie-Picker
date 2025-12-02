@@ -1,9 +1,7 @@
 /**
  * Firebase Configuration (SECURE VERSION)
  * Uses environment variables from Vercel
- * 
- * SECURITY: This file contains NO hardcoded API keys!
- * All secrets are loaded from environment variables.
+ * NO hardcoded API keys!
  */
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
@@ -24,8 +22,8 @@ const firebaseConfig = {
 
 // Validate configuration
 if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
-  console.error('[Firebase] ❌ Missing configuration!');
-  console.error('[Firebase] Set environment variables in Vercel Dashboard');
+  console.error('[Firebase] ❌ Missing configuration in environment variables!');
+  console.error('[Firebase] Check Vercel Dashboard → Settings → Environment Variables');
   throw new Error('Firebase configuration not found in environment variables');
 }
 
@@ -39,7 +37,6 @@ try {
   
   console.log('[Firebase] ✅ Initialized from environment variables');
   console.log('[Firebase] Project:', firebaseConfig.projectId);
-  console.log('[Firebase] Auth Domain:', firebaseConfig.authDomain);
   
 } catch (error) {
   console.error('[Firebase] ❌ Initialization failed:', error);
