@@ -6,6 +6,7 @@
 import { store } from '../state/store.js';
 import { movieModal } from '../components/movie-modal.js';
 import { getPlatformStyle } from '../utils/scoring.js';
+import { ENV } from '../config/env.js';
 
 export class MatchesTab {
     constructor(container) {
@@ -502,6 +503,10 @@ export class MatchesTab {
     }
     
     loadDemoData() {
+        if (ENV.APP.debug) {
+            console.log('[MatchesTab] Loading demo data...');
+        }
+        
         // Create demo groups
         const demoGroups = [
             {
@@ -537,15 +542,14 @@ export class MatchesTab {
             { id: 'friend4', name: 'Tom', avatar: '👨‍🦳', matchCount: 6, compatibility: 54 }
         ];
         
-        // Save to store
-        if (typeof store.set === 'function') {
-            store.set('groups', demoGroups);
-            store.set('friends', demoFriends);
-        } else {
-            // Fallback if set doesn't exist
-            store.data = store.data || {};
-            store.data.groups = demoGroups;
-            store.data.friends = demoFriends;
+        // FIXED: Use setState() instead of non-existent set() method
+        store.setState({
+            groups: demoGroups,
+            friends: demoFriends
+        });
+        
+        if (ENV.APP.debug) {
+            console.log('[MatchesTab] ✅ Demo data loaded successfully');
         }
         
         this.render();
