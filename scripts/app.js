@@ -93,10 +93,8 @@ class App {
      */
     async initTMDB() {
         try {
-            // Get TMDB API key from global variable or environment
-            const tmdbApiKey = typeof __tmdb_api_key !== 'undefined' 
-                ? __tmdb_api_key 
-                : null;
+            // Get TMDB API key from global variable
+            const tmdbApiKey = window.__tmdb_api_key;
             
             if (!tmdbApiKey || tmdbApiKey === 'YOUR_TMDB_API_KEY_HERE') {
                 console.warn('[App] TMDB API key not configured. Using fallback data.');
@@ -328,6 +326,11 @@ class App {
                 const tabName = button.getAttribute('data-tab');
                 this.navigateToTab(tabName);
             });
+        });
+        
+        // Global navigation event listener
+        document.addEventListener('navigate-tab', (e) => {
+            this.navigateToTab(e.detail.tab);
         });
     }
     
