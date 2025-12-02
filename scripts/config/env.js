@@ -48,7 +48,7 @@ const validateEnv = () => {
   
   requiredFirebaseKeys.forEach(key => {
     if (!ENV.FIREBASE[key]) {
-      errors.push(`Firebase ${key} not found (VITE_FIREBASE_${key.toUpperCase()})`);
+      errors.push(`Firebase ${key} not found (VITE_FIREBASE_${key.toUpperCase().replace(/([A-Z])/g, '_$1')})`);
     }
   });
   
