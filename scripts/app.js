@@ -148,7 +148,7 @@ class App {
             `;
         }
 
-        // CRITICAL: Tell the header to update the title
+        // THIS LINE FIXES THE HEADER TITLE
         document.dispatchEvent(new CustomEvent('navigate-tab-changed', { 
             detail: { tab: tabName } 
         }));
