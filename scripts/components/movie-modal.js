@@ -4,6 +4,7 @@
  */
 
 import { getTMDBService } from '../services/tmdb.js';
+import { ENV } from '../config/env.js';
 
 class MovieModal {
     constructor() {
@@ -22,7 +23,10 @@ class MovieModal {
                 const tmdbService = getTMDBService();
                 const trailerKey = await tmdbService.getMovieTrailer(movie.id);
                 this.trailerKey = trailerKey;
-                console.log('[MovieModal] Trailer key:', trailerKey);
+                
+                if (ENV.APP.debug) {
+                    console.log('[MovieModal] Trailer key:', trailerKey);
+                }
             } catch (error) {
                 console.error('[MovieModal] Failed to fetch trailer:', error);
             }
@@ -44,10 +48,17 @@ class MovieModal {
     hide() {
         if (!this.modal) return;
         
-        // Stop any playing video
+        // FIXED: Properly stop trailer by clearing src AND removing iframe
         const iframe = this.modal.querySelector('iframe');
         if (iframe) {
+            // Stop video by clearing src
             iframe.src = '';
+            // Remove iframe entirely to ensure no background audio
+            setTimeout(() => {
+                if (iframe && iframe.parentNode) {
+                    iframe.remove();
+                }
+            }, 100);
         }
         
         // Animate out
@@ -159,7 +170,7 @@ class MovieModal {
                             id="trailer-iframe"
                             style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none;"
                             src="https://www.youtube.com/embed/${this.trailerKey}?autoplay=0&rel=0&modestbranding=1"
-                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                             allowfullscreen
                         ></iframe>
                     </div>
@@ -241,7 +252,7 @@ class MovieModal {
                     </div>
                 </div>
                 
-                <!-- Cast -->
+                <!-- Cast (FIXED: using 'cast' property) -->
                 ${movie.cast && movie.cast.length > 0 ? `
                     <div style="padding: 0 2rem 2rem;">
                         <div style="font-size: 0.75rem; color: rgba(255, 255, 255, 0.5); text-transform: uppercase; font-weight: 600; letter-spacing: 0.05em; margin-bottom: 1rem;">
