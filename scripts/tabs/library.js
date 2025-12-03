@@ -1,535 +1,311 @@
 /**
- * Library Tab - ULTRA PREMIUM NETFLIX REDESIGN
- * Intelligent blockbuster-first ranking, glassmorphism, cinematic feel
+ * Library Tab Component
+ * Shows all movies with search, filters, and sorting
  */
 
 import { store } from '../state/store.js';
 import { movieModal } from '../components/movie-modal.js';
-import { getPlatformStyle } from '../utils/scoring.js';
-import { getTMDBService } from '../services/tmdb.js';
+import { ENV } from '../config/env.js';
 
 export class LibraryTab {
-    constructor(container) {
-        this.container = container;
-        this.searchQuery = '';
-        this.selectedGenre = 'all';
-        this.selectedPlatform = 'all';
-        this.sortBy = 'intelligent'; // NEW: Intelligent ranking
-        this.viewMode = 'grid';
-        this.isSearching = false;
-        this.searchResults = null;
+    constructor() {
+        this.container = null;
+        this.movies = [];
+        this.filteredMovies = [];
+        this.searchTerm = '';
+        this.currentSort = 'intelligent'; // intelligent, recent, alphabetical, rating
+        this.currentFilter = 'all'; // all, loved, liked, maybe
     }
     
-    render() {
-        const movies = this.searchResults || store.get('movies');
-        const swipeHistory = store.get('swipeHistory');
+    render(container) {
+        this.container = container;
+        this.loadMovies();
         
-        const genres = this.extractUniqueGenres(store.get('movies'));
-        const platforms = this.extractUniquePlatforms(store.get('movies'));
-        
-        const filteredMovies = this.filterAndSortMovies(movies);
-        
-        this.container.innerHTML = `
-            <div style="background: linear-gradient(180deg, #0a0a0f 0%, #12121a 50%, #0a0a0f 100%); min-height: 100vh;">
+        container.innerHTML = `
+            <div style="padding: 1.5rem 1rem 6rem;">
+                <h1 style="font-size: 1.75rem; font-weight: 800; color: white; margin: 0 0 1.5rem 0;">
+                    🎬 My Library
+                </h1>
                 
-                <!-- STICKY SEARCH BAR -->
-                <div style="position: sticky; top: 0; z-index: 20; backdrop-filter: blur(20px); background: rgba(10, 10, 15, 0.95); border-bottom: 1px solid rgba(255, 46, 99, 0.2); padding: 1.5rem 1.5rem 1rem;">
-                    <div style="position: relative; margin-bottom: 1rem;">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="position: absolute; left: 1.25rem; top: 50%; transform: translateY(-50%); width: 24px; height: 24px; color: rgba(255, 46, 99, 0.8);">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-                        </svg>
-                        <input 
-                            type="text" 
-                            id="library-search"
-                            placeholder="Search TMDB for any movie..." 
-                            value="${this.searchQuery}"
-                            style="width: 100%; padding: 1rem 1.25rem 1rem 3.5rem; border-radius: 1rem; background: rgba(255, 255, 255, 0.05); border: 2px solid ${this.searchQuery ? 'rgba(255, 46, 99, 0.5)' : 'rgba(255, 255, 255, 0.1)'}; color: white; font-size: 1rem; font-weight: 600; transition: all 0.3s; box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.3);"
-                        >
-                        ${this.isSearching ? `
-                            <div style="position: absolute; right: 1.25rem; top: 50%; transform: translateY(-50%);">
-                                <div class="loading-spinner" style="width: 24px; height: 24px; border-width: 3px; border-color: rgba(255, 46, 99, 0.3); border-top-color: #ff2e63;"></div>
-                            </div>
-                        ` : ''}
-                    </div>
-                    
-                    ${this.searchQuery ? `
-                        <div style="padding: 0.75rem 1rem; background: linear-gradient(135deg, rgba(255, 46, 99, 0.2), rgba(139, 92, 246, 0.2)); border: 1px solid rgba(255, 46, 99, 0.3); border-radius: 0.75rem; margin-bottom: 1rem;">
-                            <p style="font-size: 0.75rem; color: rgba(255, 255, 255, 0.9); margin: 0;">
-                                ${this.searchResults ? `Showing <strong style="color: #ff2e63;">${filteredMovies.length}</strong> results for "<strong>${this.searchQuery}</strong>"` : 'Press Enter or wait to search TMDB...'}
-                            </p>
-                        </div>
-                    ` : ''}
-                    
-                    <!-- QUICK STATS -->
-                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; margin-bottom: 1rem;">
-                        ${this.getQuickStats(store.get('movies'), swipeHistory)}
-                    </div>
+                <!-- Search Bar -->
+                <div style="margin-bottom: 1.5rem;">
+                    <input 
+                        type="text" 
+                        id="library-search"
+                        placeholder="Search movies..."
+                        style="width: 100%; padding: 1rem 1.25rem; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 1rem; color: white; font-size: 0.9375rem; transition: all 0.3s;"
+                    >
                 </div>
-
-                <!-- FILTERS BAR -->
-                <div style="padding: 1rem 1.5rem; display: flex; gap: 0.75rem; overflow-x: auto; border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
-                    <select id="genre-filter" style="padding: 0.75rem 1rem; border-radius: 0.75rem; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); color: white; font-size: 0.875rem; font-weight: 600; min-width: 120px; cursor: pointer;">
-                        <option value="all">All Genres</option>
-                        ${genres.map(genre => `
-                            <option value="${genre}" ${this.selectedGenre === genre ? 'selected' : ''}>${genre}</option>
-                        `).join('')}
-                    </select>
-                    
-                    <select id="platform-filter" style="padding: 0.75rem 1rem; border-radius: 0.75rem; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); color: white; font-size: 0.875rem; font-weight: 600; min-width: 140px; cursor: pointer;">
-                        <option value="all">All Platforms</option>
-                        ${platforms.map(platform => `
-                            <option value="${platform}" ${this.selectedPlatform === platform ? 'selected' : ''}>${platform}</option>
-                        `).join('')}
-                    </select>
-                    
-                    <select id="sort-by" style="padding: 0.75rem 1rem; border-radius: 0.75rem; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); color: white; font-size: 0.875rem; font-weight: 600; min-width: 160px; cursor: pointer;">
-                        <option value="intelligent" ${this.sortBy === 'intelligent' ? 'selected' : ''}>Sort: Intelligent ↓</option>
-                        <option value="popularity" ${this.sortBy === 'popularity' ? 'selected' : ''}>Sort: Popularity ↓</option>
-                        <option value="rating" ${this.sortBy === 'rating' ? 'selected' : ''}>Sort: Rating ↓</option>
-                        <option value="year" ${this.sortBy === 'year' ? 'selected' : ''}>Sort: Year ↓</option>
-                        <option value="title" ${this.sortBy === 'title' ? 'selected' : ''}>Sort: Title (A-Z)</option>
-                    </select>
-                    
-                    ${this.hasActiveFilters() ? `
-                        <button 
-                            id="clear-filters"
-                            class="btn" 
-                            style="padding: 0.75rem 1.25rem; font-size: 0.875rem; font-weight: 700; white-space: nowrap; background: rgba(255, 46, 99, 0.2); border: 1px solid rgba(255, 46, 99, 0.4); color: #ff2e63; border-radius: 0.75rem;">
-                            Clear All
-                        </button>
-                    ` : ''}
+                
+                <!-- Filter Buttons -->
+                <div style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem; overflow-x: auto; padding-bottom: 0.5rem;">
+                    <button class="filter-btn" data-filter="all" style="padding: 0.5rem 1rem; background: rgba(255, 46, 99, 0.2); border: 1px solid rgba(255, 46, 99, 0.4); border-radius: 0.75rem; color: #ff2e63; font-size: 0.875rem; font-weight: 600; white-space: nowrap; cursor: pointer; transition: all 0.3s;">
+                        All Movies
+                    </button>
+                    <button class="filter-btn" data-filter="loved" style="padding: 0.5rem 1rem; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 0.75rem; color: rgba(255, 255, 255, 0.7); font-size: 0.875rem; font-weight: 600; white-space: nowrap; cursor: pointer; transition: all 0.3s;">
+                        ❤️ Loved
+                    </button>
+                    <button class="filter-btn" data-filter="liked" style="padding: 0.5rem 1rem; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 0.75rem; color: rgba(255, 255, 255, 0.7); font-size: 0.875rem; font-weight: 600; white-space: nowrap; cursor: pointer; transition: all 0.3s;">
+                        👍 Liked
+                    </button>
+                    <button class="filter-btn" data-filter="maybe" style="padding: 0.5rem 1rem; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 0.75rem; color: rgba(255, 255, 255, 0.7); font-size: 0.875rem; font-weight: 600; white-space: nowrap; cursor: pointer; transition: all 0.3s;">
+                        🤔 Maybe
+                    </button>
                 </div>
-
-                <!-- MOVIE GRID/LIST -->
-                <div id="movie-container" style="padding: 1.5rem;">
-                    ${this.renderMovies(filteredMovies)}
+                
+                <!-- Sort Dropdown -->
+                <div style="margin-bottom: 1.5rem;">
+                    <select id="library-sort" style="width: 100%; padding: 0.875rem 1rem; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 0.75rem; color: white; font-size: 0.875rem; cursor: pointer;">
+                        <option value="intelligent">✨ Smart Sort</option>
+                        <option value="recent">🕐 Recently Added</option>
+                        <option value="alphabetical">🔤 A-Z</option>
+                        <option value="rating">⭐ Highest Rated</option>
+                    </select>
                 </div>
-
-                <div style="height: 100px;"></div>
+                
+                <!-- Movies Grid -->
+                <div id="library-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 1rem;">
+                    <!-- Movies will be inserted here -->
+                </div>
+                
+                <!-- Empty State -->
+                <div id="library-empty" style="display: none; text-align: center; padding: 3rem 1rem; color: rgba(255, 255, 255, 0.5);">
+                    <div style="font-size: 4rem; margin-bottom: 1rem;">🎬</div>
+                    <p style="font-size: 1.125rem; font-weight: 600; margin: 0 0 0.5rem 0;">No movies found</p>
+                    <p style="font-size: 0.875rem; margin: 0;">Try adjusting your filters or search</p>
+                </div>
             </div>
         `;
         
         this.attachListeners();
+        this.renderMovies();
     }
     
-    async searchTMDB(query) {
-        if (!query || query.length < 2) {
-            this.searchResults = null;
-            this.render();
+    loadMovies() {
+        const state = store.getState();
+        const swipeHistory = state.swipeHistory || [];
+        
+        // Get all swiped movies (loved, liked, maybe)
+        this.movies = swipeHistory
+            .filter(entry => ['love', 'like', 'maybe'].includes(entry.action))
+            .map(entry => ({
+                ...entry.movie,
+                action: entry.action,
+                timestamp: entry.timestamp
+            }));
+        
+        if (ENV.APP.debug) {
+            console.log('[LibraryTab] Loaded movies:', this.movies.length);
+        }
+        
+        this.filteredMovies = [...this.movies];
+    }
+    
+    attachListeners() {
+        // Search
+        const searchInput = this.container.querySelector('#library-search');
+        if (searchInput) {
+            searchInput.addEventListener('input', (e) => {
+                this.searchTerm = e.target.value.toLowerCase();
+                this.applyFilters();
+            });
+        }
+        
+        // Filter buttons
+        const filterBtns = this.container.querySelectorAll('.filter-btn');
+        filterBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                // Update active state
+                filterBtns.forEach(b => {
+                    b.style.background = 'rgba(255, 255, 255, 0.05)';
+                    b.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+                    b.style.color = 'rgba(255, 255, 255, 0.7)';
+                });
+                btn.style.background = 'rgba(255, 46, 99, 0.2)';
+                btn.style.borderColor = 'rgba(255, 46, 99, 0.4)';
+                btn.style.color = '#ff2e63';
+                
+                this.currentFilter = btn.dataset.filter;
+                this.applyFilters();
+            });
+        });
+        
+        // Sort dropdown
+        const sortSelect = this.container.querySelector('#library-sort');
+        if (sortSelect) {
+            sortSelect.addEventListener('change', (e) => {
+                this.currentSort = e.target.value;
+                this.applyFilters();
+            });
+        }
+    }
+    
+    applyFilters() {
+        let filtered = [...this.movies];
+        
+        // Apply search filter
+        if (this.searchTerm) {
+            filtered = filtered.filter(movie => 
+                movie.title.toLowerCase().includes(this.searchTerm) ||
+                (movie.synopsis || '').toLowerCase().includes(this.searchTerm) ||
+                (movie.genre || '').toLowerCase().includes(this.searchTerm)
+            );
+        }
+        
+        // Apply action filter
+        if (this.currentFilter !== 'all') {
+            filtered = filtered.filter(movie => movie.action === this.currentFilter);
+        }
+        
+        // Apply sorting
+        filtered = this.sortMovies(filtered);
+        
+        this.filteredMovies = filtered;
+        this.renderMovies();
+        
+        if (ENV.APP.debug) {
+            console.log('[LibraryTab] Filtered movies:', this.filteredMovies.length);
+        }
+    }
+    
+    sortMovies(movies) {
+        switch (this.currentSort) {
+            case 'intelligent':
+                return movies.sort((a, b) => {
+                    // Smart sort: loved > liked > maybe, then by rating, then by recent
+                    const actionWeight = { love: 3, like: 2, maybe: 1 };
+                    const weightDiff = (actionWeight[b.action] || 0) - (actionWeight[a.action] || 0);
+                    if (weightDiff !== 0) return weightDiff;
+                    
+                    const ratingDiff = (parseFloat(b.imdb) || 0) - (parseFloat(a.imdb) || 0);
+                    if (ratingDiff !== 0) return ratingDiff;
+                    
+                    return b.timestamp - a.timestamp;
+                });
+            
+            case 'recent':
+                return movies.sort((a, b) => b.timestamp - a.timestamp);
+            
+            case 'alphabetical':
+                return movies.sort((a, b) => a.title.localeCompare(b.title));
+            
+            case 'rating':
+                return movies.sort((a, b) => {
+                    const ratingA = parseFloat(a.imdb) || 0;
+                    const ratingB = parseFloat(b.imdb) || 0;
+                    return ratingB - ratingA;
+                });
+            
+            default:
+                return movies;
+        }
+    }
+    
+    renderMovies() {
+        const grid = this.container.querySelector('#library-grid');
+        const empty = this.container.querySelector('#library-empty');
+        
+        if (!grid || !empty) return;
+        
+        if (this.filteredMovies.length === 0) {
+            grid.style.display = 'none';
+            empty.style.display = 'block';
             return;
         }
         
-        this.isSearching = true;
-        this.render();
+        grid.style.display = 'grid';
+        empty.style.display = 'none';
         
-        try {
-            const tmdbService = getTMDBService();
-            const results = await tmdbService.searchMovies(query);
-            this.searchResults = results;
-            console.log(`[Library] Found ${results.length} movies for "${query}"`);
-        } catch (error) {
-            console.error('[Library] Search error:', error);
-            this.searchResults = [];
-        }
-        
-        this.isSearching = false;
-        this.render();
-    }
-    
-    extractUniqueGenres(movies) {
-        const genreSet = new Set();
-        movies.forEach(movie => {
-            if (movie.genre) {
-                movie.genre.split(/[,/]/).forEach(g => {
-                    genreSet.add(g.trim());
-                });
-            }
-        });
-        return Array.from(genreSet).sort();
-    }
-    
-    extractUniquePlatforms(movies) {
-        const platformSet = new Set();
-        movies.forEach(movie => {
-            if (movie.platform) {
-                platformSet.add(movie.platform);
-            }
-        });
-        return Array.from(platformSet).sort();
-    }
-    
-    filterAndSortMovies(movies) {
-        let filtered = [...movies];
-        
-        if (this.selectedGenre !== 'all') {
-            filtered = filtered.filter(movie => 
-                movie.genre?.includes(this.selectedGenre)
-            );
-        }
-        
-        if (this.selectedPlatform !== 'all') {
-            filtered = filtered.filter(movie => 
-                movie.platform === this.selectedPlatform
-            );
-        }
-        
-        // INTELLIGENT SORTING - Blockbusters first!
-        filtered.sort((a, b) => {
-            switch (this.sortBy) {
-                case 'intelligent':
-                    // Prioritize: High vote count + High rating + Recent year
-                    const scoreA = (a.vote_count || 0) * 0.3 + (a.imdb || 0) * 10 + (a.year || 0) * 0.1;
-                    const scoreB = (b.vote_count || 0) * 0.3 + (b.imdb || 0) * 10 + (b.year || 0) * 0.1;
-                    return scoreB - scoreA;
-                case 'popularity':
-                    return (b.popularity || 0) - (a.popularity || 0);
-                case 'title':
-                    return (a.title || '').localeCompare(b.title || '');
-                case 'year':
-                    return (b.year || 0) - (a.year || 0);
-                case 'rating':
-                    return (b.imdb || 0) - (a.imdb || 0);
-                default:
-                    return 0;
-            }
-        });
-        
-        return filtered;
-    }
-    
-    hasActiveFilters() {
-        return this.searchQuery || 
-               this.selectedGenre !== 'all' || 
-               this.selectedPlatform !== 'all' ||
-               this.sortBy !== 'intelligent';
-    }
-    
-    getQuickStats(movies, swipeHistory) {
-        const swipedIds = new Set(swipeHistory.map(s => s.movie?.id).filter(Boolean));
-        const unseenCount = movies.filter(m => !swipedIds.has(m.id)).length;
-        const lovedCount = swipeHistory.filter(s => s.action === 'love').length;
-        const avgRating = movies.length > 0 
-            ? (movies.reduce((sum, m) => sum + (m.imdb || 0), 0) / movies.length).toFixed(1)
-            : '0.0';
-        
-        return `
-            <div style="backdrop-filter: blur(10px); background: linear-gradient(135deg, rgba(255, 46, 99, 0.15), rgba(139, 92, 246, 0.15)); border: 1px solid rgba(255, 46, 99, 0.3); border-radius: 1rem; padding: 1rem; text-align: center; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);">
-                <div style="font-size: 1.75rem; font-weight: 800; background: linear-gradient(135deg, #ff2e63, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">${unseenCount}</div>
-                <div style="font-size: 0.625rem; color: rgba(255, 255, 255, 0.7); text-transform: uppercase; font-weight: 700; letter-spacing: 0.1em;">Unseen</div>
-            </div>
-            <div style="backdrop-filter: blur(10px); background: linear-gradient(135deg, rgba(255, 0, 110, 0.15), rgba(217, 0, 98, 0.15)); border: 1px solid rgba(255, 0, 110, 0.3); border-radius: 1rem; padding: 1rem; text-align: center; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);">
-                <div style="font-size: 1.75rem; font-weight: 800; background: linear-gradient(135deg, #ff006e, #d90062); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">${lovedCount}</div>
-                <div style="font-size: 0.625rem; color: rgba(255, 255, 255, 0.7); text-transform: uppercase; font-weight: 700; letter-spacing: 0.1em;">Loved</div>
-            </div>
-            <div style="backdrop-filter: blur(10px); background: linear-gradient(135deg, rgba(251, 191, 36, 0.15), rgba(245, 158, 11, 0.15)); border: 1px solid rgba(251, 191, 36, 0.3); border-radius: 1rem; padding: 1rem; text-align: center; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);">
-                <div style="font-size: 1.75rem; font-weight: 800; background: linear-gradient(135deg, #fbbf24, #f59e0b); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">${avgRating}</div>
-                <div style="font-size: 0.625rem; color: rgba(255, 255, 255, 0.7); text-transform: uppercase; font-weight: 700; letter-spacing: 0.1em;">Avg Rating</div>
-            </div>
-        `;
-    }
-    
-    renderMovies(movies) {
-        if (movies.length === 0) {
+        grid.innerHTML = this.filteredMovies.map(movie => {
+            const posterUrl = movie.poster_path || movie.backdrop_path || 'https://placehold.co/300x450/1a1a2e/ffffff?text=' + encodeURIComponent(movie.title);
+            
+            const actionEmoji = {
+                love: '❤️',
+                like: '👍',
+                maybe: '🤔'
+            };
+            
+            const actionColor = {
+                love: '#ff2e63',
+                like: '#10b981',
+                maybe: '#fbbf24'
+            };
+            
             return `
-                <div class="empty-state" style="padding: 4rem 2rem; text-align: center;">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 80px; height: 80px; margin: 0 auto 1.5rem; color: rgba(255, 46, 99, 0.5);">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-                    </svg>
-                    <h2 style="font-size: 1.5rem; font-weight: 700; color: white; margin-bottom: 0.5rem;">No movies found</h2>
-                    <p style="color: rgba(255, 255, 255, 0.6);">Try adjusting your filters or search query</p>
-                </div>
-            `;
-        }
-        
-        return this.viewMode === 'grid' 
-            ? this.renderGridView(movies) 
-            : this.renderListView(movies);
-    }
-    
-    renderGridView(movies) {
-        return `
-            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;">
-                ${movies.map((movie, index) => this.renderGridCard(movie, index)).join('')}
-            </div>
-        `;
-    }
-    
-    renderGridCard(movie, index) {
-        const { icon, color } = getPlatformStyle(movie.platform);
-        const swipeHistory = store.get('swipeHistory');
-        const userSwipe = swipeHistory.find(s => s.movie?.id === movie.id);
-        
-        const posterUrl = movie.poster_path || `https://placehold.co/400x600/${color.replace('#', '')}/ffffff?text=${encodeURIComponent(movie.title)}`;
-        
-        // TOP RESULT BADGE for first 3 results (if searching or intelligent sort)
-        const isTopResult = index < 3 && (this.searchResults || this.sortBy === 'intelligent');
-        const isNumberOne = index === 0 && isTopResult;
-        
-        return `
-            <div class="card" style="padding: 0; overflow: hidden; cursor: pointer; position: relative; border-radius: 1rem; background: rgba(255, 255, 255, 0.02); border: ${isTopResult ? '2px solid rgba(251, 191, 36, 0.5)' : '1px solid rgba(255, 255, 255, 0.05)'}; box-shadow: ${isTopResult ? '0 12px 40px rgba(251, 191, 36, 0.3)' : '0 8px 24px rgba(0, 0, 0, 0.4)'}; transition: all 0.3s;" data-movie-id="${movie.id}" onmouseover="this.style.transform='translateY(-8px) scale(1.02)'" onmouseout="this.style.transform='translateY(0) scale(1)'">
-                
-                ${isTopResult ? `
-                    <div style="position: absolute; top: 0.5rem; left: 0.5rem; z-index: 3; display: flex; align-items: center; gap: 0.5rem;">
-                        <div style="display: flex; align-items: center; gap: 0.25rem; padding: 0.375rem 0.75rem; background: linear-gradient(135deg, #fbbf24, #f59e0b); border-radius: 0.5rem; font-size: 0.75rem; font-weight: 800; color: black; box-shadow: 0 4px 16px rgba(251, 191, 36, 0.5);">
-                            <span style="font-size: 1rem;">👑</span>
-                            ${isNumberOne ? '#1 TOP RESULT' : 'TOP RESULT'}
-                        </div>
-                    </div>
-                ` : ''}
-                
-                ${userSwipe ? `
-                    <div style="position: absolute; top: 0.5rem; right: 0.5rem; z-index: 3; padding: 0.25rem 0.5rem; background: ${this.getSwipeBadgeColor(userSwipe.action)}; border-radius: 0.375rem; font-size: 0.625rem; font-weight: 700; color: white; text-transform: uppercase; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);">
-                        ${userSwipe.action}
-                    </div>
-                ` : ''}
-                
-                <div style="width: 100%; aspect-ratio: 2/3; background: ${color}; position: relative; overflow: hidden;">
-                    <img 
-                        src="${posterUrl}" 
-                        alt="${movie.title}"
-                        style="width: 100%; height: 100%; object-fit: cover;"
-                        onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
-                    >
-                    <div style="position: absolute; inset: 0; display: none; align-items: center; justify-content: center; font-size: 4rem; opacity: 0.3; background: linear-gradient(135deg, ${color}, ${color}dd);">
-                        🎬
-                    </div>
-                    
-                    ${isNumberOne ? `
-                        <div style="position: absolute; inset: 0; background: linear-gradient(0deg, rgba(0, 0, 0, 0.9), transparent 60%); pointer-events: none;"></div>
-                        <div style="position: absolute; bottom: 0.75rem; left: 0.75rem; right: 0.75rem;">
-                            <div style="width: 64px; height: 64px; margin: 0 auto 0.5rem; border-radius: 50%; background: linear-gradient(135deg, #fbbf24, #f59e0b); display: flex; align-items: center; justify-content: center; font-size: 2rem; font-weight: 800; color: black; box-shadow: 0 8px 24px rgba(251, 191, 36, 0.6); border: 3px solid rgba(255, 255, 255, 0.3);">
-                                1
-                            </div>
-                        </div>
-                    ` : ''}
-                    
-                    <div style="position: absolute; bottom: 0.5rem; left: 0.5rem; width: 28px; height: 28px; border-radius: 50%; background: ${color}; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; color: white; font-weight: 800; box-shadow: 0 4px 12px rgba(0,0,0,0.4); border: 2px solid rgba(255, 255, 255, 0.2);">
-                        ${icon}
-                    </div>
-                </div>
-                
-                <div style="padding: 1rem;">
-                    <h3 style="font-size: 0.875rem; font-weight: 700; color: white; margin-bottom: 0.5rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${movie.title}">
-                        ${movie.title}
-                    </h3>
-                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
-                        <span style="font-size: 0.75rem; color: rgba(255, 255, 255, 0.5);">${movie.year || 'N/A'}</span>
-                        <span style="padding: 0.125rem 0.5rem; background: rgba(251, 191, 36, 0.2); border: 1px solid rgba(251, 191, 36, 0.4); border-radius: 0.5rem; font-size: 0.625rem; font-weight: 700; color: #fbbf24;">
-                            ⭐ ${movie.imdb || 'N/A'}
-                        </span>
-                    </div>
-                    ${movie.vote_count ? `
-                        <div style="font-size: 0.625rem; color: rgba(255, 255, 255, 0.4);">
-                            ${(movie.vote_count / 1000).toFixed(1)}k votes
-                        </div>
-                    ` : ''}
-                </div>
-            </div>
-        `;
-    }
-    
-    renderListView(movies) {
-        return `
-            <div style="display: flex; flex-direction: column; gap: 1rem;">
-                ${movies.map((movie, index) => this.renderListCard(movie, index)).join('')}
-            </div>
-        `;
-    }
-    
-    renderListCard(movie, index) {
-        const { icon, color } = getPlatformStyle(movie.platform);
-        const swipeHistory = store.get('swipeHistory');
-        const userSwipe = swipeHistory.find(s => s.movie?.id === movie.id);
-        
-        const posterUrl = movie.poster_path || `https://placehold.co/160x240/${color.replace('#', '')}/ffffff?text=${encodeURIComponent(movie.title)}`;
-        
-        const isTopResult = index < 3 && (this.searchResults || this.sortBy === 'intelligent');
-        const isNumberOne = index === 0 && isTopResult;
-        
-        return `
-            <div class="card" style="padding: 0; overflow: hidden; cursor: pointer; border-radius: 1rem; background: rgba(255, 255, 255, 0.02); border: ${isTopResult ? '2px solid rgba(251, 191, 36, 0.5)' : '1px solid rgba(255, 255, 255, 0.05)'}; box-shadow: ${isTopResult ? '0 8px 32px rgba(251, 191, 36, 0.3)' : '0 4px 16px rgba(0, 0, 0, 0.3)'};" data-movie-id="${movie.id}">
-                <div style="display: flex; gap: 1rem; padding: 1rem;">
-                    ${isNumberOne ? `
-                        <div style="width: 48px; height: 48px; flex-shrink: 0; border-radius: 50%; background: linear-gradient(135deg, #fbbf24, #f59e0b); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: 800; color: black; box-shadow: 0 8px 24px rgba(251, 191, 36, 0.6); border: 3px solid rgba(255, 255, 255, 0.3); align-self: center;">
-                            1
-                        </div>
-                    ` : ''}
-                    
-                    <div style="width: 80px; height: 120px; background: ${color}; flex-shrink: 0; position: relative; overflow: hidden; border-radius: 0.75rem; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);">
+                <div 
+                    class="library-movie-card" 
+                    data-movie-id="${movie.id}"
+                    style="position: relative; cursor: pointer; border-radius: 0.75rem; overflow: hidden; background: rgba(255, 255, 255, 0.05); transition: transform 0.3s, box-shadow 0.3s;"
+                    onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='0 12px 40px rgba(0, 0, 0, 0.6)'"
+                    onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='none'"
+                >
+                    <div style="position: relative; width: 100%; aspect-ratio: 2/3;">
                         <img 
                             src="${posterUrl}" 
                             alt="${movie.title}"
                             style="width: 100%; height: 100%; object-fit: cover;"
-                            onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
+                            onerror="this.src='https://placehold.co/300x450/1a1a2e/ffffff?text=${encodeURIComponent(movie.title)}'"
                         >
-                        <div style="position: absolute; inset: 0; display: none; align-items: center; justify-content: center; font-size: 2rem; opacity: 0.3; background: linear-gradient(135deg, ${color}, ${color}dd);">
-                            🎬
+                        
+                        <!-- Action Badge -->
+                        <div style="position: absolute; top: 0.5rem; right: 0.5rem; width: 32px; height: 32px; background: ${actionColor[movie.action]}; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1rem; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);">
+                            ${actionEmoji[movie.action]}
                         </div>
                         
-                        ${isTopResult && !isNumberOne ? `
-                            <div style="position: absolute; top: 0.25rem; left: 0.25rem; padding: 0.125rem 0.375rem; background: linear-gradient(135deg, #fbbf24, #f59e0b); border-radius: 0.25rem; font-size: 0.5rem; font-weight: 800; color: black; box-shadow: 0 2px 8px rgba(251, 191, 36, 0.5);">
-                                TOP
-                            </div>
-                        ` : ''}
-                        
-                        ${userSwipe ? `
-                            <div style="position: absolute; top: 0.25rem; right: 0.25rem; padding: 0.125rem 0.25rem; background: ${this.getSwipeBadgeColor(userSwipe.action)}; border-radius: 0.25rem; font-size: 0.5rem; font-weight: 700; color: white; text-transform: uppercase;">
-                                ${userSwipe.action}
-                            </div>
-                        ` : ''}
-                    </div>
-                    
-                    <div style="flex: 1; padding: 0.5rem 0; min-width: 0;">
-                        ${isTopResult && !isNumberOne ? `
-                            <div style="display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.25rem 0.5rem; background: linear-gradient(135deg, rgba(251, 191, 36, 0.2), rgba(245, 158, 11, 0.2)); border: 1px solid rgba(251, 191, 36, 0.4); border-radius: 0.5rem; font-size: 0.625rem; font-weight: 800; color: #fbbf24; margin-bottom: 0.5rem;">
-                                <span>👑</span>
-                                TOP RESULT
-                            </div>
-                        ` : ''}
-                        
-                        <h3 style="font-size: 1rem; font-weight: 700; color: white; margin-bottom: 0.5rem;">
-                            ${movie.title}
-                        </h3>
-                        <p style="font-size: 0.875rem; color: rgba(255, 255, 255, 0.6); margin-bottom: 0.75rem;">
-                            ${movie.year || 'N/A'} • ${movie.genre || 'Unknown Genre'}
-                        </p>
-                        <p style="font-size: 0.75rem; color: rgba(255, 255, 255, 0.5); line-height: 1.5; margin-bottom: 0.75rem;" class="line-clamp-2">
-                            ${movie.synopsis || 'No description available.'}
-                        </p>
-                        <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
-                            <span style="padding: 0.25rem 0.75rem; background: rgba(251, 191, 36, 0.2); border: 1px solid rgba(251, 191, 36, 0.4); border-radius: 0.5rem; font-size: 0.75rem; font-weight: 700; color: #fbbf24;">
-                                ⭐ ${movie.imdb || 'N/A'}
-                            </span>
-                            ${movie.vote_count ? `
-                                <span style="font-size: 0.75rem; color: rgba(255, 255, 255, 0.4);">
-                                    ${(movie.vote_count / 1000).toFixed(1)}k votes
+                        <!-- Gradient Overlay -->
+                        <div style="position: absolute; bottom: 0; left: 0; right: 0; padding: 0.75rem 0.5rem; background: linear-gradient(0deg, rgba(0, 0, 0, 0.9), transparent); pointer-events: none;">
+                            <h3 style="font-size: 0.8125rem; font-weight: 700; color: white; margin: 0; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">
+                                ${movie.title}
+                            </h3>
+                            <div style="display: flex; align-items: center; gap: 0.375rem; margin-top: 0.25rem;">
+                                <span style="font-size: 0.6875rem; color: rgba(255, 255, 255, 0.8); font-weight: 600;">
+                                    ${movie.year || 'N/A'}
                                 </span>
-                            ` : ''}
-                            <div style="display: flex; align-items: center; gap: 0.25rem;">
-                                <span style="width: 20px; height: 20px; border-radius: 50%; background: ${color}; display: flex; align-items: center; justify-content: center; font-size: 0.625rem; color: white; font-weight: 800;">${icon}</span>
-                                <span style="font-size: 0.75rem; color: rgba(255, 255, 255, 0.5);">${movie.platform}</span>
+                                ${movie.imdb ? `
+                                    <span style="width: 3px; height: 3px; border-radius: 50%; background: rgba(255, 255, 255, 0.5);"></span>
+                                    <span style="font-size: 0.6875rem; color: #fbbf24; font-weight: 700;">
+                                        ⭐ ${movie.imdb}
+                                    </span>
+                                ` : ''}
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
-        `;
-    }
-    
-    getSwipeBadgeColor(action) {
-        const colors = {
-            love: 'var(--love-glow)',
-            like: 'var(--like-glow)',
-            maybe: 'var(--maybe-glow)',
-            pass: 'var(--nope-glow)'
-        };
-        return colors[action] || 'var(--color-text-secondary)';
-    }
-    
-    attachListeners() {
-        console.log('[LibraryTab] Attaching listeners...');
+            `;
+        }).join('');
         
-        const searchInput = document.getElementById('library-search');
-        if (searchInput) {
-            let searchTimeout;
-            
-            searchInput.addEventListener('input', (e) => {
-                this.searchQuery = e.target.value;
-                
-                clearTimeout(searchTimeout);
-                if (this.searchQuery.length >= 2) {
-                    searchTimeout = setTimeout(() => {
-                        this.searchTMDB(this.searchQuery);
-                    }, 500);
-                } else if (this.searchQuery.length === 0) {
-                    this.searchResults = null;
-                    this.render();
-                }
-            });
-            
-            searchInput.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter' && this.searchQuery.length >= 2) {
-                    this.searchTMDB(this.searchQuery);
-                }
-            });
-        }
-        
-        const genreFilter = document.getElementById('genre-filter');
-        if (genreFilter) {
-            genreFilter.addEventListener('change', (e) => {
-                this.selectedGenre = e.target.value;
-                this.render();
-            });
-        }
-        
-        const platformFilter = document.getElementById('platform-filter');
-        if (platformFilter) {
-            platformFilter.addEventListener('change', (e) => {
-                this.selectedPlatform = e.target.value;
-                this.render();
-            });
-        }
-        
-        const sortBy = document.getElementById('sort-by');
-        if (sortBy) {
-            sortBy.addEventListener('change', (e) => {
-                this.sortBy = e.target.value;
-                this.render();
-            });
-        }
-        
-        const clearFilters = document.getElementById('clear-filters');
-        if (clearFilters) {
-            clearFilters.addEventListener('click', () => {
-                this.searchQuery = '';
-                this.searchResults = null;
-                this.selectedGenre = 'all';
-                this.selectedPlatform = 'all';
-                this.sortBy = 'intelligent';
-                this.render();
-            });
-        }
-        
-        const movieCards = this.container.querySelectorAll('[data-movie-id]');
-        console.log('[LibraryTab] Found movie cards:', movieCards.length);
-        
-        movieCards.forEach((card, index) => {
+        // Attach click listeners to movie cards
+        const movieCards = grid.querySelectorAll('.library-movie-card');
+        movieCards.forEach(card => {
             card.addEventListener('click', () => {
-                console.log('[LibraryTab] Card clicked, index:', index);
-                
                 const movieId = card.dataset.movieId;
-                console.log('[LibraryTab] Movie ID from card:', movieId, typeof movieId);
+                // FIXED: Enhanced debug logging for ID matching
+                if (ENV.APP.debug) {
+                    console.log('[LibraryTab] Card clicked, movieId:', movieId, typeof movieId);
+                }
                 
-                const movies = this.searchResults || store.get('movies');
-                console.log('[LibraryTab] Total movies available:', movies?.length);
-                console.log('[LibraryTab] Using search results:', !!this.searchResults);
-                
-                // Convert both to strings for comparison (handles string vs number mismatch)
-                const movie = movies.find(m => String(m.id) === String(movieId));
-                console.log('[LibraryTab] Found movie:', movie?.title || 'NOT FOUND');
+                const movie = this.filteredMovies.find(m => {
+                    const match = String(m.id) === String(movieId);
+                    if (ENV.APP.debug) {
+                        console.log('[LibraryTab] Comparing:', m.id, typeof m.id, 'vs', movieId, typeof movieId, '=', match);
+                    }
+                    return match;
+                });
                 
                 if (movie) {
-                    console.log('[LibraryTab] Calling movieModal.show()...');
-                    try {
-                        movieModal.show(movie);
-                        console.log('[LibraryTab] Modal opened successfully');
-                    } catch (error) {
-                        console.error('[LibraryTab] Error opening modal:', error);
+                    if (ENV.APP.debug) {
+                        console.log('[LibraryTab] Opening modal for:', movie.title);
                     }
+                    movieModal.show(movie);
                 } else {
                     console.error('[LibraryTab] Movie not found for ID:', movieId);
-                    console.log('[LibraryTab] Available IDs (first 5):', movies.slice(0, 5).map(m => ({ id: m.id, title: m.title })));
+                    console.error('[LibraryTab] Available IDs:', this.filteredMovies.map(m => ({ id: m.id, type: typeof m.id })));
                 }
             });
         });
-        
-        console.log('[LibraryTab] All listeners attached');
     }
     
     destroy() {
-        this.searchQuery = '';
-        this.searchResults = null;
-        this.selectedGenre = 'all';
-        this.selectedPlatform = 'all';
+        // Cleanup if needed
     }
 }
