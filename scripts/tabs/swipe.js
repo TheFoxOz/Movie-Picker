@@ -1,6 +1,6 @@
 /**
  * Swipe Tab Component
- * FIXED: Works perfectly when logged in — unlimited movies every time
+ * FIXED: Action buttons float above bottom nav — perfect Tinder-style layout
  */
 
 import { store } from '../state/store.js';
@@ -17,23 +17,23 @@ export class SwipeTab {
         this.movieQueue = [];
         this.isLoading = false;
         this.swipeHandler = null;
-        this.hasLoaded = false; // Prevent double loading
+        this.hasLoaded = false;
     }
     
     async render(container) {
         this.container = container;
         
-        // Prevent double render
         if (this.hasLoaded) {
             this.showNextCard();
+            return;
             return;
         }
         this.hasLoaded = true;
 
         container.innerHTML = `
-            <div style="position: relative; width: 100%; height: calc(100vh - 5rem); display: flex; flex-direction: column;">
+            <div style="position: relative; width: 100%; height: calc(100vh - 5rem); display: flex; flex-direction: column; padding-bottom: 7rem;">
                 
-                <!-- Header -->
+                <!-- Header
                 <div style="padding: 1.5rem 1rem; text-align: center;">
                     <h1 style="font-size: 1.5rem; font-weight: 800; color: white; margin: 0 0 0.5rem 0;">
                         Discover Movies
@@ -50,23 +50,25 @@ export class SwipeTab {
                         <p>Loading your movies...</p>
                     </div>
                 </div>
-                
-                <!-- Action Buttons -->
-                <div style="padding: 1.5rem 1rem 2rem; display: flex; align-items: center; justify-content: center; gap: 1rem;">
-                    <button id="swipe-pass" style="width: 64px; height: 64px; border-radius: 50%; background: rgba(239, 68, 68, 0.2); border: 2px solid rgba(239, 68, 68, 0.4); color: #ef4444; font-size: 1.75rem; cursor: pointer; transition: all 0.3s; display: flex; align-items: center; justify-content: center;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">
-                        No
-                    </button>
-                    <button id="swipe-maybe" style="width: 56px; height: 56px; border-radius: 50%; background: rgba(251, 191, 36, 0.2); border: 2px solid rgba(251, 191, 36, 0.4); color: #fbbf24; font-size: 1.5rem; cursor: pointer; transition: all 0.3s; display: flex; align-items: center; justify-content: center;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">
-                        Question
-                    </button>
-                    <button id="swipe-like" style="width: 56px; height: 56px; border-radius: 50%; background: rgba(16, 185, 129, 0.2); border: 2px solid rgba(16, 185, 129, 0.4); color: #10b981; font-size: 1.5rem; cursor: pointer; transition: all 0.3s; display: flex; align-items: center; justify-content: center;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">
-                        Thumbs Up
-                    </button>
-                    <button id="swipe-love" style="width: 64px; height: 64px; border-radius: 50%; background: rgba(255, 46, 99, 0.2); border: 2px solid rgba(255, 46, 99, 0.4); color: #ff2e63; font-size: 1.75rem; cursor: pointer; transition: all 0.3s; display: flex; align-items: center; justify-content: center;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">
-                        Heart
-                    </button>
+
+                <!-- FLOATING ACTION BUTTONS — ABOVE BOTTOM NAV -->
+                <div style="position: fixed; bottom: 6.5rem; left: 0; right: 0; z-index: 90; padding: 0 1.5rem; pointer-events: none;">
+                    <div style="display: flex; align-items: center; justify-content: center; gap: 1.8rem; pointer-events: auto;">
+                        <button id="swipe-pass" class="swipe-action-btn">
+                            No
+                        </button>
+                        <button id="swipe-maybe" class="swipe-action-btn">
+                            Question
+                        </button>
+                        <button id="swipe-like" class="swipe-action-btn">
+                            Thumbs Up
+                        </button>
+                        <button id="swipe-love" class="swipe-action-btn">
+                            Heart
+                        </button>
+                    </div>
                 </div>
-                
+
                 <!-- Completed State -->
                 <div id="swipe-completed" style="display: none; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; padding: 2rem; text-align: center; background: rgba(10, 10, 15, 0.95); z-index: 10;">
                     <div style="font-size: 5rem; margin-bottom: 1.5rem;">Party Popper</div>
@@ -77,13 +79,59 @@ export class SwipeTab {
                         You've swiped through all available movies. Check your Library to see your picks!
                     </p>
                     <button id="goto-library" style="padding: 1rem 2rem; background: linear-gradient(135deg, #ff2e63, #d90062); border: none; border-radius: 1rem; color: white; font-size: 1rem; font-weight: 700; cursor: pointer; transition: transform 0.3s; box-shadow: 0 8px 24px rgba(255, 46, 99, 0.4);" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
-                        View My Library →
+                        View My Library
                     </button>
                 </div>
             </div>
         `;
-        
-        // Load movies with retry logic
+
+        // Add beautiful button styles
+        const style = document.createElement('style');
+        style.textContent = `
+            .swipe-action-btn {
+                width: 72px;
+                height: 72px;
+                border-radius: 50%;
+                border: none;
+                font-size: 2.2rem;
+                cursor: pointer;
+                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+                backdrop-filter: blur(10px);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+            #swipe-pass {
+                background: rgba(239, 68, 68, 0.25);
+                border: 3px solid rgba(239, 68, 68, 0.6);
+                color: #ef4444;
+            }
+            #swipe-maybe {
+                background: rgba(251, 191, 36, 0.25);
+                border: 3px solid rgba(251, 191, 36, 0.6);
+                color: #fbbf24;
+            }
+            #swipe-like {
+                background: rgba(16, 185, 129, 0.25);
+                border: 3px solid rgba(16, 185, 129, 0.6);
+                color: #10b981;
+            }
+            #swipe-love {
+                background: rgba(255, 46, 99, 0.25);
+                border: 3px solid rgba(255, 46, 99, 0.6);
+                color: #ff2e63;
+            }
+            .swipe-action-btn:hover {
+                transform: scale(1.15) !important;
+                box-shadow: 0 15px 40px rgba(0, 0, 0, 0.6);
+            }
+            .swipe-action-btn:active {
+                transform: scale(0.95) !important;
+            }
+        `;
+        document.head.appendChild(style);
+
         await this.loadMoviesWithRetry();
         this.attachListeners();
         this.showNextCard();
@@ -97,7 +145,6 @@ export class SwipeTab {
             const tmdbService = getTMDBService();
             if (!tmdbService) throw new Error('TMDB service not ready');
 
-            // Load from multiple sources for variety
             const sources = await Promise.all([
                 tmdbService.fetchPopularMovies(5),
                 tmdbService.fetchTrendingMovies(),
@@ -108,25 +155,18 @@ export class SwipeTab {
             sources.flat().forEach(m => map.set(m.id, m));
             let movies = Array.from(map.values());
 
-            // Filter out already swiped
             const state = store.getState();
             const swipedIds = new Set((state.swipeHistory || []).map(s => String(s.movie.id)));
             this.movieQueue = movies.filter(m => !swipedIds.has(String(m.id)));
 
             if (this.movieQueue.length < 10 && attempt <= 3) {
-                console.log(`[SwipeTab] Only ${this.movieQueue.length} movies, retrying... (${attempt}/3)`);
                 setTimeout(() => this.loadMoviesWithRetry(attempt + 1), 1000);
                 return;
-            }
-
-            if (ENV.APP.debug) {
-                console.log(`[SwipeTab] Loaded ${this.movieQueue.length} movies for swiping`);
             }
 
         } catch (error) {
             console.error('[SwipeTab] Failed to load movies:', error);
             showToast('Failed to load movies. Retrying...', 'error');
-            
             if (attempt <= 3) {
                 setTimeout(() => this.loadMoviesWithRetry(attempt + 1), 2000);
             }
@@ -170,9 +210,7 @@ export class SwipeTab {
             }
         });
 
-        this.swipeHandler = (e) => {
-            setTimeout(() => this.showNextCard(), 400);
-        };
+        this.swipeHandler = () => setTimeout(() => this.showNextCard(), 400);
         document.addEventListener('swipe-action', this.swipeHandler);
 
         const gotoLibrary = this.container.querySelector('#goto-library');
