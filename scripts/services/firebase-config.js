@@ -1,13 +1,12 @@
 /**
  * Firebase Configuration and Initialization
- * Using Firebase v9 Compat SDK for easier integration
+ * Using Firebase v9 Compat SDK
  */
 
-// Import Firebase using compat mode (works without build system)
-import firebase from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js';
-import 'https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js';
-import 'https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js';
-import 'https://www.gstatic.com/firebasejs/9.22.0/firebase-analytics-compat.js';
+// Import Firebase v9.6.1 compat (stable version)
+import firebase from 'https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js';
+import 'https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js';
+import 'https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js';
 
 // Your Firebase configuration
 const firebaseConfig = {
@@ -28,6 +27,13 @@ if (!firebase.apps.length) {
 // Get Firebase services
 const auth = firebase.auth();
 const db = firebase.firestore();
-const analytics = firebase.analytics();
+
+// Initialize analytics only if available
+let analytics = null;
+try {
+  analytics = firebase.analytics();
+} catch (e) {
+  console.log('[Firebase] Analytics not available');
+}
 
 export { firebase, auth, db, analytics };
