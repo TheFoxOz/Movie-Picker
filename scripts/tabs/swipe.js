@@ -1,6 +1,6 @@
 /**
  * Swipe Tab Component
- * PERFECT UI — Swipe button aligned with other tabs, action buttons fixed & beautiful
+ * FIXED: Emojis only + swipe button perfectly aligned with bottom nav
  */
 
 import { store } from '../state/store.js';
@@ -30,7 +30,7 @@ export class SwipeTab {
         this.hasLoaded = true;
 
         container.innerHTML = `
-            <div style="position: relative; width: 100%; height: calc(100vh - 5rem); display: flex; flex-direction: column; padding-bottom: 8rem;">
+            <div style="position: relative; width: 100%; height: calc(100vh - 5rem); display: flex; flex-direction: column; padding-bottom: 7rem;">
                 
                 <!-- Header -->
                 <div style="padding: 1.5rem 1rem; text-align: center;">
@@ -50,21 +50,13 @@ export class SwipeTab {
                     </div>
                 </div>
 
-                <!-- FIXED & BEAUTIFUL ACTION BUTTONS — FLOATING ABOVE NAV -->
-                <div style="position: fixed; bottom: 6.5rem; left: 0; right: 0; z-index: 90; padding: 0 1.5rem; pointer-events: none;">
-                    <div style="display: flex; align-items: center; justify-content: center; gap: 1.8rem; pointer-events: auto;">
-                        <button id="swipe-pass" class="swipe-action-btn" data-action="pass">
-                            No
-                        </button>
-                        <button id="swipe-maybe" class="swipe-action-btn" data-action="maybe">
-                            Question
-                        </button>
-                        <button id="swipe-like" class="swipe-action-btn" data-action="like">
-                            Thumbs Up
-                        </button>
-                        <button id="swipe-love" class="swipe-action-btn" data-action="love">
-                            Heart
-                        </button>
+                <!-- PERFECTLY ALIGNED ACTION BUTTONS (emojis only) -->
+                <div style="position: fixed; bottom: 6.8rem; left: 0; right: 0; z-index: 90; padding: 0 1.5rem; pointer-events: none;">
+                    <div style="display: flex; align-items: center; justify-content: center; gap: 2rem; pointer-events: auto;">
+                        <button id="swipe-pass" class="swipe-action-btn" data-action="pass">No</button>
+                        <button id="swipe-maybe" class="swipe-action-btn" data-action="maybe">Question</button>
+                        <button id="swipe-like" class="swipe-action-btn" data-action="like">Thumbs Up</button>
+                        <button id="swipe-love" class="swipe-action-btn" data-action="love">Heart</button>
                     </div>
                 </div>
 
@@ -77,22 +69,22 @@ export class SwipeTab {
                     <p style="font-size: 1.125rem; color: rgba(255, 255, 255, 0.8); margin: 0 0 2rem 0; max-width: 400px;">
                         You've swiped through all available movies. Check your Library to see your picks!
                     </p>
-                    <button id="goto-library" style="padding: 1rem 2rem; background: linear-gradient(135deg, #ff2e63, #d90062); border: none; border-radius: 1rem; color: white; font-size: 1rem; font-weight: 700; cursor: pointer; transition: transform 0.3s; box-shadow: 0 8px 24px rgba(255, 46, 99, 0.4);">
+                    <button id="goto-library" style="padding: 1rem 2rem; background: linear-gradient(135deg, #ff2e63, #d90062); border: none; border-radius: 1rem; color: white; font-size: 1rem; font-weight: 700; cursor: pointer;">
                         View My Library
                     </button>
                 </div>
             </div>
         `;
 
-        // PERFECT ACTION BUTTON STYLES
+        // PERFECT BUTTON STYLES — EMOJIS ONLY + EXACT ALIGNMENT
         const style = document.createElement('style');
         style.textContent = `
             .swipe-action-btn {
-                width: 72px;
-                height: 72px;
+                width: 70px;
+                height: 70px;
                 border-radius: 50%;
                 border: none;
-                font-size: 2.2rem;
+                font-size: 2.4rem;
                 cursor: pointer;
                 transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
                 box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
