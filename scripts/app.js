@@ -3,13 +3,13 @@
  */
 
 import { store } from './state/store.js';
-import { initTMDBService } from './services/tmdb.js';
 import { HomeTab } from './tabs/home.js';
-import { LibraryTab } from './tabs/library.js';
 import { SwipeTab } from './tabs/swipe.js';
+import { LibraryTab } from './tabs/library.js';
 import { MatchesTab } from './tabs/matches.js';
 import { ProfileTab } from './tabs/profile.js';
-import { showToast, showError } from './utils/notifications.js';
+import { getTMDBService } from './services/tmdb.js';  // FIXED - removed initTMDBService
+import { authService } from './services/auth-service.js';
 import { ENV } from './config/env.js';
 
 class App {
