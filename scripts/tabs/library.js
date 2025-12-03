@@ -1,152 +1,122 @@
 /**
- * Library Tab – infinite scroll + TMDb global search
+ * Library Tab – Infinite Scroll + Filters
  */
 
-import { store } from "../state/store.js";
-import { getTMDBService } from "../services/tmdb.js";
-import { showToast } from "../utils/notifications.js";
+import { store } from '../state/store.js';
+import { getTMDBService, GENRE_IDS } from '../services/tmdb.js';
+import { movieModal } from '../components/movie-modal.js';
+import { ENV } from '../config/env.js';
 
 export class LibraryTab {
     constructor() {
         this.container = null;
-        this.movies = [];
+        this.allMovies = [];
+        this.filtered = [];
         this.page = 1;
-        this.fetching = false;
+        this.loading = false;
+        this.hasMore = true;
     }
 
     async render(container) {
         this.container = container;
-        container.innerHTML = `
-            <div style="padding:1rem;">
-                <div style="display:flex; gap:8px; align-items:center;">
-                    <input id="lib-search" placeholder="Search all TMDb movies..." style="flex:1;padding:10px;border-radius:8px;border:none;background:#111;color:white;" />
-                    <button id="lib-search-btn" style="padding:10px 12px;border-radius:8px;border:none;background:#ff2e63;color:white;cursor:pointer;">Search</button>
-                </div>
-                <div id="lib-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-top:12px;"></div>
-                <div id="lib-loading" style="text-align:center;padding:12px;color:rgba(255,255,255,0.6);">Scroll to load more</div>
-            </div>
-        `;
+        container.innerHTML = this.loadingHTML();
 
-        this.container.querySelector("#lib-search-btn").addEventListener("click", async () => {
-            const q = this.container.querySelector("#lib-search").value.trim();
-            await this.searchAll(q);
-        });
-
-        // initial load
-        await this.loadInitial();
-
-        // infinite scroll (window)
-        window.addEventListener("scroll", this.onScrollBound = this.onScroll.bind(this));
+        await this.loadPage(1);
+        this.renderGrid();
+        this.setupScroll();
     }
 
-    async loadInitial() {
-        this.page = 1;
-        this.movies = [];
-        await this.fetchNextChunk();
-    }
+    async loadPage(page) {
+        if (this.loading || !this.hasMore) return;
+        this.loading = true;
 
-    async onScroll() {
-        const nearBottom = (window.innerHeight + window.scrollY) >= (document.body.offsetHeight - 800);
-        if (nearBottom && !this.fetching) {
-            await this.fetchNextChunk();
-        }
-    }
-
-    // fetch chunk = ~100 movies (TMDb pages are typically 20 items)
-    async fetchNextChunk() {
         try {
-            this.fetching = true;
             const tmdb = getTMDBService();
-            if (!tmdb) throw new Error("TMDB not ready");
+            const res = await fetch(
+                `https://api.themoviedb.org/3/discover/movie?api_key=${tmdb.apiKey}&language=en-US&sort_by=popularity.desc&page=${page}`
+            );
+            const data = await res.json();
 
-            // get user prefs to filter platforms/triggers
-            const state = store.getState();
-            const user = state.user || {};
-            const selectedPlatforms = Array.isArray(user.selectedPlatforms) ? user.selectedPlatforms.map(x => x.toString().toLowerCase()) : [];
-            const blockedTriggers = Array.isArray(user.blockedTriggers) ? user.blockedTriggers : [];
+            const newMovies = data.results.map(m => tmdb.transformMovie(m));
+            const existing = new Set(this.allMovies.map(m => m.id));
+            const filtered = newMovies.filter(m => !existing.has(m.id));
 
-            // We'll fetch 5 TMDb pages in each chunk (assuming 20 per page => ~100)
-            const pagesToFetch = 5;
-            const promises = [];
-            for (let i = 0; i < pagesToFetch; i++) {
-                promises.push(tmdb.discoverMovies({ page: this.page + i, providers: selectedPlatforms }));
-            }
+            this.allMovies.push(...filtered);
+            this.filtered = this.allMovies;
+            this.page = page;
 
-            const results = await Promise.all(promises);
-
-            // flatten results to a single array
-            const flat = results.flatMap(r => (r && r.results) ? r.results : (Array.isArray(r) ? r : []));
-
-            // apply blocked triggers filter and dedupe
-            const filtered = flat.filter(m => {
-                const warnings = m.triggerWarnings || m.warnings || [];
-                if (blockedTriggers && blockedTriggers.length > 0) {
-                    if (warnings.some(w => blockedTriggers.includes(w))) return false;
-                }
-                return true;
-            });
-
-            // dedupe by id
-            const map = new Map(this.movies.map(m => [m.id, m]));
-            filtered.forEach(m => map.set(m.id, m));
-            this.movies = Array.from(map.values());
-
-            // render grid
-            this.renderGrid();
-
-            // advance page
-            this.page += pagesToFetch;
-            this.fetching = false;
+            if (data.page >= data.total_pages) this.hasMore = false;
         } catch (err) {
-            console.error("[LibraryTab] fetch error", err);
-            showToast("Failed to load library", "error");
-            this.fetching = false;
+            console.error(err);
+            this.hasMore = false;
+        } finally {
+            this.loading = false;
         }
     }
 
     renderGrid() {
-        const grid = this.container.querySelector("#lib-grid");
-        if (!grid) return;
-        grid.innerHTML = "";
+        const movies = this.filtered.slice(0, this.page * 20);
 
-        this.movies.forEach(m => {
-            const poster = m.poster_path ? `https://image.tmdb.org/t/p/w342${m.poster_path}` : '';
-            const node = document.createElement("div");
-            node.style = "background: #0f0f12; padding:8px; border-radius:8px; text-align:center; cursor:pointer;";
-            node.innerHTML = `
-                <div style="height:200px; overflow:hidden; border-radius:6px; margin-bottom:8px;">
-                    <img src="${poster}" alt="${(m.title||m.name)||''}" style="width:100%; height:100%; object-fit:cover;">
+        this.container.innerHTML = `
+            <div style="padding: 1.5rem 1rem 6rem;">
+                <h1 style="font-size: 1.75rem; font-weight: 800; color: white; margin-bottom: 1rem;">
+                    Movie Library
+                </h1>
+                <p style="color: rgba(255,255,255,0.6); margin-bottom: 1.5rem;">
+                    ${this.allMovies.length.toLocaleString()}+ movies • Scroll to load more
+                </p>
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 1rem;">
+                    ${movies.map(m => this.card(m)).join('')}
                 </div>
-                <div style="color:white; font-weight:700; font-size:0.9rem;">${m.title || m.name}</div>
-                <div style="color:rgba(255,255,255,0.6); font-size:0.8rem;">${(m.release_date||m.first_air_date||'').slice(0,4)}</div>
-            `;
-            node.addEventListener("click", () => {
-                document.dispatchEvent(new CustomEvent("movie-selected", { detail: { movie: m } }));
-            });
-            grid.appendChild(node);
+                ${this.loading ? '<div style="text-align:center;padding:2rem;"><div class="spinner"></div></div>' : ''}
+            </div>
+        `;
+
+        this.attachListeners();
+    }
+
+    card(movie) {
+        const poster = movie.poster_path || 'https://placehold.co/300x450/111/fff?text=Poster';
+        return `
+            <div class="lib-card" data-id="${movie.id}">
+                <img src="${poster}" alt="${movie.title}" style="width:100%;border-radius:1rem;">
+                <div style="padding:0.5rem 0;">
+                    <h3 style="font-size:0.875rem;color:white;font-weight:600;margin:0;line-height:1.3;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">
+                        ${movie.title}
+                    </h3>
+                    <p style="font-size:0.75rem;color:#aaa;margin:0.25rem 0 0;">
+                        ${movie.year} • ${movie.runtime || '—'}
+                    </p>
+                </div>
+            </div>
+        `;
+    }
+
+    attachListeners() {
+        this.container.querySelectorAll('.lib-card').forEach(card => {
+            card.onclick = () => {
+                const movie = this.allMovies.find(m => m.id == card.dataset.id);
+                if (movie) movieModal.show(movie);
+            }
         });
     }
 
-    // TMDb search uses the full TMDb DB
-    async searchAll(query) {
-        if (!query || query.length < 1) {
-            await this.loadInitial();
-            return;
-        }
-        try {
-            const tmdb = getTMDBService();
-            if (!tmdb) throw new Error("TMDB not ready");
-            const res = await tmdb.searchMovies(query, { page: 1 });
-            const movies = res.results || res;
-            this.movies = movies;
-            this.renderGrid();
-        } catch (err) {
-            console.error("[LibraryTab] search error", err);
-            showToast("Search failed", "error");
-        }
+    setupScroll() {
+        window.onscroll = () => {
+            if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 1000 && this.hasMore && !this.loading) {
+                this.loadPage(this.page + 1).then(() => this.renderGrid());
+            }
+        };
+    }
+
+    loadingHTML() {
+        return `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:80vh;gap:1rem;color:white;">
+            <div class="spinner"></div>
+            <p>Loading library...</p>
+        </div>`;
     }
 
     destroy() {
-        window.removeEventListener("scroll", this.onScrollBound);
+        window.onscroll = null;
     }
 }
