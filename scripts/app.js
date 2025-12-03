@@ -27,7 +27,7 @@ class App {
     }
     
     async init() {
-        console.log('[App] 🎬 Initializing Movie Picker...');
+        console.log('[App] Initializing Movie Picker...');
         
         // Check TMDB API key
         this.checkTMDBAPI();
@@ -38,24 +38,23 @@ class App {
         // Load initial tab
         this.switchTab('home');
         
-        console.log('[App] ✅ App initialized successfully');
+        console.log('[App] App initialized successfully');
     }
     
     checkTMDBAPI() {
         const apiKey = window.__tmdb_api_key;
         
         if (!apiKey || apiKey === 'YOUR_TMDB_API_KEY_HERE') {
-            console.error('[App] ❌ TMDB API key not found!');
-            console.error('[App] 📝 Add to index.html: window.__tmdb_api_key = "your_key"');
+            console.error('[App] TMDB API key not found!');
+            console.error('[App] Add to index.html: window.__tmdb_api_key = "your_key"');
         } else {
-            console.log('[App] ✅ TMDB API key found');
+            console.log('[App] TMDB API key found');
             
-            // Try to initialize TMDB service
             const tmdbService = getTMDBService();
             if (tmdbService) {
-                console.log('[App] ✅ TMDB service ready');
+                console.log('[App] TMDB service ready');
             } else {
-                console.error('[App] ❌ TMDB service failed to initialize');
+                console.error('[App] TMDB service failed to initialize');
             }
         }
     }
@@ -64,7 +63,7 @@ class App {
         this.container = document.getElementById('app-container');
         
         if (!this.container) {
-            console.error('[App] ❌ app-container not found');
+            console.error('[App] app-container not found');
             return;
         }
         
@@ -84,17 +83,18 @@ class App {
             }
         });
         
-        console.log('[App] ✅ UI initialized');
+        console.log('[App] UI initialized');
     }
     
+    // FIXED: Now dispatches event so header can update
     switchTab(tabName) {
         if (!this.tabs[tabName]) {
-            console.error(`[App] ❌ Tab "${tabName}" not found`);
+            console.error(`[App] Tab "${tabName}" not found`);
             return;
         }
         
         if (!this.container) {
-            console.error('[App] ❌ Container not found');
+            console.error('[App] Container not found');
             return;
         }
         
@@ -103,7 +103,7 @@ class App {
             try {
                 this.tabs[this.currentTab].destroy();
             } catch (error) {
-                console.warn('[App] ⚠️  Error destroying tab:', error);
+                console.warn('[App] Error destroying tab:', error);
             }
         }
         
@@ -129,13 +129,13 @@ class App {
         // Render new tab
         try {
             this.tabs[tabName].render(this.container);
-            console.log(`[App] ✅ Switched to: ${tabName}`);
+            console.log(`[App] Switched to: ${tabName}`);
         } catch (error) {
-            console.error('[App] ❌ Error rendering tab:', error);
+            console.error('[App] Error rendering tab:', error);
             this.container.innerHTML = `
                 <div style="display: flex; align-items: center; justify-content: center; height: 100%; padding: 2rem; text-align: center;">
                     <div>
-                        <div style="font-size: 4rem; margin-bottom: 1rem;">⚠️</div>
+                        <div style="font-size: 4rem; margin-bottom: 1rem;">Warning</div>
                         <h2 style="color: white; font-size: 1.5rem; margin-bottom: 0.5rem;">Error Loading Tab</h2>
                         <p style="color: rgba(255, 255, 255, 0.6); font-size: 0.875rem; margin: 0 0 1rem 0;">
                             ${error.message}
@@ -147,6 +147,11 @@ class App {
                 </div>
             `;
         }
+
+        // CRITICAL: Tell the header to update the title
+        document.dispatchEvent(new CustomEvent('navigate-tab-changed', { 
+            detail: { tab: tabName } 
+        }));
     }
     
     /**
@@ -275,7 +280,7 @@ class App {
             },
             {
                 id: 424,
-                title: 'Schindler List',
+                title: "Schindler's List",
                 synopsis: 'Industrialist Oskar Schindler saves Jews from the Holocaust.',
                 year: '1993',
                 genre: 'Drama',
