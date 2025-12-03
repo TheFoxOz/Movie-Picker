@@ -1,268 +1,267 @@
 /**
- * Movie Scoring & Matching System
- * Calculates compatibility scores between users and movies
+ * Confetti Animation Utility
+ * Creates celebration confetti effects
  */
 
 import { ENV } from '../config/env.js';
 
 /**
- * Calculate intelligent score for a movie
- * Used for sorting in Library and recommendations
- * 
- * Scoring factors:
- * - Base score from TMDB rating (0-100 points)
- * - Popularity/vote count (0-50 points)
- * - Recency bonus (0-30 points)
- * - User preference match (0-30 points)
- * - Platform availability (0-15 points)
- * 
- * @param {Object} movie - Movie object
- * @param {Object} userPreferences - User preferences (optional)
- * @param {Array} userSwipeHistory - User's swipe history (optional)
- * @returns {number} Score (0-225)
+ * Show confetti celebration
+ * @param {number} duration - Duration in milliseconds (default: 3000)
+ * @param {number} particleCount - Number of confetti pieces (default: 100)
  */
-export function calculateIntelligentScore(movie, userPreferences = null, userSwipeHistory = null) {
-    let score = 0;
+export function showConfetti(duration = 3000, particleCount = 100) {
+    if (ENV.APP.debug) {
+        console.log('[Confetti] Starting celebration animation');
+    }
     
-    // 1. Base score from rating (0-100 points)
-    const rating = parseFloat(movie.vote_average || movie.imdb || 0);
-    score += rating * 10; // Convert 0-10 scale to 0-100
+    // Create confetti container
+    const container = document.createElement('div');
+    container.id = 'confetti-container';
+    container.style.cssText = `
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        pointer-events: none;
+        overflow: hidden;
+    `;
+    document.body.appendChild(container);
     
-    // 2. Popularity bonus (0-50 points)
-    const voteCount = parseInt(movie.vote_count || 0);
-    if (voteCount > 5000) score += 50;
-    else if (voteCount > 2000) score += 35;
-    else if (voteCount > 1000) score += 20;
-    else if (voteCount > 500) score += 10;
+    // Confetti colors
+    const colors = [
+        '#ff2e63', // Primary pink
+        '#d90062', // Dark pink
+        '#fbbf24', // Gold
+        '#10b981', // Green
+        '#6366f1', // Indigo
+        '#ec4899', // Pink
+        '#8b5cf6', // Purple
+        '#f59e0b'  // Amber
+    ];
     
-    // 3. Recency bonus (0-30 points)
-    const year = parseInt(movie.year || movie.release_date?.substring(0, 4) || 0);
-    const currentYear = new Date().getFullYear();
-    const yearDiff = currentYear - year;
+    // Create confetti pieces
+    for (let i = 0; i < particleCount; i++) {
+        const confetti = document.createElement('div');
+        const color = colors[Math.floor(Math.random() * colors.length)];
+        const size = Math.random() * 10 + 5; // 5-15px
+        const left = Math.random() * 100; // Random horizontal position
+        const delay = Math.random() * 500; // Stagger animation
+        const animDuration = Math.random() * 1000 + 2000; // 2-3 seconds
+        
+        confetti.style.cssText = `
+            position: absolute;
+            left: ${left}%;
+            top: -20px;
+            width: ${size}px;
+            height: ${size}px;
+            background: ${color};
+            opacity: 0.8;
+            animation: confettiFall ${animDuration}ms linear ${delay}ms forwards;
+            transform-origin: center;
+            border-radius: ${Math.random() > 0.5 ? '50%' : '2px'};
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        `;
+        
+        container.appendChild(confetti);
+    }
     
-    if (yearDiff <= 1) score += 30; // This year or last year
-    else if (yearDiff <= 3) score += 20; // Last 3 years
-    else if (yearDiff <= 5) score += 10; // Last 5 years
+    // Add CSS animation if not already present
+    if (!document.getElementById('confetti-styles')) {
+        const style = document.createElement('style');
+        style.id = 'confetti-styles';
+        style.textContent = `
+            @keyframes confettiFall {
+                0% {
+                    transform: translateY(-100px) rotate(0deg);
+                    opacity: 1;
+                }
+                100% {
+                    transform: translateY(calc(100vh + 100px)) rotate(720deg);
+                    opacity: 0;
+                }
+            }
+        `;
+        document.head.appendChild(style);
+    }
     
-    // 4. User preference match (0-30 points)
-    if (userPreferences && userSwipeHistory) {
-        const preferenceScore = calculateUserPreferenceMatch(movie, userPreferences, userSwipeHistory);
-        score += preferenceScore;
+    // Remove confetti after animation completes
+    setTimeout(() => {
+        if (container && container.parentNode) {
+            container.remove();
+        }
         
         if (ENV.APP.debug) {
-            console.log('[Scoring] Preference match for', movie.title, ':', preferenceScore);
+            console.log('[Confetti] Animation complete');
         }
+    }, duration + 3000); // Extra time for animation to finish
+}
+
+/**
+ * Show heart confetti (for love swipes)
+ */
+export function showHeartConfetti(duration = 2500) {
+    if (ENV.APP.debug) {
+        console.log('[Confetti] Starting heart celebration');
     }
     
-    // 5. Platform availability (0-15 points)
-    if (userPreferences?.platforms?.length > 0) {
-        if (userPreferences.platforms.includes(movie.platform)) {
-            score += 15;
-            
-            if (ENV.APP.debug) {
-                console.log('[Scoring] Platform match for', movie.title);
+    const container = document.createElement('div');
+    container.id = 'heart-confetti-container';
+    container.style.cssText = `
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        pointer-events: none;
+        overflow: hidden;
+    `;
+    document.body.appendChild(container);
+    
+    // Create heart emojis
+    const hearts = ['❤️', '💖', '💕', '💗', '💓', '💝'];
+    const particleCount = 30;
+    
+    for (let i = 0; i < particleCount; i++) {
+        const heart = document.createElement('div');
+        const emoji = hearts[Math.floor(Math.random() * hearts.length)];
+        const left = Math.random() * 100;
+        const delay = Math.random() * 300;
+        const animDuration = Math.random() * 800 + 1500; // 1.5-2.3 seconds
+        const size = Math.random() * 20 + 20; // 20-40px
+        
+        heart.textContent = emoji;
+        heart.style.cssText = `
+            position: absolute;
+            left: ${left}%;
+            bottom: -50px;
+            font-size: ${size}px;
+            opacity: 1;
+            animation: heartFloat ${animDuration}ms ease-out ${delay}ms forwards;
+        `;
+        
+        container.appendChild(heart);
+    }
+    
+    // Add CSS animation
+    if (!document.getElementById('heart-confetti-styles')) {
+        const style = document.createElement('style');
+        style.id = 'heart-confetti-styles';
+        style.textContent = `
+            @keyframes heartFloat {
+                0% {
+                    transform: translateY(0) scale(0.5);
+                    opacity: 1;
+                }
+                50% {
+                    transform: translateY(-200px) scale(1);
+                    opacity: 1;
+                }
+                100% {
+                    transform: translateY(-400px) scale(1.2);
+                    opacity: 0;
+                }
             }
+        `;
+        document.head.appendChild(style);
+    }
+    
+    // Remove after animation
+    setTimeout(() => {
+        if (container && container.parentNode) {
+            container.remove();
         }
+    }, duration + 2500);
+}
+
+/**
+ * Show fireworks effect (for perfect matches)
+ */
+export function showFireworks(duration = 2000) {
+    if (ENV.APP.debug) {
+        console.log('[Confetti] Starting fireworks celebration');
     }
+    
+    const container = document.createElement('div');
+    container.id = 'fireworks-container';
+    container.style.cssText = `
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        pointer-events: none;
+        overflow: hidden;
+    `;
+    document.body.appendChild(container);
+    
+    const colors = ['#ff2e63', '#fbbf24', '#10b981', '#6366f1', '#ec4899'];
+    const burstCount = 5;
+    
+    for (let burst = 0; burst < burstCount; burst++) {
+        setTimeout(() => {
+            const centerX = 20 + Math.random() * 60; // Random position
+            const centerY = 20 + Math.random() * 40;
+            const particleCount = 30;
+            const color = colors[Math.floor(Math.random() * colors.length)];
+            
+            for (let i = 0; i < particleCount; i++) {
+                const particle = document.createElement('div');
+                const angle = (Math.PI * 2 * i) / particleCount;
+                const velocity = 100 + Math.random() * 100;
+                const tx = Math.cos(angle) * velocity;
+                const ty = Math.sin(angle) * velocity;
+                
+                particle.style.cssText = `
+                    position: absolute;
+                    left: ${centerX}%;
+                    top: ${centerY}%;
+                    width: 6px;
+                    height: 6px;
+                    background: ${color};
+                    border-radius: 50%;
+                    box-shadow: 0 0 10px ${color};
+                    animation: fireworkParticle 1s ease-out forwards;
+                    --tx: ${tx}px;
+                    --ty: ${ty}px;
+                `;
+                
+                container.appendChild(particle);
+            }
+        }, burst * 400);
+    }
+    
+    // Add CSS animation
+    if (!document.getElementById('fireworks-styles')) {
+        const style = document.createElement('style');
+        style.id = 'fireworks-styles';
+        style.textContent = `
+            @keyframes fireworkParticle {
+                0% {
+                    transform: translate(0, 0) scale(1);
+                    opacity: 1;
+                }
+                100% {
+                    transform: translate(var(--tx), var(--ty)) scale(0);
+                    opacity: 0;
+                }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+    
+    // Remove after animation
+    setTimeout(() => {
+        if (container && container.parentNode) {
+            container.remove();
+        }
+    }, duration + 2000);
+}
+
+/**
+ * Show celebration (combo effect)
+ * Combines confetti + hearts for special occasions
+ */
+export function showCelebration() {
+    showConfetti(3000, 80);
+    setTimeout(() => showHeartConfetti(2500), 500);
     
     if (ENV.APP.debug) {
-        console.log('[Scoring] Total score for', movie.title, ':', Math.round(score));
+        console.log('[Confetti] Full celebration started');
     }
-    
-    return Math.round(score);
-}
-
-/**
- * Calculate user preference match
- * Analyzes user's swipe history to find similar movies
- * 
- * @param {Object} movie - Movie to score
- * @param {Object} userPreferences - User preferences
- * @param {Array} userSwipeHistory - User's swipe history
- * @returns {number} Score (0-30)
- */
-function calculateUserPreferenceMatch(movie, userPreferences, userSwipeHistory) {
-    let score = 0;
-    
-    // Get loved movies
-    const lovedMovies = userSwipeHistory
-        .filter(entry => entry.action === 'love')
-        .map(entry => entry.movie);
-    
-    if (lovedMovies.length === 0) return 0;
-    
-    // Check genre match
-    const lovedGenres = lovedMovies.map(m => m.genre).filter(Boolean);
-    if (lovedGenres.includes(movie.genre)) {
-        score += 15;
-    }
-    
-    // Check year range match (same decade)
-    const lovedYears = lovedMovies.map(m => parseInt(m.year || 0)).filter(y => y > 0);
-    const movieYear = parseInt(movie.year || 0);
-    if (movieYear > 0 && lovedYears.length > 0) {
-        const avgYear = lovedYears.reduce((a, b) => a + b, 0) / lovedYears.length;
-        const yearDiff = Math.abs(movieYear - avgYear);
-        if (yearDiff <= 5) score += 10;
-        else if (yearDiff <= 10) score += 5;
-    }
-    
-    // Check rating range match
-    const lovedRatings = lovedMovies.map(m => parseFloat(m.imdb || 0)).filter(r => r > 0);
-    const movieRating = parseFloat(movie.imdb || 0);
-    if (movieRating > 0 && lovedRatings.length > 0) {
-        const avgRating = lovedRatings.reduce((a, b) => a + b, 0) / lovedRatings.length;
-        const ratingDiff = Math.abs(movieRating - avgRating);
-        if (ratingDiff <= 1) score += 5;
-    }
-    
-    return score;
-}
-
-/**
- * Calculate match score between two users
- * Used in Matches tab for group compatibility
- * 
- * @param {Array} user1Swipes - User 1's swipe history
- * @param {Array} user2Swipes - User 2's swipe history
- * @returns {Object} Match data with score and common movies
- */
-export function calculateMatchScore(user1Swipes, user2Swipes) {
-    // Get loved/liked movies for both users
-    const user1Movies = user1Swipes
-        .filter(entry => ['love', 'like'].includes(entry.action))
-        .map(entry => entry.movie.id);
-    
-    const user2Movies = user2Swipes
-        .filter(entry => ['love', 'like'].includes(entry.action))
-        .map(entry => entry.movie.id);
-    
-    // Find common movies
-    const commonMovies = user1Movies.filter(id => user2Movies.includes(id));
-    
-    // Calculate percentage match
-    const totalMovies = new Set([...user1Movies, ...user2Movies]).size;
-    const matchPercentage = totalMovies > 0 
-        ? Math.round((commonMovies.length / totalMovies) * 100)
-        : 0;
-    
-    // Get full movie objects for common movies
-    const commonMovieObjects = user1Swipes
-        .filter(entry => commonMovies.includes(entry.movie.id))
-        .map(entry => entry.movie);
-    
-    if (ENV.APP.debug) {
-        console.log('[Scoring] Match score:', matchPercentage, '% with', commonMovies.length, 'common movies');
-    }
-    
-    return {
-        score: matchPercentage,
-        commonMovies: commonMovieObjects,
-        commonCount: commonMovies.length,
-        isPerfectMatch: matchPercentage >= 80
-    };
-}
-
-/**
- * Calculate group compatibility score
- * Finds movies that all group members like
- * 
- * @param {Array} groupMembers - Array of user objects with swipe history
- * @returns {Object} Group match data
- */
-export function calculateGroupScore(groupMembers) {
-    if (groupMembers.length === 0) {
-        return { score: 0, commonMovies: [], isPerfectMatch: false };
-    }
-    
-    // Get liked/loved movies for each member
-    const memberMovieSets = groupMembers.map(member => 
-        new Set(
-            (member.swipeHistory || [])
-                .filter(entry => ['love', 'like'].includes(entry.action))
-                .map(entry => entry.movie.id)
-        )
-    );
-    
-    // Find intersection (movies liked by ALL members)
-    const intersection = [...memberMovieSets[0]].filter(movieId =>
-        memberMovieSets.every(set => set.has(movieId))
-    );
-    
-    // Calculate average individual library size
-    const avgLibrarySize = memberMovieSets.reduce((sum, set) => sum + set.size, 0) / memberMovieSets.length;
-    
-    // Calculate group score
-    const groupScore = avgLibrarySize > 0
-        ? Math.round((intersection.length / avgLibrarySize) * 100)
-        : 0;
-    
-    // Get full movie objects
-    const allSwipes = groupMembers.flatMap(m => m.swipeHistory || []);
-    const commonMovieObjects = intersection.map(id => 
-        allSwipes.find(entry => entry.movie.id === id)?.movie
-    ).filter(Boolean);
-    
-    if (ENV.APP.debug) {
-        console.log('[Scoring] Group score:', groupScore, '% with', intersection.length, 'common movies');
-    }
-    
-    return {
-        score: groupScore,
-        commonMovies: commonMovieObjects,
-        commonCount: intersection.length,
-        isPerfectMatch: groupScore >= 70 && intersection.length >= 3
-    };
-}
-
-/**
- * Get recommended movies based on user preferences
- * 
- * @param {Array} allMovies - All available movies
- * @param {Array} userSwipeHistory - User's swipe history
- * @param {Object} userPreferences - User preferences
- * @param {number} limit - Number of recommendations (default: 10)
- * @returns {Array} Recommended movies sorted by score
- */
-export function getRecommendedMovies(allMovies, userSwipeHistory, userPreferences, limit = 10) {
-    // Filter out already swiped movies
-    const swipedIds = new Set(userSwipeHistory.map(entry => entry.movie.id));
-    const unswipedMovies = allMovies.filter(movie => !swipedIds.has(movie.id));
-    
-    // Calculate score for each movie
-    const scoredMovies = unswipedMovies.map(movie => ({
-        ...movie,
-        recommendationScore: calculateIntelligentScore(movie, userPreferences, userSwipeHistory)
-    }));
-    
-    // Sort by score and return top results
-    const recommendations = scoredMovies
-        .sort((a, b) => b.recommendationScore - a.recommendationScore)
-        .slice(0, limit);
-    
-    if (ENV.APP.debug) {
-        console.log('[Scoring] Generated', recommendations.length, 'recommendations');
-    }
-    
-    return recommendations;
-}
-
-/**
- * Get platform icon and color
- * ADDED: This function was missing!
- * 
- * @param {string} platform - Platform name
- * @returns {Object} Object with icon and color
- */
-export function getPlatformStyle(platform) {
-    const styles = {
-        'Netflix': { icon: 'N', color: '#E50914' },
-        'Hulu': { icon: 'H', color: '#1CE783' },
-        'Prime Video': { icon: 'P', color: '#00A8E1' },
-        'Disney+': { icon: 'D', color: '#113CCF' },
-        'HBO Max': { icon: 'M', color: '#B200FF' },
-        'Apple TV+': { icon: 'A', color: '#000000' }
-    };
-    
-    return styles[platform] || { icon: '▶', color: '#6366f1' };
 }
