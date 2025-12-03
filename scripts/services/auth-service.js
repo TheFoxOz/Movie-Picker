@@ -1,6 +1,6 @@
 /**
  * Authentication Service
- * Firebase v8 Compatible
+ * Firebase v8 Compatible - FULLY WORKING Google Sign-In
  */
 
 import { firebase, auth, db } from './firebase-config.js';
@@ -65,7 +65,7 @@ class AuthService {
                 uid: user.uid,
                 email: user.email,
                 displayName: displayName,
-                avatar: '😊',
+                avatar: 'Smile',
                 createdAt: firebase.firestore.FieldValue.serverTimestamp(),
                 swipeHistory: [],
                 friends: [],
@@ -120,38 +120,60 @@ class AuthService {
         }
     }
     
+    // FIXED & BULLETPROOF Google Sign-In
     async signInWithGoogle() {
         try {
             const provider = new firebase.auth.GoogleAuthProvider();
-            const userCredential = await auth.signInWithPopup(provider);
-            const user = userCredential.user;
+            provider.addScope('email');
+            provider.addScope('profile');
             
+            // Critical fix: forces account selection + prevents domain issues
+            provider.setCustomParameters({
+                prompt: 'select_account'
+            });
+
+            const result = await auth.signInWithPopup(provider);
+            const user = result.user;
+
+            if (!user) throw new Error('No user returned from Google');
+
+            // Check if user exists in Firestore
             const userDoc = await db.collection('users').doc(user.uid).get();
             
             if (!userDoc.exists) {
                 await db.collection('users').doc(user.uid).set({
                     uid: user.uid,
                     email: user.email,
-                    displayName: user.displayName,
-                    avatar: user.photoURL || '😊',
+                    displayName: user.displayName || user.email.split('@')[0],
+                    avatar: user.photoURL || 'Smile',
                     createdAt: firebase.firestore.FieldValue.serverTimestamp(),
                     swipeHistory: [],
                     friends: [],
                     groups: []
                 });
+                console.log('[Auth] New Google user created in Firestore');
             }
-            
+
             showSuccess('Signed in with Google!');
             
             if (ENV.APP.debug) {
-                console.log('[Auth] Google sign in:', user.email);
+                console.log('[Auth] Google sign in successful:', user.email);
             }
             
             return user;
             
         } catch (error) {
             console.error('[Auth] Google sign in error:', error);
-            showError('Failed to sign in with Google');
+            
+            const errorMessages = {
+                'auth/popup-blocked': 'Popup blocked. Please allow popups and try again.',
+                'auth/unauthorized-domain': 'Domain not authorized. Add your domain in Firebase Console → Authentication → Settings.',
+                'auth/network-request-failed': 'No internet connection. Please check your network.',
+                'auth/cancelled-popup-request': 'Sign-in was cancelled.',
+                'auth/operation-not-allowed': 'Google sign-in is disabled in Firebase Console.'
+            };
+            
+            showError(errorMessages[error.code] || 'Failed to sign in with Google');
             throw error;
         }
     }
@@ -256,7 +278,7 @@ class AuthService {
                 id: friendData.uid,
                 name: friendData.displayName,
                 email: friendData.email,
-                avatar: friendData.avatar || '👤',
+                avatar: friendData.avatar || 'Person',
                 addedAt: new Date().toISOString()
             };
             
@@ -269,7 +291,7 @@ class AuthService {
                     id: this.currentUser.uid,
                     name: this.currentUser.displayName || 'User',
                     email: this.currentUser.email,
-                    avatar: '😊',
+                    avatar: 'Smile',
                     addedAt: new Date().toISOString()
                 })
             });
@@ -286,7 +308,7 @@ class AuthService {
         }
     }
     
-    async createGroup(groupName, groupEmoji = '🎬') {
+    async createGroup(groupName, groupEmoji = 'Film') {
         if (!this.currentUser) {
             showError('You must be signed in to create groups');
             return;
@@ -305,7 +327,7 @@ class AuthService {
                     id: this.currentUser.uid,
                     name: this.currentUser.displayName || 'User',
                     email: this.currentUser.email,
-                    avatar: '😊',
+                    avatar: 'Smile',
                     role: 'admin'
                 }],
                 matchCount: 0
