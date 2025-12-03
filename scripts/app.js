@@ -8,8 +8,9 @@ import { SwipeTab } from './tabs/swipe.js';
 import { LibraryTab } from './tabs/library.js';
 import { MatchesTab } from './tabs/matches.js';
 import { ProfileTab } from './tabs/profile.js';
-import { getTMDBService } from './services/tmdb.js';  // FIXED - removed initTMDBService
+import { getTMDBService } from './services/tmdb.js';
 import { authService } from './services/auth-service.js';
+import { showError } from './utils/notifications.js';
 import { ENV } from './config/env.js';
 
 class App {
@@ -32,8 +33,8 @@ class App {
             console.log('[App] Initializing Movie Picker...');
         }
         
-        // Initialize TMDB service
-        const tmdbInitialized = await this.initTMDB();
+        // Check TMDB API key
+        this.checkTMDBKey();
         
         // Initialize UI
         this.initUI();
@@ -52,31 +53,22 @@ class App {
         }
     }
     
-    async initTMDB() {
+    checkTMDBKey() {
         // Get API key from window (set in index.html)
-        const tmdbApiKey = window.tmdbApiKey;
+        const tmdbApiKey = window.__tmdb_api_key || window.tmdbApiKey;
         
         // Validate API key
         if (!tmdbApiKey || tmdbApiKey === 'YOUR_TMDB_API_KEY_HERE') {
-            console.error('[App] ⚠️  TMDB API key not configured!');
-            console.error('[App] 📝 Get your free API key at: https://www.themoviedb.org/settings/api');
-            console.error('[App] 💡 Add it to index.html: window.tmdbApiKey = "your_key_here"');
-            showError('TMDB API key missing. Using demo movies. Get your free key at themoviedb.org');
-            return false;
-        }
-        
-        try {
-            initTMDBService(tmdbApiKey);
+            console.warn('[App] ⚠️  TMDB API key not configured!');
+            console.warn('[App] 📝 Get your free API key at: https://www.themoviedb.org/settings/api');
+            console.warn('[App] 💡 Add it to index.html: window.__tmdb_api_key = "your_key_here"');
+        } else {
+            // Store the API key globally
+            window.__tmdb_api_key = tmdbApiKey;
             
             if (ENV.APP.debug) {
-                console.log('[App] ✅ TMDB service initialized');
+                console.log('[App] ✅ TMDB API key found');
             }
-            
-            return true;
-        } catch (error) {
-            console.error('[App] Failed to initialize TMDB:', error);
-            showError('Failed to connect to TMDB. Using demo movies.');
-            return false;
         }
     }
     
@@ -188,6 +180,11 @@ class App {
                 poster_path: 'https://image.tmdb.org/t/p/w500/q6y0Go1tsGEsmtFryDOJo3dEmqu.jpg',
                 backdrop_path: 'https://image.tmdb.org/t/p/w500/kXfqcdQKsToO0OUXHcrrNCHDBzO.jpg',
                 cast: ['Tim Robbins', 'Morgan Freeman', 'Bob Gunton', 'William Sadler'],
+                director: 'Frank Darabont',
+                genre_ids: [18],
+                vote_average: 9.3,
+                release_date: '1994-09-23',
+                overview: 'Two imprisoned men bond over a number of years, finding solace and eventual redemption through acts of common decency.',
                 triggerWarnings: ['Violence', 'Prison brutality']
             },
             {
@@ -202,6 +199,11 @@ class App {
                 poster_path: 'https://image.tmdb.org/t/p/w500/3bhkrj58Vtu7enYsRolD1fZdja1.jpg',
                 backdrop_path: 'https://image.tmdb.org/t/p/w500/tmU7GeKVybMWFButWEGl2M4GeiP.jpg',
                 cast: ['Marlon Brando', 'Al Pacino', 'James Caan', 'Diane Keaton'],
+                director: 'Francis Ford Coppola',
+                genre_ids: [80, 18],
+                vote_average: 9.2,
+                release_date: '1972-03-14',
+                overview: 'The aging patriarch of an organized crime dynasty transfers control of his clandestine empire to his reluctant son.',
                 triggerWarnings: ['Violence', 'Crime']
             },
             {
@@ -216,6 +218,11 @@ class App {
                 poster_path: 'https://image.tmdb.org/t/p/w500/qJ2tW6WMUDux911r6m7haRef0WH.jpg',
                 backdrop_path: 'https://image.tmdb.org/t/p/w500/hkBaDkMWbLaf8B1lsWsKX7Ew3Xq.jpg',
                 cast: ['Christian Bale', 'Heath Ledger', 'Aaron Eckhart', 'Michael Caine'],
+                director: 'Christopher Nolan',
+                genre_ids: [28, 80, 18],
+                vote_average: 9.0,
+                release_date: '2008-07-16',
+                overview: 'When the menace known as the Joker wreaks havoc and chaos on the people of Gotham, Batman must accept one of the greatest psychological tests.',
                 triggerWarnings: ['Violence', 'Intense action']
             },
             {
@@ -230,6 +237,11 @@ class App {
                 poster_path: 'https://image.tmdb.org/t/p/w500/d5iIlFn5s0ImszYzBPb8JPIfbXD.jpg',
                 backdrop_path: 'https://image.tmdb.org/t/p/w500/suaEOtk1N1sgg2MTM7oZd2cfVp3.jpg',
                 cast: ['John Travolta', 'Uma Thurman', 'Samuel L. Jackson', 'Bruce Willis'],
+                director: 'Quentin Tarantino',
+                genre_ids: [80, 53],
+                vote_average: 8.9,
+                release_date: '1994-09-10',
+                overview: 'The lives of two mob hitmen, a boxer, a gangster and his wife intertwine in four tales of violence and redemption.',
                 triggerWarnings: ['Violence', 'Strong language', 'Drug use']
             },
             {
@@ -244,77 +256,12 @@ class App {
                 poster_path: 'https://image.tmdb.org/t/p/w500/arw2vcBveWOVZr6pxd9XTd1TdQa.jpg',
                 backdrop_path: 'https://image.tmdb.org/t/p/w500/7c9UVPPiTPltouxRVY6N9uAXMjD.jpg',
                 cast: ['Tom Hanks', 'Robin Wright', 'Gary Sinise', 'Sally Field'],
+                director: 'Robert Zemeckis',
+                genre_ids: [35, 18, 10749],
+                vote_average: 8.8,
+                release_date: '1994-06-23',
+                overview: 'The presidencies of Kennedy and Johnson, the Vietnam War, and other historical events unfold from the perspective of an Alabama man.',
                 triggerWarnings: ['War violence']
-            },
-            {
-                id: 'fallback-6',
-                title: 'Inception',
-                synopsis: 'A thief who steals corporate secrets through dream-sharing technology is given the inverse task of planting an idea.',
-                year: '2010',
-                genre: 'Sci-Fi',
-                imdb: '8.8',
-                runtime: '148 min',
-                platform: 'HBO Max',
-                poster_path: 'https://image.tmdb.org/t/p/w500/9gk7adHYeDvHkCSEqAvQNLV5Uge.jpg',
-                backdrop_path: 'https://image.tmdb.org/t/p/w500/s3TBrRGB1iav7gFOCNx3H31MoES.jpg',
-                cast: ['Leonardo DiCaprio', 'Joseph Gordon-Levitt', 'Ellen Page', 'Tom Hardy'],
-                triggerWarnings: ['Violence', 'Intense sequences']
-            },
-            {
-                id: 'fallback-7',
-                title: 'The Matrix',
-                synopsis: 'A computer hacker learns from mysterious rebels about the true nature of his reality and his role in the war against its controllers.',
-                year: '1999',
-                genre: 'Sci-Fi',
-                imdb: '8.7',
-                runtime: '136 min',
-                platform: 'HBO Max',
-                poster_path: 'https://image.tmdb.org/t/p/w500/f89U3ADr1oiB1s9GkdPOEpXUk5H.jpg',
-                backdrop_path: 'https://image.tmdb.org/t/p/w500/icmmSD4vTTDKOq2vvdulafOGw93.jpg',
-                cast: ['Keanu Reeves', 'Laurence Fishburne', 'Carrie-Anne Moss', 'Hugo Weaving'],
-                triggerWarnings: ['Violence', 'Intense action']
-            },
-            {
-                id: 'fallback-8',
-                title: 'Goodfellas',
-                synopsis: 'The story of Henry Hill and his life in the mob, covering his relationship with his wife and his partners in crime.',
-                year: '1990',
-                genre: 'Crime',
-                imdb: '8.7',
-                runtime: '146 min',
-                platform: 'Netflix',
-                poster_path: 'https://image.tmdb.org/t/p/w500/aKuFiU82s5ISJpGZp7YkIr3kCUd.jpg',
-                backdrop_path: 'https://image.tmdb.org/t/p/w500/sw7mordbZxgITU877yTpZCud90M.jpg',
-                cast: ['Robert De Niro', 'Ray Liotta', 'Joe Pesci', 'Lorraine Bracco'],
-                triggerWarnings: ['Violence', 'Strong language', 'Drug use']
-            },
-            {
-                id: 'fallback-9',
-                title: 'Interstellar',
-                synopsis: "A team of explorers travel through a wormhole in space in an attempt to ensure humanity's survival.",
-                year: '2014',
-                genre: 'Sci-Fi',
-                imdb: '8.6',
-                runtime: '169 min',
-                platform: 'Prime Video',
-                poster_path: 'https://image.tmdb.org/t/p/w500/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg',
-                backdrop_path: 'https://image.tmdb.org/t/p/w500/xu9zaAevzQ5nnrsXN6JcahLnG4i.jpg',
-                cast: ['Matthew McConaughey', 'Anne Hathaway', 'Jessica Chastain', 'Michael Caine'],
-                triggerWarnings: ['Intense sequences']
-            },
-            {
-                id: 'fallback-10',
-                title: 'The Silence of the Lambs',
-                synopsis: 'A young FBI cadet must receive the help of an incarcerated cannibal killer to catch another serial killer.',
-                year: '1991',
-                genre: 'Thriller',
-                imdb: '8.6',
-                runtime: '118 min',
-                platform: 'Hulu',
-                poster_path: 'https://image.tmdb.org/t/p/w500/uS9m8OBk1A8eM9I042bx8XXpqAq.jpg',
-                backdrop_path: 'https://image.tmdb.org/t/p/w500/bMadFzhjy9T7R8J48QGq1ngWNAK.jpg',
-                cast: ['Jodie Foster', 'Anthony Hopkins', 'Scott Glenn', 'Ted Levine'],
-                triggerWarnings: ['Violence', 'Gore', 'Disturbing content']
             }
         ];
     }
@@ -325,3 +272,27 @@ document.addEventListener('DOMContentLoaded', () => {
     window.app = new App();
     window.app.init();
 });
+```
+
+---
+
+## **🚀 KEY CHANGES**
+
+1. ✅ **Removed** `initTMDBService()` call (line 78 in old file)
+2. ✅ **Simplified** TMDB initialization - just checks if key exists
+3. ✅ **Added** `showError` import for error handling
+4. ✅ **Fixed** fallback movies to have proper TMDB structure
+
+---
+
+## **🎯 SAVE AND TEST**
+
+1. **Save** `/scripts/app.js`
+2. **Hard refresh** (Ctrl+Shift+R)
+3. **Check console** - Should see:
+```
+   [App] Initializing Movie Picker...
+   [App] ✅ TMDB API key found
+   [App] UI initialized
+   [App] ✅ App initialized successfully
+   [App] Switched to tab: home
