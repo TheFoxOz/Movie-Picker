@@ -44,7 +44,7 @@ export class LibraryTab {
     }
 
     async loadMovies(page) {
-        if (this.isLoading) return;
+        if (this.isLoading || !this.hasMorePages) return;
         this.isLoading = true;
 
         try {
@@ -57,7 +57,7 @@ export class LibraryTab {
             let newMovies = [];
 
             if (page === 1) {
-                console.log('[Library] Loading initial collection...');
+                console.log('[Library] Loading rich initial collection...');
                 const sources = await Promise.all([
                     tmdbService.fetchPopularMovies(8),
                     tmdbService.fetchTrendingMovies(),
@@ -69,34 +69,39 @@ export class LibraryTab {
                 const map = new Map();
                 sources.flat().forEach(m => map.set(m.id, m));
                 this.allMovies = Array.from(map.values());
-            } else {
-                console.log(`[Library] Loading page ${page} from TMDB Discover...`);
-
-                const response = await fetch(
-                    `https://api.themoviedb.org/3/discover/movie?api_key=${tmdbService.apiKey}&language=en-US&sort_by=popularity.desc&page=${page}&include_adult=false`
-                );
-
-                if (!response.ok) throw new Error('TMDB failed');
-
-                const data = await response.json();
-                newMovies = data.results.map(m => tmdbService.transformMovie(m));
-
-                if (newMovies.length === 0) {
-                    this.hasMorePages = false;
-                    return;
-                }
-
-                const existingIds = new Set(this.allMovies.map(m => m.id));
-                const filtered = newMovies.filter(m => !existingIds.has(m.id));
-                this.allMovies.push(...filtered);
             }
 
+            // TRUE UNLIMITED: Use TMDB Discover API for all pages
+            console.log(`[Library] Loading Discover page ${page}...`);
+            const response = await fetch(
+                `https://api.themoviedb.org/3/discover/movie?api_key=${tmdbService.apiKey}&language=en-US&sort_by=popularity.desc&page=${page}&include_adult=false&include_video=false`
+            );
+
+            if (!response.ok) {
+                console.warn('[Library] TMDB rate limited or error — stopping');
+                this.hasMorePages = false;
+                return;
+            }
+
+            const data = await response.json();
+            newMovies = data.results.map(m => tmdbService.transformMovie(m));
+
+            if (newMovies.length === 0) {
+                this.hasMorePages = false;
+                console.log('[Library] End of TMDB catalog reached');
+                return;
+            }
+
+            // Remove duplicates
+            const existingIds = new Set(this.allMovies.map(m => m.id));
+            const filtered = newMovies.filter(m => !existingIds.has(m.id));
+            this.allMovies.push(...filtered);
+
+            // Apply preferences
             this.filteredMovies = this.filterMoviesByPreferences(this.allMovies);
             this.currentPage = page;
 
-            if (ENV.APP.debug) {
-                console.log(`[Library] Total movies: ${this.allMovies.length.toLocaleString()}`);
-            }
+            console.log(`[Library] Total movies: ${this.allMovies.length.toLocaleString()}`);
 
         } catch (error) {
             console.error('[Library] Load error:', error);
@@ -140,35 +145,51 @@ export class LibraryTab {
 
         this.container.innerHTML = `
             <div style="padding:1.5rem 1rem 6rem;">
-                <h1 style="font-size:1.75rem;font-weight:800;color:white;margin:0 0 0.5rem 0;">Movie Library</h1>
-                <p style="color:rgba(255,255,255,0.6);font-size:0.875rem;margin-bottom:1.5rem;">
-                    ${this.allMovies.length.toLocaleString()}+ movies • Keep scrolling!
-                </p>
+                <div style="margin-bottom:1.5rem;">
+                    <h1 style="font-size:1.75rem;font-weight:800;color:white;margin:0 0 0.5rem 0;">Movie Library</h1>
+                    <p style="color:rgba(255,255,255,0.6);font-size:0.875rem;margin:0;">
+                        ${this.allMovies.length.toLocaleString()}+ movies • Keep scrolling!
+                    </p>
+                </div>
 
-                <input type="text" id="search-input" placeholder="Search movies..." value="${this.searchQuery}" 
-                       style="width:100%;padding:1rem;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:1rem;color:white;margin-bottom:1rem;">
+                <div style="margin-bottom:1rem;">
+                    <input type="text" id="search-input" placeholder="Search movies..." value="${this.searchQuery}" 
+                           style="width:100%;padding:1rem;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:1rem;color:white;font-size:1rem;">
+                </div>
 
                 <div style="margin-bottom:1rem;">
                     <h3 style="font-size:0.875rem;font-weight:700;color:rgba(255,255,255,0.7);text-transform:uppercase;margin:0 0 0.5rem 0;">Your Swipes</h3>
                     <div style="display:flex;gap:0.5rem;overflow-x:auto;padding-bottom:0.5rem;">
-                        <button class="filter-btn" data-filter="all">All</button>
-                        <button class="filter-btn" data-filter="loved">Loved (${swipeCounts.loved})</button>
-                        <button class="filter-btn" data-filter="liked">Liked (${swipeCounts.liked})</button>
-                        <button class="filter-btn" data-filter="maybe">Maybe (${swipeCounts.maybe})</button>
-                        <button class="filter-btn" data-filter="passed">Passed (${swipeCounts.passed})</button>
+                        <button class="filter-btn" data-filter="all" style="${this.getButtonStyle(this.currentFilter==='all','linear-gradient(135deg,#ff2e63,#d90062)')}">All</button>
+                        <button class="filter-btn" data-filter="loved" style="${this.getButtonStyle(this.currentFilter==='loved','linear-gradient(135deg,#ff006e,#d90062)')}">Loved (${swipeCounts.loved})</button>
+                        <button class="filter-btn" data-filter="liked" style="${this.getButtonStyle(this.currentFilter==='liked','linear-gradient(135deg,#10b981,#059669)')}">Liked (${swipeCounts.liked})</button>
+                        <button class="filter-btn" data-filter="maybe" style="${this.getButtonStyle(this.currentFilter==='maybe','linear-gradient(135deg,#fbbf24,#f59e0b)')}">Maybe (${swipeCounts.maybe})</button>
+                        <button class="filter-btn" data-filter="passed" style="${this.getButtonStyle(this.currentFilter==='passed','linear-gradient(135deg,#ef4444,#dc2626)')}">Passed (${swipeCounts.passed})</button>
+                    </div>
+                </div>
+
+                <div style="margin-bottom:1rem;">
+                    <h3 style="font-size:0.875rem;font-weight:700;color:rgba(255,255,255,0.7);text-transform:uppercase;margin:0 0 0.5rem 0;">Genre</h3>
+                    <div style="display:flex;gap:0.5rem;overflow-x:auto;padding-bottom:0.5rem;">
+                        <button class="genre-btn" data-genre="all" style="${this.getButtonStyle(this.currentGenre==='all','linear-gradient(135deg,#8b5cf6,#7c3aed)')}">All Genres</button>
+                        <button class="genre-btn" data-genre="${GENRE_IDS.ACTION}" style="${this.getButtonStyle(this.currentGenre==GENRE_IDS.ACTION,'linear-gradient(135deg,#8b5cf6,#7c3aed)')}">Action</button>
+                        <button class="genre-btn" data-genre="${GENRE_IDS.COMEDY}" style="${this.getButtonStyle(this.currentGenre==GENRE_IDS.COMEDY,'linear-gradient(135deg,#8b5cf6,#7c3aed)')}">Comedy</button>
+                        <button class="genre-btn" data-genre="${GENRE_IDS.DRAMA}" style="${this.getButtonStyle(this.currentGenre==GENRE_IDS.DRAMA,'linear-gradient(135deg,#8b5cf6,#7c3aed)')}">Drama</button>
+                        <button class="genre-btn" data-genre="${GENRE_IDS.HORROR}" style="${this.getButtonStyle(this.currentGenre==GENRE_IDS.HORROR,'linear-gradient(135deg,#8b5cf6,#7c3aed)')}">Horror</button>
+                        <button class="genre-btn" data-genre="${GENRE_IDS.SCIFI}" style="${this.getButtonStyle(this.currentGenre==GENRE_IDS.SCIFI,'linear-gradient(135deg,#8b5cf6,#7c3aed)')}">Sci-Fi</button>
+                        <button class="genre-btn" data-genre="${GENRE_IDS.ROMANCE}" style="${this.getButtonStyle(this.currentGenre==GENRE_IDS.ROMANCE,'linear-gradient(135deg,#8b5cf6,#7c3aed)')}">Romance</button>
                     </div>
                 </div>
 
                 <div style="margin-bottom:1.5rem;">
-                    <h3 style="font-size:0.875rem;font-weight:700;color:rgba(255,255,255,0.7);text-transform:uppercase;margin:0 0 0.5rem 0;">Genre</h3>
+                    <h3 style="font-size:0.875rem;font-weight:700;color:rgba(255,255,255,0.7);text-transform:uppercase;margin:0 0 0.5rem 0;">Platform</h3>
                     <div style="display:flex;gap:0.5rem;overflow-x:auto;padding-bottom:0.5rem;">
-                        <button class="genre-btn" data-genre="all">All</button>
-                        <button class="genre-btn" data-genre="${GENRE_IDS.ACTION}">Action</button>
-                        <button class="genre-btn" data-genre="${GENRE_IDS.COMEDY}">Comedy</button>
-                        <button class="genre-btn" data-genre="${GENRE_IDS.DRAMA}">Drama</button>
-                        <button class="genre-btn" data-genre="${GENRE_IDS.HORROR}">Horror</button>
-                        <button class="genre-btn" data-genre="${GENRE_IDS.SCIFI}">Sci-Fi</button>
-                        <button class="genre-btn" data-genre="${GENRE_IDS.ROMANCE}">Romance</button>
+                        <button class="platform-btn" data-platform="all" style="${this.getButtonStyle(this.currentPlatform==='all','linear-gradient(135deg,#ec4899,#db2777)')}">All Platforms</button>
+                        <button class="platform-btn" data-platform="Netflix" style="${this.getButtonStyle(this.currentPlatform==='Netflix','rgba(229,9,20,0.8)')}">Netflix</button>
+                        <button class="platform-btn" data-platform="Hulu" style="${this.getButtonStyle(this.currentPlatform==='Hulu','rgba(28,231,131,0.8)')}">Hulu</button>
+                        <button class="platform-btn" data-platform="Prime Video" style="${this.getButtonStyle(this.currentPlatform==='Prime Video','rgba(0,168,225,0.8)')}">Prime Video</button>
+                        <button class="platform-btn" data-platform="Disney+" style="${this.getButtonStyle(this.currentPlatform==='Disney+','rgba(17,60,207,0.8)')}">Disney+</button>
+                        <button class="platform-btn" data-platform="HBO Max" style="${this.getButtonStyle(this.currentPlatform==='HBO Max','rgba(178,0,255,0.8)')}">HBO Max</button>
                     </div>
                 </div>
 
