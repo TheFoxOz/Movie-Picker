@@ -1,55 +1,72 @@
-# Environment variables - NEVER commit these!
-.env
-.env.local
-.env.production
-.env.development
-
 # Dependencies
 node_modules/
-package-lock.json
-yarn.lock
 
 # Build outputs
 dist/
 build/
-.vercel/
-.output/
+.cache/
+
+# Environment files (if you add backend later)
+.env
+.env.local
+.env.production
+
+# ⚠️ IMPORTANT: Only ignore these if you add them
+# Firebase Admin SDK private keys (NEVER commit these!)
+*-firebase-adminsdk-*.json
+service-account.json
 
 # OS files
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
 Thumbs.db
+*.swp
+*.swo
+.DS_Store?
 
 # IDE files
 .vscode/
 .idea/
-*.swp
-*.swo
-*~
-.project
-.classpath
-.settings/
+*.sublime-workspace
+*.sublime-project
 
 # Logs
+logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
 
-# Temporary files
-*.tmp
-*.temp
-.cache/
-
 # Testing
 coverage/
-.nyc_output/
+.nyc_output
 
 # Misc
-.firebaserc
-firebase-debug.log
+.sass-cache/
+*.css.map
+*.sass.map
+*.scss.map
+```
+
+---
+
+## **🔐 WHAT YOU SHOULD NEVER COMMIT**
+
+### **❌ NEVER commit these (if you create them):**
+
+1. **Firebase Admin SDK keys** (server-side only)
+   - Files ending in `-firebase-adminsdk-*.json`
+   - These have **full database access**
+   - Used for backend/server operations
+
+2. **Private API keys** that cost money:
+   - Stripe secret keys: `sk_live_...`
+   - OpenAI API keys: `sk-...`
+   - AWS secret access keys
+   - SendGrid API keys
+   - Payment processor keys
+
+3. **.env files with secrets:**
+```
+   DATABASE_PASSWORD=secret123
+   ADMIN_API_KEY=xyz789
