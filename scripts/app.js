@@ -1,441 +1,299 @@
 /**
- * Main Application Entry Point (NO FIREBASE VERSION)
- * Initializes and coordinates all app modules
+ * Main Application Entry Point
  */
 
 import { store } from './state/store.js';
-import { initNotifications, showError } from './utils/notifications.js';
-import { SwipeTab } from './tabs/swipe.js';
+import { initTMDBService } from './services/tmdb.js';
 import { HomeTab } from './tabs/home.js';
+import { LibraryTab } from './tabs/library.js';
+import { SwipeTab } from './tabs/swipe.js';
 import { MatchesTab } from './tabs/matches.js';
 import { ProfileTab } from './tabs/profile.js';
-import { LibraryTab } from './tabs/library.js';
-import { initTMDBService, getTMDBService } from './services/tmdb.js';
+import { showToast, showError } from './utils/notifications.js';
 import { ENV } from './config/env.js';
 
 class App {
     constructor() {
-        this.tabs = new Map();
-        this.currentTab = null;
-        this.contentArea = null;
-        this.navBar = null;
-    }
-    
-    /**
-     * Initialize the application
-     */
-    async init() {
-        try {
-            // Get DOM elements
-            this.contentArea = document.getElementById('content-area');
-            this.navBar = document.getElementById('nav-bar');
-            
-            // Initialize notification system
-            initNotifications();
-            
-            // FIREBASE DISABLED - Use guest mode
-            await this.initGuestMode();
-            
-            // Initialize TMDB Service
-            await this.initTMDB();
-            
-            // Load movies from TMDB
-            await this.loadMovies();
-            
-            // Initialize tabs
-            this.initTabs();
-            
-            // Setup navigation
-            this.setupNavigation();
-            
-            // Setup keyboard shortcuts
-            this.setupKeyboardShortcuts();
-            
-            // Subscribe to store changes
-            store.subscribe(this.handleStateChange.bind(this));
-            
-            // Show app
-            this.contentArea.style.display = 'block';
-            this.navBar.style.display = 'flex';
-            
-            // Navigate to initial tab
-            this.navigateToTab('home');
-            
-            // Mark as initialized
-            store.setState({ isInitialized: true });
-            
-            console.log('[App] ✅ Initialization complete (Guest Mode)');
-            
-        } catch (error) {
-            console.error('[App] ❌ Initialization failed:', error);
-            showError('Failed to initialize app: ' + error.message);
-        }
-    }
-    
-    /**
-     * Initialize Guest Mode (Firebase Disabled)
-     */
-    async initGuestMode() {
-        // Create a guest user ID
-        const guestId = 'guest-' + crypto.randomUUID().substring(0, 8);
+        this.currentTab = 'home';
+        this.tabs = {
+            home: new HomeTab(),
+            library: new LibraryTab(),
+            swipe: new SwipeTab(),
+            matches: new MatchesTab(),
+            profile: new ProfileTab()
+        };
         
-        store.setState({
-            userId: guestId,
-            appId: 'movie-picker-app',
-            isAuthenticated: false
+        this.container = null;
+        this.navButtons = {};
+    }
+    
+    async init() {
+        if (ENV.APP.debug) {
+            console.log('[App] Initializing Movie Picker...');
+        }
+        
+        // Initialize TMDB service
+        const tmdbInitialized = await this.initTMDB();
+        
+        // Initialize UI
+        this.initUI();
+        
+        // Load initial tab
+        this.switchTab('home');
+        
+        // Setup global navigation listener
+        document.addEventListener('navigate-tab', (e) => {
+            const { tab } = e.detail;
+            this.switchTab(tab);
         });
         
         if (ENV.APP.debug) {
-            console.log('[App] Running in guest mode (Firebase disabled)');
-            console.log('[App] User ID:', guestId);
+            console.log('[App] ✅ App initialized successfully');
         }
     }
     
-    /**
-     * Initialize TMDB Service
-     */
     async initTMDB() {
+        // Get API key from window (set in index.html)
+        const tmdbApiKey = window.tmdbApiKey;
+        
+        // Validate API key
+        if (!tmdbApiKey || tmdbApiKey === 'YOUR_TMDB_API_KEY_HERE') {
+            console.error('[App] ⚠️  TMDB API key not configured!');
+            console.error('[App] 📝 Get your free API key at: https://www.themoviedb.org/settings/api');
+            console.error('[App] 💡 Add it to index.html: window.tmdbApiKey = "your_key_here"');
+            showError('TMDB API key missing. Using demo movies. Get your free key at themoviedb.org');
+            return false;
+        }
+        
         try {
-            // Get TMDB API key from global variable
-            const tmdbApiKey = window.__tmdb_api_key;
+            initTMDBService(tmdbApiKey);
             
-            if (!tmdbApiKey || tmdbApiKey === 'YOUR_TMDB_API_KEY_HERE') {
-                console.error('[App] ⚠️  TMDB API key not configured!');
-                console.error('[App] 📝 Get your free API key at: https://www.themoviedb.org/settings/api');
-                console.error('[App] 🔧 Update window.__tmdb_api_key in index.html');
-                
-                // Show user-friendly error
-                showError('TMDB API key missing. Using demo movies. Get your free key at themoviedb.org');
-                
-                return false;
+            if (ENV.APP.debug) {
+                console.log('[App] ✅ TMDB service initialized');
             }
             
-            initTMDBService(tmdbApiKey);
-            console.log('[App] ✅ TMDB Service initialized');
             return true;
-            
         } catch (error) {
-            console.error('[App] ❌ TMDB initialization failed:', error);
+            console.error('[App] Failed to initialize TMDB:', error);
+            showError('Failed to connect to TMDB. Using demo movies.');
             return false;
         }
     }
     
-    /**
-     * Load movies from TMDB API
-     */
-    async loadMovies() {
-        try {
-            store.setLoading(true);
-            
-            // Try to get TMDB service
-            let tmdbService;
-            try {
-                tmdbService = getTMDBService();
-            } catch (error) {
-                // TMDB not initialized, use fallback
-                console.warn('[App] ⚠️  TMDB not available, using fallback movies');
-                store.setMovies(this.getFallbackMovies());
-                store.setLoading(false);
-                return;
+    initUI() {
+        // Get main container
+        this.container = document.getElementById('app-container');
+        
+        // Get nav buttons
+        this.navButtons = {
+            home: document.querySelector('[data-tab="home"]'),
+            library: document.querySelector('[data-tab="library"]'),
+            swipe: document.querySelector('[data-tab="swipe"]'),
+            matches: document.querySelector('[data-tab="matches"]'),
+            profile: document.querySelector('[data-tab="profile"]')
+        };
+        
+        // Attach nav listeners
+        Object.entries(this.navButtons).forEach(([tab, button]) => {
+            if (button) {
+                button.addEventListener('click', () => this.switchTab(tab));
             }
-            
-            // Fetch popular movies (5 pages = 100 movies)
-            if (ENV.APP.debug) {
-                console.log('[App] Loading movies from TMDB...');
+        });
+        
+        if (ENV.APP.debug) {
+            console.log('[App] UI initialized');
+        }
+    }
+    
+    switchTab(tabName) {
+        if (!this.tabs[tabName]) {
+            console.error(`[App] Tab "${tabName}" does not exist`);
+            return;
+        }
+        
+        // Destroy current tab if it has cleanup
+        if (this.tabs[this.currentTab]?.destroy) {
+            this.tabs[this.currentTab].destroy();
+        }
+        
+        // Update current tab
+        this.currentTab = tabName;
+        
+        // Update nav buttons
+        Object.entries(this.navButtons).forEach(([tab, button]) => {
+            if (button) {
+                if (tab === tabName) {
+                    button.classList.add('active');
+                    button.style.color = '#ff2e63';
+                } else {
+                    button.classList.remove('active');
+                    button.style.color = 'rgba(255, 255, 255, 0.6)';
+                }
             }
-            const movies = await tmdbService.fetchPopularMovies(5);
-            
-            if (movies && movies.length > 0) {
-                store.setMovies(movies);
-                console.log(`[App] ✅ Loaded ${movies.length} movies from TMDB`);
-            } else {
-                throw new Error('No movies returned from TMDB');
-            }
-            
-            store.setLoading(false);
-            
-        } catch (error) {
-            console.error('[App] ❌ Error loading movies:', error);
-            store.setLoading(false);
-            
-            // Use fallback data if TMDB fails
-            console.warn('[App] Using fallback movie data');
-            store.setMovies(this.getFallbackMovies());
+        });
+        
+        // Clear container
+        this.container.innerHTML = '';
+        
+        // Render new tab
+        this.tabs[tabName].render(this.container);
+        
+        if (ENV.APP.debug) {
+            console.log(`[App] Switched to tab: ${tabName}`);
         }
     }
     
     /**
-     * Get fallback movies (minimal set for development/testing)
+     * Get fallback movies when TMDB is not available
      */
     getFallbackMovies() {
         return [
             {
-                id: "fallback-1",
-                title: "The Matrix",
-                year: 1999,
-                genre: "Action / Sci-Fi",
-                type: "Movie",
-                runtime: "136 min",
-                imdb: 8.7,
-                platform: "Netflix",
-                cast: ["Keanu Reeves", "Laurence Fishburne", "Carrie-Anne Moss"],
-                triggerWarnings: ["Flashing Lights", "Violence"],
-                synopsis: "A computer hacker learns from mysterious rebels about the true nature of his reality and his role in the war against its controllers.",
-                mood: "Mind-bending, Action-packed",
-                poster_path: null,
-                backdrop_path: null
+                id: 'fallback-1',
+                title: 'The Shawshank Redemption',
+                synopsis: 'Two imprisoned men bond over a number of years, finding solace and eventual redemption through acts of common decency.',
+                year: '1994',
+                genre: 'Drama',
+                imdb: '9.3',
+                runtime: '142 min',
+                platform: 'Netflix',
+                poster_path: 'https://image.tmdb.org/t/p/w500/q6y0Go1tsGEsmtFryDOJo3dEmqu.jpg',
+                backdrop_path: 'https://image.tmdb.org/t/p/w500/kXfqcdQKsToO0OUXHcrrNCHDBzO.jpg',
+                cast: ['Tim Robbins', 'Morgan Freeman', 'Bob Gunton', 'William Sadler'],
+                triggerWarnings: ['Violence', 'Prison brutality']
             },
             {
-                id: "fallback-2",
-                title: "Inception",
-                year: 2010,
-                genre: "Action / Sci-Fi / Thriller",
-                type: "Movie",
-                runtime: "148 min",
-                imdb: 8.8,
-                platform: "Hulu",
-                cast: ["Leonardo DiCaprio", "Joseph Gordon-Levitt", "Ellen Page"],
-                triggerWarnings: [],
-                synopsis: "A thief who steals corporate secrets through the use of dream-sharing technology is given the inverse task of planting an idea into the mind of a C.E.O.",
-                mood: "Complex, Thrilling",
-                poster_path: null,
-                backdrop_path: null
+                id: 'fallback-2',
+                title: 'The Godfather',
+                synopsis: 'The aging patriarch of an organized crime dynasty transfers control of his clandestine empire to his reluctant son.',
+                year: '1972',
+                genre: 'Crime',
+                imdb: '9.2',
+                runtime: '175 min',
+                platform: 'Prime Video',
+                poster_path: 'https://image.tmdb.org/t/p/w500/3bhkrj58Vtu7enYsRolD1fZdja1.jpg',
+                backdrop_path: 'https://image.tmdb.org/t/p/w500/tmU7GeKVybMWFButWEGl2M4GeiP.jpg',
+                cast: ['Marlon Brando', 'Al Pacino', 'James Caan', 'Diane Keaton'],
+                triggerWarnings: ['Violence', 'Crime']
             },
             {
-                id: "fallback-3",
-                title: "The Shawshank Redemption",
-                year: 1994,
-                genre: "Drama",
-                type: "Movie",
-                runtime: "142 min",
-                imdb: 9.3,
-                platform: "Prime Video",
-                cast: ["Tim Robbins", "Morgan Freeman"],
-                triggerWarnings: ["Violence", "Prison Content"],
-                synopsis: "Two imprisoned men bond over a number of years, finding solace and eventual redemption through acts of common decency.",
-                mood: "Hopeful, Emotional",
-                poster_path: null,
-                backdrop_path: null
+                id: 'fallback-3',
+                title: 'The Dark Knight',
+                synopsis: 'When the menace known as the Joker wreaks havoc and chaos on the people of Gotham, Batman must accept one of the greatest psychological tests.',
+                year: '2008',
+                genre: 'Action',
+                imdb: '9.0',
+                runtime: '152 min',
+                platform: 'HBO Max',
+                poster_path: 'https://image.tmdb.org/t/p/w500/qJ2tW6WMUDux911r6m7haRef0WH.jpg',
+                backdrop_path: 'https://image.tmdb.org/t/p/w500/hkBaDkMWbLaf8B1lsWsKX7Ew3Xq.jpg',
+                cast: ['Christian Bale', 'Heath Ledger', 'Aaron Eckhart', 'Michael Caine'],
+                triggerWarnings: ['Violence', 'Intense action']
             },
             {
-                id: "fallback-4",
-                title: "Pulp Fiction",
-                year: 1994,
-                genre: "Crime / Drama",
-                type: "Movie",
-                runtime: "154 min",
-                imdb: 8.9,
-                platform: "Netflix",
-                cast: ["John Travolta", "Uma Thurman", "Samuel L. Jackson"],
-                triggerWarnings: ["Violence", "Drug Use", "Strong Language"],
-                synopsis: "The lives of two mob hitmen, a boxer, a gangster and his wife intertwine in four tales of violence and redemption.",
-                mood: "Stylish, Intense",
-                poster_path: null,
-                backdrop_path: null
+                id: 'fallback-4',
+                title: 'Pulp Fiction',
+                synopsis: 'The lives of two mob hitmen, a boxer, a gangster and his wife intertwine in four tales of violence and redemption.',
+                year: '1994',
+                genre: 'Crime',
+                imdb: '8.9',
+                runtime: '154 min',
+                platform: 'Netflix',
+                poster_path: 'https://image.tmdb.org/t/p/w500/d5iIlFn5s0ImszYzBPb8JPIfbXD.jpg',
+                backdrop_path: 'https://image.tmdb.org/t/p/w500/suaEOtk1N1sgg2MTM7oZd2cfVp3.jpg',
+                cast: ['John Travolta', 'Uma Thurman', 'Samuel L. Jackson', 'Bruce Willis'],
+                triggerWarnings: ['Violence', 'Strong language', 'Drug use']
             },
             {
-                id: "fallback-5",
-                title: "The Dark Knight",
-                year: 2008,
-                genre: "Action / Crime / Drama",
-                type: "Movie",
-                runtime: "152 min",
-                imdb: 9.0,
-                platform: "Max (HBO)",
-                cast: ["Christian Bale", "Heath Ledger", "Aaron Eckhart"],
-                triggerWarnings: ["Violence", "Intense Scenes"],
-                synopsis: "When the menace known as the Joker wreaks havoc and chaos on the people of Gotham, Batman must accept one of the greatest psychological and physical tests.",
-                mood: "Dark, Epic",
-                poster_path: null,
-                backdrop_path: null
+                id: 'fallback-5',
+                title: 'Forrest Gump',
+                synopsis: 'The presidencies of Kennedy and Johnson, the Vietnam War, and other historical events unfold from the perspective of an Alabama man.',
+                year: '1994',
+                genre: 'Drama',
+                imdb: '8.8',
+                runtime: '142 min',
+                platform: 'Prime Video',
+                poster_path: 'https://image.tmdb.org/t/p/w500/arw2vcBveWOVZr6pxd9XTd1TdQa.jpg',
+                backdrop_path: 'https://image.tmdb.org/t/p/w500/7c9UVPPiTPltouxRVY6N9uAXMjD.jpg',
+                cast: ['Tom Hanks', 'Robin Wright', 'Gary Sinise', 'Sally Field'],
+                triggerWarnings: ['War violence']
             },
             {
-                id: "fallback-6",
-                title: "Forrest Gump",
-                year: 1994,
-                genre: "Drama / Romance",
-                type: "Movie",
-                runtime: "142 min",
-                imdb: 8.8,
-                platform: "Hulu",
-                cast: ["Tom Hanks", "Robin Wright", "Gary Sinise"],
-                triggerWarnings: ["War Violence", "Emotional Loss"],
-                synopsis: "The presidencies of Kennedy and Johnson, the Vietnam War, and other historical events unfold from the perspective of an Alabama man.",
-                mood: "Heartwarming, Inspiring",
-                poster_path: null,
-                backdrop_path: null
+                id: 'fallback-6',
+                title: 'Inception',
+                synopsis: 'A thief who steals corporate secrets through dream-sharing technology is given the inverse task of planting an idea.',
+                year: '2010',
+                genre: 'Sci-Fi',
+                imdb: '8.8',
+                runtime: '148 min',
+                platform: 'HBO Max',
+                poster_path: 'https://image.tmdb.org/t/p/w500/9gk7adHYeDvHkCSEqAvQNLV5Uge.jpg',
+                backdrop_path: 'https://image.tmdb.org/t/p/w500/s3TBrRGB1iav7gFOCNx3H31MoES.jpg',
+                cast: ['Leonardo DiCaprio', 'Joseph Gordon-Levitt', 'Ellen Page', 'Tom Hardy'],
+                triggerWarnings: ['Violence', 'Intense sequences']
             },
             {
-                id: "fallback-7",
-                title: "Interstellar",
-                year: 2014,
-                genre: "Adventure / Drama / Sci-Fi",
-                type: "Movie",
-                runtime: "169 min",
-                imdb: 8.6,
-                platform: "Prime Video",
-                cast: ["Matthew McConaughey", "Anne Hathaway", "Jessica Chastain"],
-                triggerWarnings: [],
+                id: 'fallback-7',
+                title: 'The Matrix',
+                synopsis: 'A computer hacker learns from mysterious rebels about the true nature of his reality and his role in the war against its controllers.',
+                year: '1999',
+                genre: 'Sci-Fi',
+                imdb: '8.7',
+                runtime: '136 min',
+                platform: 'HBO Max',
+                poster_path: 'https://image.tmdb.org/t/p/w500/f89U3ADr1oiB1s9GkdPOEpXUk5H.jpg',
+                backdrop_path: 'https://image.tmdb.org/t/p/w500/icmmSD4vTTDKOq2vvdulafOGw93.jpg',
+                cast: ['Keanu Reeves', 'Laurence Fishburne', 'Carrie-Anne Moss', 'Hugo Weaving'],
+                triggerWarnings: ['Violence', 'Intense action']
+            },
+            {
+                id: 'fallback-8',
+                title: 'Goodfellas',
+                synopsis: 'The story of Henry Hill and his life in the mob, covering his relationship with his wife and his partners in crime.',
+                year: '1990',
+                genre: 'Crime',
+                imdb: '8.7',
+                runtime: '146 min',
+                platform: 'Netflix',
+                poster_path: 'https://image.tmdb.org/t/p/w500/aKuFiU82s5ISJpGZp7YkIr3kCUd.jpg',
+                backdrop_path: 'https://image.tmdb.org/t/p/w500/sw7mordbZxgITU877yTpZCud90M.jpg',
+                cast: ['Robert De Niro', 'Ray Liotta', 'Joe Pesci', 'Lorraine Bracco'],
+                triggerWarnings: ['Violence', 'Strong language', 'Drug use']
+            },
+            {
+                id: 'fallback-9',
+                title: 'Interstellar',
                 synopsis: "A team of explorers travel through a wormhole in space in an attempt to ensure humanity's survival.",
-                mood: "Epic, Emotional",
-                poster_path: null,
-                backdrop_path: null
+                year: '2014',
+                genre: 'Sci-Fi',
+                imdb: '8.6',
+                runtime: '169 min',
+                platform: 'Prime Video',
+                poster_path: 'https://image.tmdb.org/t/p/w500/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg',
+                backdrop_path: 'https://image.tmdb.org/t/p/w500/xu9zaAevzQ5nnrsXN6JcahLnG4i.jpg',
+                cast: ['Matthew McConaughey', 'Anne Hathaway', 'Jessica Chastain', 'Michael Caine'],
+                triggerWarnings: ['Intense sequences']
             },
             {
-                id: "fallback-8",
-                title: "The Godfather",
-                year: 1972,
-                genre: "Crime / Drama",
-                type: "Movie",
-                runtime: "175 min",
-                imdb: 9.2,
-                platform: "Netflix",
-                cast: ["Marlon Brando", "Al Pacino", "James Caan"],
-                triggerWarnings: ["Violence"],
-                synopsis: "The aging patriarch of an organized crime dynasty transfers control of his clandestine empire to his reluctant son.",
-                mood: "Classic, Intense",
-                poster_path: null,
-                backdrop_path: null
-            },
-            {
-                id: "fallback-9",
-                title: "Fight Club",
-                year: 1999,
-                genre: "Drama",
-                type: "Movie",
-                runtime: "139 min",
-                imdb: 8.8,
-                platform: "Hulu",
-                cast: ["Brad Pitt", "Edward Norton", "Helena Bonham Carter"],
-                triggerWarnings: ["Violence", "Disturbing Content"],
-                synopsis: "An insomniac office worker and a devil-may-care soap maker form an underground fight club that evolves into much more.",
-                mood: "Dark, Thought-provoking",
-                poster_path: null,
-                backdrop_path: null
-            },
-            {
-                id: "fallback-10",
-                title: "The Prestige",
-                year: 2006,
-                genre: "Drama / Mystery / Sci-Fi",
-                type: "Movie",
-                runtime: "130 min",
-                imdb: 8.5,
-                platform: "Prime Video",
-                cast: ["Christian Bale", "Hugh Jackman", "Scarlett Johansson"],
-                triggerWarnings: [],
-                synopsis: "After a tragic accident, two stage magicians engage in a battle to create the ultimate illusion while sacrificing everything they have to outwit each other.",
-                mood: "Mysterious, Clever",
-                poster_path: null,
-                backdrop_path: null
+                id: 'fallback-10',
+                title: 'The Silence of the Lambs',
+                synopsis: 'A young FBI cadet must receive the help of an incarcerated cannibal killer to catch another serial killer.',
+                year: '1991',
+                genre: 'Thriller',
+                imdb: '8.6',
+                runtime: '118 min',
+                platform: 'Hulu',
+                poster_path: 'https://image.tmdb.org/t/p/w500/uS9m8OBk1A8eM9I042bx8XXpqAq.jpg',
+                backdrop_path: 'https://image.tmdb.org/t/p/w500/bMadFzhjy9T7R8J48QGq1ngWNAK.jpg',
+                cast: ['Jodie Foster', 'Anthony Hopkins', 'Scott Glenn', 'Ted Levine'],
+                triggerWarnings: ['Violence', 'Gore', 'Disturbing content']
             }
         ];
-    }
-    
-    /**
-     * Initialize tabs
-     */
-    initTabs() {
-        this.tabs.set('home', new HomeTab(this.contentArea));
-        this.tabs.set('library', new LibraryTab(this.contentArea));
-        this.tabs.set('swipe', new SwipeTab(this.contentArea));
-        this.tabs.set('matches', new MatchesTab(this.contentArea));
-        this.tabs.set('profile', new ProfileTab(this.contentArea));
-        
-        if (ENV.APP.debug) {
-            console.log('[App] Tabs initialized');
-        }
-    }
-    
-    /**
-     * Setup navigation handlers
-     */
-    setupNavigation() {
-        const navButtons = this.navBar.querySelectorAll('.nav-item');
-        
-        navButtons.forEach(button => {
-            button.addEventListener('click', (e) => {
-                const tabName = button.getAttribute('data-tab');
-                this.navigateToTab(tabName);
-            });
-        });
-        
-        // Global navigation event listener
-        document.addEventListener('navigate-tab', (e) => {
-            this.navigateToTab(e.detail.tab);
-        });
-    }
-    
-    /**
-     * Navigate to a specific tab
-     */
-    navigateToTab(tabName) {
-        // Hide current tab if exists
-        if (this.currentTab) {
-            const currentTabInstance = this.tabs.get(this.currentTab);
-            if (currentTabInstance && currentTabInstance.destroy) {
-                currentTabInstance.destroy();
-            }
-        }
-        
-        // Update active state in nav
-        const navButtons = this.navBar.querySelectorAll('.nav-item');
-        navButtons.forEach(button => {
-            if (button.getAttribute('data-tab') === tabName) {
-                button.classList.add('active');
-            } else {
-                button.classList.remove('active');
-            }
-        });
-        
-        // Render new tab
-        const tab = this.tabs.get(tabName);
-        if (tab) {
-            this.contentArea.innerHTML = '';
-            tab.render();
-            this.currentTab = tabName;
-            
-            // Update store
-            store.setState({ currentTab: tabName });
-        }
-    }
-    
-    /**
-     * Setup keyboard shortcuts
-     */
-    setupKeyboardShortcuts() {
-        document.addEventListener('keydown', (e) => {
-            // Only trigger if not in an input field
-            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
-                return;
-            }
-            
-            // Tab shortcuts (1-5 keys)
-            if (e.key === '1') this.navigateToTab('home');
-            if (e.key === '2') this.navigateToTab('library');
-            if (e.key === '3') this.navigateToTab('swipe');
-            if (e.key === '4') this.navigateToTab('matches');
-            if (e.key === '5') this.navigateToTab('profile');
-        });
-    }
-    
-    /**
-     * Handle state changes
-     */
-    handleStateChange(state) {
-        // Update UI based on state changes if needed
     }
 }
 
 // Initialize app when DOM is ready
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-        const app = new App();
-        app.init();
-    });
-} else {
-    const app = new App();
-    app.init();
-}
-
-export default App;
+document.addEventListener('DOMContentLoaded', () => {
+    window.app = new App();
+    window.app.init();
+});
