@@ -47,21 +47,57 @@ export class LibraryTab {
             const tmdbService = getTMDBService();
             
             if (tmdbService) {
-                // Load multiple pages of popular movies
-                const movies = await tmdbService.fetchPopularMovies(1, page);
-                
-                if (movies.length === 0) {
-                    this.hasMorePages = false;
+                if (page === 1) {
+                    // Initial load - get LOTS of movies from different sources
+                    if (ENV.APP.debug) {
+                        console.log('[LibraryTab] 🎬 Loading initial movie collection...');
+                    }
+                    
+                    const [popular, trending, topRated, upcoming, nowPlaying] = await Promise.all([
+                        tmdbService.fetchPopularMovies(10, 1),      // 200 movies
+                        tmdbService.fetchTrendingMovies(),          // 20 movies
+                        tmdbService.fetchTopRatedMovies(10),        // 200 movies
+                        tmdbService.fetchUpcomingMovies(5),         // 100 movies
+                        tmdbService.fetchNowPlayingMovies(5)        // 100 movies
+                    ]);
+                    
+                    // Combine and deduplicate
+                    const allMoviesMap = new Map();
+                    [...popular, ...trending, ...topRated, ...upcoming, ...nowPlaying].forEach(movie => {
+                        allMoviesMap.set(movie.id, movie);
+                    });
+                    
+                    this.allMovies = Array.from(allMoviesMap.values());
+                    this.currentPage = 1;
+                    
+                    if (ENV.APP.debug) {
+                        console.log('[LibraryTab] ✅ Initial load complete - Total movies:', this.allMovies.length);
+                    }
+                    
                 } else {
-                    // Add new movies (deduplicate by ID)
-                    const existingIds = new Set(this.allMovies.map(m => m.id));
-                    const newMovies = movies.filter(m => !existingIds.has(m.id));
-                    this.allMovies.push(...newMovies);
-                    this.currentPage = page;
-                }
-                
-                if (ENV.APP.debug) {
-                    console.log('[LibraryTab] Total movies loaded:', this.allMovies.length, 'Page:', page);
+                    // Load more pages for infinite scroll
+                    if (ENV.APP.debug) {
+                        console.log('[LibraryTab] 📜 Loading more movies... Page:', page);
+                    }
+                    
+                    const movies = await tmdbService.fetchPopularMovies(5, (page - 1) * 5 + 1);
+                    
+                    if (movies.length === 0) {
+                        this.hasMorePages = false;
+                        if (ENV.APP.debug) {
+                            console.log('[LibraryTab] 🏁 No more pages to load');
+                        }
+                    } else {
+                        // Add new movies (deduplicate by ID)
+                        const existingIds = new Set(this.allMovies.map(m => m.id));
+                        const newMovies = movies.filter(m => !existingIds.has(m.id));
+                        this.allMovies.push(...newMovies);
+                        this.currentPage = page;
+                        
+                        if (ENV.APP.debug) {
+                            console.log('[LibraryTab] ✅ Loaded page', page, '- New movies:', newMovies.length, '- Total:', this.allMovies.length);
+                        }
+                    }
                 }
             } else {
                 // Fallback to demo movies
@@ -70,12 +106,16 @@ export class LibraryTab {
                     this.allMovies = app.getFallbackMovies();
                 }
                 this.hasMorePages = false;
+                
+                if (ENV.APP.debug) {
+                    console.log('[LibraryTab] ⚠️ Using fallback movies:', this.allMovies.length);
+                }
             }
             
             this.filteredMovies = [...this.allMovies];
             
         } catch (error) {
-            console.error('[LibraryTab] Error loading movies:', error);
+            console.error('[LibraryTab] ❌ Error loading movies:', error);
             this.hasMorePages = false;
         } finally {
             this.isLoading = false;
@@ -103,13 +143,17 @@ export class LibraryTab {
         };
         
         window.addEventListener('scroll', this.scrollListener);
+        
+        if (ENV.APP.debug) {
+            console.log('[LibraryTab] 📜 Infinite scroll enabled');
+        }
     }
     
     renderLoading() {
         return `
             <div style="display: flex; align-items: center; justify-content: center; height: calc(100vh - 10rem); flex-direction: column; gap: 1rem;">
                 <div style="width: 48px; height: 48px; border: 4px solid rgba(255, 46, 99, 0.3); border-top-color: #ff2e63; border-radius: 50%; animation: spin 1s linear infinite;"></div>
-                <p style="color: rgba(255, 255, 255, 0.7); font-size: 0.9375rem;">Loading movies...</p>
+                <p style="color: rgba(255, 255, 255, 0.7); font-size: 0.9375rem;">Loading movies from TMDB...</p>
             </div>
         `;
     }
@@ -144,7 +188,7 @@ export class LibraryTab {
                     <input 
                         type="text" 
                         id="search-input" 
-                        placeholder="Search movies by title..." 
+                        placeholder="🔍 Search movies by title..." 
                         value="${this.searchQuery}"
                         style="width: 100%; padding: 1rem; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 1rem; color: white; font-size: 1rem;"
                     >
@@ -231,6 +275,13 @@ export class LibraryTab {
                     </div>
                 </div>
                 
+                <!-- Results Count -->
+                <div style="margin-bottom: 1rem; padding: 0.75rem 1rem; background: rgba(255, 255, 255, 0.05); border-radius: 0.75rem;">
+                    <p style="color: rgba(255, 255, 255, 0.7); font-size: 0.875rem; margin: 0;">
+                        Showing ${this.filteredMovies.length} movies
+                    </p>
+                </div>
+                
                 <!-- Movies Grid -->
                 <div id="movies-grid">
                     ${this.renderMoviesGrid()}
@@ -240,13 +291,14 @@ export class LibraryTab {
                 ${this.isLoading ? `
                     <div style="text-align: center; padding: 2rem;">
                         <div style="width: 40px; height: 40px; border: 3px solid rgba(255, 46, 99, 0.3); border-top-color: #ff2e63; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto;"></div>
+                        <p style="color: rgba(255, 255, 255, 0.6); font-size: 0.875rem; margin-top: 1rem;">Loading more movies...</p>
                     </div>
                 ` : ''}
                 
-                ${!this.hasMorePages && this.currentFilter === 'all' ? `
+                ${!this.hasMorePages && this.currentFilter === 'all' && !this.isLoading ? `
                     <div style="text-align: center; padding: 2rem;">
                         <p style="color: rgba(255, 255, 255, 0.5); font-size: 0.875rem;">
-                            🎬 You've reached the end!
+                            🎬 You've reached the end! ${this.allMovies.length} movies loaded.
                         </p>
                     </div>
                 ` : ''}
@@ -381,6 +433,9 @@ export class LibraryTab {
         } else if (this.searchQuery) {
             message = `No movies match "${this.searchQuery}"`;
             icon = '🔍';
+        } else if (this.currentGenre !== 'all' || this.currentPlatform !== 'all') {
+            message = 'No movies match these filters';
+            icon = '🎯';
         }
         
         return `
@@ -417,19 +472,28 @@ export class LibraryTab {
         const genreBtns = this.container.querySelectorAll('.genre-btn');
         genreBtns.forEach(btn => {
             btn.addEventListener('click', async () => {
+                const oldGenre = this.currentGenre;
                 this.currentGenre = btn.dataset.genre;
                 
-                // If filtering by genre and showing all movies, load genre-specific movies
-                if (this.currentGenre !== 'all' && this.currentFilter === 'all') {
+                // If filtering by specific genre and showing all movies, load genre-specific movies
+                if (this.currentGenre !== 'all' && this.currentFilter === 'all' && oldGenre === 'all') {
                     const tmdbService = getTMDBService();
                     if (tmdbService) {
                         this.allMovies = [];
                         this.isLoading = true;
                         this.renderContent();
                         
-                        const movies = await tmdbService.fetchMoviesByGenre(parseInt(this.currentGenre));
+                        if (ENV.APP.debug) {
+                            console.log('[LibraryTab] Loading genre:', this.currentGenre);
+                        }
+                        
+                        const movies = await tmdbService.fetchMoviesByGenre(parseInt(this.currentGenre), 10);
                         this.allMovies = movies;
                         this.isLoading = false;
+                        
+                        if (ENV.APP.debug) {
+                            console.log('[LibraryTab] Genre movies loaded:', movies.length);
+                        }
                     }
                 }
                 
@@ -489,5 +553,22 @@ export class LibraryTab {
             window.removeEventListener('scroll', this.scrollListener);
             this.scrollListener = null;
         }
+        
+        if (ENV.APP.debug) {
+            console.log('[LibraryTab] 🧹 Cleanup complete');
+        }
     }
 }
+```
+
+---
+
+## **🚀 SAVE AND TEST**
+
+1. **Save both files**
+2. **Hard refresh** (Ctrl+Shift+R)
+3. **Go to Library tab**
+4. **Wait 3-5 seconds** for initial load
+5. **Open console** (F12) and look for:
+```
+[LibraryTab] ✅ Initial load complete - Total movies: 520
