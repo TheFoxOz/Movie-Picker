@@ -1,6 +1,6 @@
 /**
  * Authentication Service
- * Handles user authentication and real-time sync
+ * Firebase v8 Compatible
  */
 
 import { firebase, auth, db } from './firebase-config.js';
@@ -15,9 +15,6 @@ class AuthService {
         this.setupAuthListener();
     }
     
-    /**
-     * Listen for auth state changes
-     */
     setupAuthListener() {
         auth.onAuthStateChanged(async (user) => {
             if (user) {
@@ -27,13 +24,9 @@ class AuthService {
                     console.log('[Auth] User signed in:', user.email);
                 }
                 
-                // Load user data from Firestore
                 await this.loadUserData(user.uid);
-                
-                // Setup real-time listeners
                 this.setupRealtimeListeners(user.uid);
                 
-                // Update store
                 store.setState({ 
                     userId: user.uid,
                     userEmail: user.email,
@@ -61,18 +54,13 @@ class AuthService {
         });
     }
     
-    /**
-     * Sign up with email and password
-     */
     async signUp(email, password, displayName) {
         try {
             const userCredential = await auth.createUserWithEmailAndPassword(email, password);
             const user = userCredential.user;
             
-            // Update display name
             await user.updateProfile({ displayName });
             
-            // Create user document in Firestore
             await db.collection('users').doc(user.uid).set({
                 uid: user.uid,
                 email: user.email,
@@ -106,9 +94,6 @@ class AuthService {
         }
     }
     
-    /**
-     * Sign in with email and password
-     */
     async signIn(email, password) {
         try {
             const userCredential = await auth.signInWithEmailAndPassword(email, password);
@@ -135,20 +120,15 @@ class AuthService {
         }
     }
     
-    /**
-     * Sign in with Google
-     */
     async signInWithGoogle() {
         try {
             const provider = new firebase.auth.GoogleAuthProvider();
             const userCredential = await auth.signInWithPopup(provider);
             const user = userCredential.user;
             
-            // Check if user document exists
             const userDoc = await db.collection('users').doc(user.uid).get();
             
             if (!userDoc.exists) {
-                // Create user document for new Google users
                 await db.collection('users').doc(user.uid).set({
                     uid: user.uid,
                     email: user.email,
@@ -176,9 +156,6 @@ class AuthService {
         }
     }
     
-    /**
-     * Sign out
-     */
     async signOut() {
         try {
             await auth.signOut();
@@ -191,9 +168,6 @@ class AuthService {
         }
     }
     
-    /**
-     * Load user data from Firestore
-     */
     async loadUserData(uid) {
         try {
             const userDoc = await db.collection('users').doc(uid).get();
@@ -217,11 +191,7 @@ class AuthService {
         }
     }
     
-    /**
-     * Setup real-time listeners
-     */
     setupRealtimeListeners(uid) {
-        // Listen to user document changes
         const unsubUser = db.collection('users').doc(uid).onSnapshot((doc) => {
             if (doc.exists) {
                 const userData = doc.data();
@@ -241,9 +211,6 @@ class AuthService {
         this.unsubscribers.push(unsubUser);
     }
     
-    /**
-     * Sync swipe history to Firestore
-     */
     async syncSwipeHistory(swipeHistory) {
         if (!this.currentUser) return;
         
@@ -261,9 +228,6 @@ class AuthService {
         }
     }
     
-    /**
-     * Add friend by email
-     */
     async addFriend(friendEmail) {
         if (!this.currentUser) {
             showError('You must be signed in to add friends');
@@ -271,7 +235,6 @@ class AuthService {
         }
         
         try {
-            // Find friend by email
             const querySnapshot = await db.collection('users')
                 .where('email', '==', friendEmail)
                 .get();
@@ -297,12 +260,10 @@ class AuthService {
                 addedAt: new Date().toISOString()
             };
             
-            // Add friend to current user's friends list
             await db.collection('users').doc(this.currentUser.uid).update({
                 friends: firebase.firestore.FieldValue.arrayUnion(friendInfo)
             });
             
-            // Add current user to friend's friends list
             await db.collection('users').doc(friendData.uid).update({
                 friends: firebase.firestore.FieldValue.arrayUnion({
                     id: this.currentUser.uid,
@@ -325,9 +286,6 @@ class AuthService {
         }
     }
     
-    /**
-     * Create a group
-     */
     async createGroup(groupName, groupEmoji = '🎬') {
         if (!this.currentUser) {
             showError('You must be signed in to create groups');
@@ -353,7 +311,6 @@ class AuthService {
                 matchCount: 0
             };
             
-            // Add group to user's groups list
             await db.collection('users').doc(this.currentUser.uid).update({
                 groups: firebase.firestore.FieldValue.arrayUnion(newGroup)
             });
@@ -372,28 +329,18 @@ class AuthService {
         }
     }
     
-    /**
-     * Cleanup listeners
-     */
     cleanup() {
         this.unsubscribers.forEach(unsubscribe => unsubscribe());
         this.unsubscribers = [];
     }
     
-    /**
-     * Get current user
-     */
     getCurrentUser() {
         return this.currentUser;
     }
     
-    /**
-     * Check if user is authenticated
-     */
     isAuthenticated() {
         return !!this.currentUser;
     }
 }
 
-// Export singleton instance
 export const authService = new AuthService();
