@@ -1,250 +1,240 @@
 /**
- * Swipe Tab
- * Movie swiping interface
+ * Swipe Tab Component
+ * Main swiping interface
  */
 
 import { store } from '../state/store.js';
 import { SwipeCard } from '../components/swipe-card.js';
+import { getTMDBService } from '../services/tmdb.js';
+import { showToast } from '../utils/notifications.js';
+import { showConfetti } from '../utils/confetti.js';
+import { ENV } from '../config/env.js';
 
 export class SwipeTab {
-    constructor(container) {
-        this.container = container;
+    constructor() {
+        this.container = null;
         this.currentCard = null;
-        this.boundHandleSwipeComplete = this.handleSwipeComplete.bind(this);
-        console.log('[SwipeTab] Constructor called');
+        this.movieQueue = [];
+        this.isLoading = false;
     }
     
-    render() {
-        console.log('[SwipeTab] Render called');
-        const movies = store.get('movies');
-        const swipeHistory = store.get('swipeHistory');
+    async render(container) {
+        this.container = container;
         
-        console.log('[SwipeTab] Movies count:', movies?.length);
-        console.log('[SwipeTab] Swipe history count:', swipeHistory?.length);
-        
-        // Get unswiped movies
-        const swipedIds = new Set(swipeHistory.map(s => s.movie?.id).filter(Boolean));
-        const unswipedMovies = movies.filter(m => !swipedIds.has(m.id));
-        
-        console.log('[SwipeTab] Unswiped movies:', unswipedMovies.length);
-        
-        this.container.innerHTML = `
-            <div style="position: relative; width: 100%; height: 100vh; background: linear-gradient(135deg, #0a0a0f, #1a1a2e); overflow: hidden;">
+        container.innerHTML = `
+            <div style="position: relative; width: 100%; height: calc(100vh - 5rem); display: flex; flex-direction: column;">
+                
                 <!-- Header -->
-                <div style="position: absolute; top: 0; left: 0; right: 0; padding: 1.5rem; text-align: center; z-index: 10; background: linear-gradient(180deg, rgba(10, 10, 15, 0.95), transparent); pointer-events: none;">
+                <div style="padding: 1.5rem 1rem; text-align: center;">
                     <h1 style="font-size: 1.5rem; font-weight: 800; color: white; margin: 0 0 0.5rem 0;">
-                        Find Your Next Movie
+                        Discover Movies
                     </h1>
-                    <p style="color: rgba(255, 255, 255, 0.6); font-size: 0.875rem; margin: 0;">
-                        ${unswipedMovies.length} movies remaining
+                    <p style="font-size: 0.875rem; color: rgba(255, 255, 255, 0.6); margin: 0;">
+                        Swipe to find your next favorite film
                     </p>
                 </div>
                 
                 <!-- Card Container -->
-                <div id="swipe-card-container" style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 6rem 0; background: rgba(255, 0, 0, 0.05);">
-                    <!-- Card will be inserted here -->
-                    <div style="color: white; font-size: 1rem;">Loading card...</div>
+                <div id="swipe-container" style="flex: 1; position: relative; display: flex; align-items: center; justify-content: center; padding: 0 1rem;">
+                    <!-- Cards will be inserted here -->
                 </div>
                 
                 <!-- Action Buttons -->
-                <div style="position: absolute; bottom: 2rem; left: 50%; transform: translateX(-50%); display: flex; gap: 1rem; z-index: 10;">
-                    <button 
-                        class="swipe-action-btn" 
-                        data-action="pass"
-                        style="width: 72px; height: 72px; border-radius: 50%; background: linear-gradient(135deg, #ef4444, #dc2626); border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 24px rgba(239, 68, 68, 0.4); transition: all 0.3s;"
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="3" stroke="currentColor" style="width: 32px; height: 32px; color: white;">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
+                <div style="padding: 1.5rem 1rem 2rem; display: flex; align-items: center; justify-content: center; gap: 1rem;">
+                    <button id="swipe-pass" style="width: 64px; height: 64px; border-radius: 50%; background: rgba(239, 68, 68, 0.2); border: 2px solid rgba(239, 68, 68, 0.4); color: #ef4444; font-size: 1.75rem; cursor: pointer; transition: all 0.3s; display: flex; align-items: center; justify-content: center;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">
+                        ✕
                     </button>
-                    
-                    <button 
-                        class="swipe-action-btn" 
-                        data-action="maybe"
-                        style="width: 64px; height: 64px; border-radius: 50%; background: linear-gradient(135deg, #fbbf24, #f59e0b); border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 24px rgba(251, 191, 36, 0.4); transition: all 0.3s;"
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="3" stroke="currentColor" style="width: 28px; height: 28px; color: white;">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
-                        </svg>
+                    <button id="swipe-maybe" style="width: 56px; height: 56px; border-radius: 50%; background: rgba(251, 191, 36, 0.2); border: 2px solid rgba(251, 191, 36, 0.4); color: #fbbf24; font-size: 1.5rem; cursor: pointer; transition: all 0.3s; display: flex; align-items: center; justify-content: center;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">
+                        🤔
                     </button>
-                    
-                    <button 
-                        class="swipe-action-btn" 
-                        data-action="like"
-                        style="width: 64px; height: 64px; border-radius: 50%; background: linear-gradient(135deg, #10b981, #059669); border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 24px rgba(16, 185, 129, 0.4); transition: all 0.3s;"
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="3" stroke="currentColor" style="width: 28px; height: 28px; color: white;">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M6.633 10.5c.806 0 1.533-.446 2.031-1.08a9.041 9.041 0 012.861-2.4c.723-.384 1.35-.956 1.653-1.715a4.498 4.498 0 00.322-1.672V3a.75.75 0 01.75-.75A2.25 2.25 0 0116.5 4.5c0 1.152-.26 2.243-.723 3.218-.266.558.107 1.282.725 1.282h3.126c1.026 0 1.945.694 2.054 1.715.045.422.068.85.068 1.285a11.95 11.95 0 01-2.649 7.521c-.388.482-.987.729-1.605.729H13.48c-.483 0-.964-.078-1.423-.23l-3.114-1.04a4.501 4.501 0 00-1.423-.23H5.904M14.25 9h2.25M5.904 18.75c.083.205.173.405.27.602.197.4-.078.898-.523.898h-.908c-.889 0-1.713-.518-1.972-1.368a12 12 0 01-.521-3.507c0-1.553.295-3.036.831-4.398C3.387 10.203 4.167 9.75 5 9.75h1.053c.472 0 .745.556.5.96a8.958 8.958 0 00-1.302 4.665c0 1.194.232 2.333.654 3.375z" />
-                        </svg>
+                    <button id="swipe-like" style="width: 56px; height: 56px; border-radius: 50%; background: rgba(16, 185, 129, 0.2); border: 2px solid rgba(16, 185, 129, 0.4); color: #10b981; font-size: 1.5rem; cursor: pointer; transition: all 0.3s; display: flex; align-items: center; justify-content: center;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">
+                        👍
                     </button>
-                    
-                    <button 
-                        class="swipe-action-btn" 
-                        data-action="love"
-                        style="width: 72px; height: 72px; border-radius: 50%; background: linear-gradient(135deg, #ff006e, #d90062); border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 24px rgba(255, 0, 110, 0.4); transition: all 0.3s;"
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24" stroke-width="0" stroke="currentColor" style="width: 32px; height: 32px; color: white;">
-                            <path d="M11.645 20.91l-.007-.003-.022-.012a15.247 15.247 0 01-.383-.218 25.18 25.18 0 01-4.244-3.17C4.688 15.36 2.25 12.174 2.25 8.25 2.25 5.322 4.714 3 7.688 3A5.5 5.5 0 0112 5.052 5.5 5.5 0 0116.313 3c2.973 0 5.437 2.322 5.437 5.25 0 3.925-2.438 7.111-4.739 9.256a25.175 25.175 0 01-4.244 3.17 15.247 15.247 0 01-.383.219l-.022.012-.007.004-.003.001a.752.752 0 01-.704 0l-.003-.001z" />
-                        </svg>
+                    <button id="swipe-love" style="width: 64px; height: 64px; border-radius: 50%; background: rgba(255, 46, 99, 0.2); border: 2px solid rgba(255, 46, 99, 0.4); color: #ff2e63; font-size: 1.75rem; cursor: pointer; transition: all 0.3s; display: flex; align-items: center; justify-content: center;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">
+                        ❤️
                     </button>
                 </div>
                 
-                <!-- Instructions -->
-                <div style="position: absolute; bottom: 5.5rem; left: 50%; transform: translateX(-50%); text-align: center; color: rgba(255, 255, 255, 0.5); font-size: 0.75rem; z-index: 10; pointer-events: none;">
-                    <p style="margin: 0;">Swipe: Drag card left/right</p>
-                    <p style="margin: 0.25rem 0 0 0;">Keyboard: ← Nope • ↓ Maybe • ↑ Like • → Love</p>
+                <!-- Keyboard Hints -->
+                <div style="padding: 0 1rem 1rem; text-align: center;">
+                    <p style="font-size: 0.75rem; color: rgba(255, 255, 255, 0.4); margin: 0;">
+                        ← Pass • ↓ Maybe • ↑ Like • → Love
+                    </p>
                 </div>
                 
-                <!-- Empty State -->
-                ${unswipedMovies.length === 0 ? `
-                    <div class="empty-state" style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2rem; text-align: center; z-index: 20; background: rgba(0, 0, 0, 0.8);">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 80px; height: 80px; color: rgba(255, 46, 99, 0.5); margin-bottom: 1.5rem;">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <h2 style="font-size: 1.5rem; font-weight: 700; color: white; margin-bottom: 0.5rem;">All Done!</h2>
-                        <p style="color: rgba(255, 255, 255, 0.6); margin-bottom: 2rem; max-width: 300px;">
-                            You've rated all available movies. Check your matches or library!
-                        </p>
-                        <div style="display: flex; gap: 1rem;">
-                            <button class="btn btn-primary" data-nav="matches" style="padding: 1rem 2rem;">
-                                View Matches
-                            </button>
-                            <button class="btn btn-secondary" data-nav="library" style="padding: 1rem 2rem;">
-                                Browse Library
-                            </button>
-                        </div>
+                <!-- Loading State -->
+                <div id="swipe-loading" style="display: none; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(10, 10, 15, 0.9); z-index: 10;">
+                    <div style="text-align: center;">
+                        <div style="width: 48px; height: 48px; border: 4px solid rgba(255, 46, 99, 0.3); border-top-color: #ff2e63; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 1rem;"></div>
+                        <p style="color: rgba(255, 255, 255, 0.7); font-size: 0.9375rem;">Loading movies...</p>
                     </div>
-                ` : ''}
+                </div>
+                
+                <!-- Completed State (NEW!) -->
+                <div id="swipe-completed" style="display: none; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; padding: 2rem; text-align: center; background: rgba(10, 10, 15, 0.95); z-index: 10;">
+                    <div style="font-size: 5rem; margin-bottom: 1.5rem;">🎉</div>
+                    <h2 style="font-size: 2rem; font-weight: 800; color: white; margin: 0 0 1rem 0;">
+                        You Did It!
+                    </h2>
+                    <p style="font-size: 1.125rem; color: rgba(255, 255, 255, 0.8); margin: 0 0 2rem 0; max-width: 400px;">
+                        You've swiped through all available movies. Check your Library to see your picks!
+                    </p>
+                    <button id="goto-library" style="padding: 1rem 2rem; background: linear-gradient(135deg, #ff2e63, #d90062); border: none; border-radius: 1rem; color: white; font-size: 1rem; font-weight: 700; cursor: pointer; transition: transform 0.3s; box-shadow: 0 8px 24px rgba(255, 46, 99, 0.4);" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                        View My Library →
+                    </button>
+                </div>
             </div>
         `;
         
-        // Load first card if movies available
-        if (unswipedMovies.length > 0) {
-            console.log('[SwipeTab] Loading first card...');
-            setTimeout(() => {
-                this.loadNextCard();
-            }, 100);
-        } else {
-            console.log('[SwipeTab] No unswiped movies');
-        }
-        
+        await this.loadMovies();
         this.attachListeners();
+        this.showNextCard();
     }
     
-    loadNextCard() {
-        console.log('[SwipeTab] loadNextCard called');
+    async loadMovies() {
+        this.isLoading = true;
+        const loadingEl = this.container.querySelector('#swipe-loading');
+        if (loadingEl) loadingEl.style.display = 'flex';
         
-        const movies = store.get('movies');
-        const swipeHistory = store.get('swipeHistory');
-        
-        // Get unswiped movies
-        const swipedIds = new Set(swipeHistory.map(s => s.movie?.id).filter(Boolean));
-        const unswipedMovies = movies.filter(m => !swipedIds.has(m.id));
-        
-        console.log('[SwipeTab] Unswiped count:', unswipedMovies.length);
-        
-        if (unswipedMovies.length === 0) {
-            console.log('[SwipeTab] No more movies to swipe');
+        try {
+            const tmdbService = getTMDBService();
+            let movies = [];
+            
+            if (tmdbService) {
+                movies = await tmdbService.fetchPopularMovies(3); // 3 pages = ~60 movies
+                if (ENV.APP.debug) {
+                    console.log('[SwipeTab] Loaded movies from TMDB:', movies.length);
+                }
+            } else {
+                // Fallback movies from app.js
+                const app = window.app;
+                if (app && typeof app.getFallbackMovies === 'function') {
+                    movies = app.getFallbackMovies();
+                    if (ENV.APP.debug) {
+                        console.log('[SwipeTab] Using fallback movies:', movies.length);
+                    }
+                }
+            }
+            
+            // Filter out already swiped movies
+            const state = store.getState();
+            const swipedIds = new Set((state.swipeHistory || []).map(entry => String(entry.movie.id)));
+            
+            this.movieQueue = movies.filter(movie => !swipedIds.has(String(movie.id)));
+            
+            if (ENV.APP.debug) {
+                console.log('[SwipeTab] Movies in queue after filtering:', this.movieQueue.length);
+            }
+            
+        } catch (error) {
+            console.error('[SwipeTab] Error loading movies:', error);
+            showToast('Failed to load movies. Please try again.', 'error');
+        } finally {
+            this.isLoading = false;
+            if (loadingEl) loadingEl.style.display = 'none';
+        }
+    }
+    
+    showNextCard() {
+        // Check if we've run out of movies
+        if (this.movieQueue.length === 0) {
+            this.showCompletedState();
             return;
         }
         
-        // Get next movie (first unswiped)
-        const nextMovie = unswipedMovies[0];
-        console.log('[SwipeTab] Next movie:', nextMovie?.title);
+        const movie = this.movieQueue.shift();
+        const cardContainer = this.container.querySelector('#swipe-container');
+        
+        if (!cardContainer) return;
+        
+        // Clear previous card
+        cardContainer.innerHTML = '';
         
         // Create new card
-        const container = this.container.querySelector('#swipe-card-container');
-        console.log('[SwipeTab] Container found:', !!container);
+        this.currentCard = new SwipeCard(cardContainer, movie);
+    }
+    
+    showCompletedState() {
+        const completedEl = this.container.querySelector('#swipe-completed');
+        const cardContainer = this.container.querySelector('#swipe-container');
         
-        if (container) {
-            // Clear previous card
-            if (this.currentCard) {
-                console.log('[SwipeTab] Destroying previous card');
-                this.currentCard.destroy();
+        if (completedEl && cardContainer) {
+            cardContainer.innerHTML = '';
+            completedEl.style.display = 'flex';
+            
+            // FIXED: Show confetti celebration!
+            const state = store.getState();
+            const swipeCount = (state.swipeHistory || []).length;
+            
+            if (swipeCount >= 10) { // Only if user actually swiped some movies
+                setTimeout(() => showConfetti(), 300);
             }
             
-            // Clear container
-            container.innerHTML = '';
-            
-            // Create new card
-            console.log('[SwipeTab] Creating new SwipeCard...');
-            try {
-                this.currentCard = new SwipeCard(container, nextMovie);
-                console.log('[SwipeTab] SwipeCard created successfully');
-            } catch (error) {
-                console.error('[SwipeTab] Error creating SwipeCard:', error);
-                container.innerHTML = `
-                    <div style="color: white; padding: 2rem; text-align: center;">
-                        <h2 style="color: #ff2e63; margin-bottom: 1rem;">Error Loading Card</h2>
-                        <p>${error.message}</p>
-                        <pre style="margin-top: 1rem; font-size: 0.75rem; opacity: 0.7;">${error.stack}</pre>
-                    </div>
-                `;
+            if (ENV.APP.debug) {
+                console.log('[SwipeTab] All movies swiped! Total swipes:', swipeCount);
             }
-        } else {
-            console.error('[SwipeTab] Container not found!');
         }
     }
     
     attachListeners() {
         // Action buttons
-        const actionButtons = this.container.querySelectorAll('.swipe-action-btn');
-        actionButtons.forEach(button => {
-            button.addEventListener('click', () => {
-                const action = button.dataset.action;
-                console.log('[SwipeTab] Button clicked:', action);
-                if (this.currentCard) {
-                    this.currentCard.handleAction(action);
-                }
-            });
+        const passBtn = this.container.querySelector('#swipe-pass');
+        const maybeBtn = this.container.querySelector('#swipe-maybe');
+        const likeBtn = this.container.querySelector('#swipe-like');
+        const loveBtn = this.container.querySelector('#swipe-love');
+        
+        if (passBtn) passBtn.addEventListener('click', () => this.handleButtonAction('pass'));
+        if (maybeBtn) maybeBtn.addEventListener('click', () => this.handleButtonAction('maybe'));
+        if (likeBtn) likeBtn.addEventListener('click', () => this.handleButtonAction('like'));
+        if (loveBtn) loveBtn.addEventListener('click', () => this.handleButtonAction('love'));
+        
+        // Listen for swipe actions
+        document.addEventListener('swipe-action', (e) => {
+            const { action } = e.detail;
+            
+            // Show toast with action
+            const actionEmoji = {
+                love: '❤️',
+                like: '👍',
+                maybe: '🤔',
+                pass: '✕'
+            };
+            
+            const actionText = {
+                love: 'Loved',
+                like: 'Liked',
+                maybe: 'Maybe later',
+                pass: 'Passed'
+            };
+            
+            showToast(`${actionEmoji[action]} ${actionText[action]}`, 'success');
+            
+            // Show next card
+            setTimeout(() => {
+                this.showNextCard();
+            }, 400);
         });
         
-        // Navigation buttons (empty state)
-        const navButtons = this.container.querySelectorAll('[data-nav]');
-        navButtons.forEach(button => {
-            button.addEventListener('click', () => {
-                const tab = button.dataset.nav;
-                document.dispatchEvent(new CustomEvent('navigate-tab', { detail: { tab } }));
+        // "Go to Library" button in completed state
+        const gotoLibraryBtn = this.container.querySelector('#goto-library');
+        if (gotoLibraryBtn) {
+            gotoLibraryBtn.addEventListener('click', () => {
+                document.dispatchEvent(new CustomEvent('navigate-tab', {
+                    detail: { tab: 'library' }
+                }));
             });
-        });
-        
-        // Listen for swipe completion
-        document.addEventListener('swipe-action', this.boundHandleSwipeComplete);
+        }
     }
     
-    handleSwipeComplete(e) {
-        console.log('[SwipeTab] Swipe complete:', e.detail);
-        
-        // Small delay before loading next card
-        setTimeout(() => {
-            const movies = store.get('movies');
-            const swipeHistory = store.get('swipeHistory');
-            const swipedIds = new Set(swipeHistory.map(s => s.movie?.id).filter(Boolean));
-            const remaining = movies.filter(m => !swipedIds.has(m.id)).length;
-            
-            if (remaining === 0) {
-                // Show empty state
-                this.render();
-            } else {
-                // Load next card
-                this.loadNextCard();
-                
-                // Update counter
-                const header = this.container.querySelector('h1 + p');
-                if (header) {
-                    header.textContent = `${remaining} movies remaining`;
-                }
-            }
-        }, 100);
+    handleButtonAction(action) {
+        if (this.currentCard) {
+            this.currentCard.handleAction(action);
+        }
     }
     
     destroy() {
-        console.log('[SwipeTab] Destroy called');
         if (this.currentCard) {
             this.currentCard.destroy();
-            this.currentCard = null;
         }
-        
-        document.removeEventListener('swipe-action', this.boundHandleSwipeComplete);
     }
 }
