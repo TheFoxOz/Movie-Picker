@@ -9,13 +9,15 @@ import { getPlatformStyle } from '../utils/scoring.js';
 import { ENV } from '../config/env.js';
 
 export class MatchesTab {
-    constructor(container) {
-        this.container = container;
+    constructor() {
+        this.container = null;
         this.currentView = 'selection'; // 'selection' or 'matches'
         this.selectedGroup = null;
     }
     
-    render() {
+    render(container) {
+        this.container = container;
+        
         if (this.currentView === 'selection') {
             this.renderSelection();
         } else {
@@ -24,9 +26,10 @@ export class MatchesTab {
     }
     
     renderSelection() {
-        const userId = store.get('userId');
-        const groups = store.get('groups') || [];
-        const friends = store.get('friends') || [];
+        const state = store.getState();
+        const userId = state.userId;
+        const groups = state.groups || [];
+        const friends = state.friends || [];
         
         this.container.innerHTML = `
             <div style="background: linear-gradient(180deg, #0a0a0f 0%, #12121a 50%, #0a0a0f 100%); min-height: 100vh; padding-bottom: 100px;">
@@ -88,10 +91,10 @@ export class MatchesTab {
                             Create a group or add friends to find movie matches together!
                         </p>
                         <div style="display: flex; gap: 1rem; justify-content: center;">
-                            <button class="btn btn-primary" id="create-group-btn" style="padding: 1rem 2rem;">
+                            <button class="btn btn-primary" id="create-group-btn" style="padding: 1rem 2rem; background: linear-gradient(135deg, #ff2e63, #d90062); border: none; border-radius: 0.75rem; color: white; font-weight: 700; cursor: pointer;">
                                 Create Group
                             </button>
-                            <button class="btn btn-secondary" id="add-friend-btn" style="padding: 1rem 2rem;">
+                            <button class="btn btn-secondary" id="add-friend-btn" style="padding: 1rem 2rem; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 0.75rem; color: white; font-weight: 700; cursor: pointer;">
                                 Add Friend
                             </button>
                         </div>
@@ -100,7 +103,7 @@ export class MatchesTab {
                 
                 <!-- Demo Data Button (for testing) -->
                 <div style="padding: 1rem 1.5rem;">
-                    <button class="btn" id="load-demo-btn" style="width: 100%; padding: 1rem; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); color: rgba(255, 255, 255, 0.6); font-size: 0.875rem;">
+                    <button class="btn" id="load-demo-btn" style="width: 100%; padding: 1rem; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 0.75rem; color: rgba(255, 255, 255, 0.6); font-size: 0.875rem; cursor: pointer;">
                         Load Demo Friends & Groups
                     </button>
                 </div>
@@ -179,9 +182,10 @@ export class MatchesTab {
     }
     
     renderMatches() {
+        const state = store.getState();
         const group = this.selectedGroup;
-        const movies = store.get('movies');
-        const swipeHistory = store.get('swipeHistory');
+        const movies = state.movies || [];
+        const swipeHistory = state.swipeHistory || [];
         
         // Calculate matches based on group members
         const matches = this.calculateMatches(group, movies, swipeHistory);
@@ -365,6 +369,8 @@ export class MatchesTab {
     }
     
     calculateMatches(group, movies, swipeHistory) {
+        const state = store.getState();
+        
         // Simulate group matches based on swipe history
         const userSwipes = swipeHistory.filter(s => ['love', 'like'].includes(s.action));
         
@@ -378,7 +384,7 @@ export class MatchesTab {
             
             // Add user's swipe
             groupSwipes.push({
-                user: { id: store.get('userId'), name: 'You', avatar: '😊' },
+                user: { id: state.userId || 'current-user', name: 'You', avatar: '😊' },
                 action: swipe.action
             });
             
@@ -426,10 +432,11 @@ export class MatchesTab {
         groupCards.forEach(card => {
             card.addEventListener('click', () => {
                 const groupId = card.dataset.groupId;
-                const groups = store.get('groups') || [];
+                const state = store.getState();
+                const groups = state.groups || [];
                 this.selectedGroup = groups.find(g => g.id === groupId);
                 this.currentView = 'matches';
-                this.render();
+                this.render(this.container);
             });
         });
         
@@ -438,7 +445,8 @@ export class MatchesTab {
         friendCards.forEach(card => {
             card.addEventListener('click', () => {
                 const friendId = card.dataset.friendId;
-                const friends = store.get('friends') || [];
+                const state = store.getState();
+                const friends = state.friends || [];
                 const friend = friends.find(f => f.id === friendId);
                 // Convert friend to group format
                 this.selectedGroup = {
@@ -448,7 +456,7 @@ export class MatchesTab {
                     members: [friend]
                 };
                 this.currentView = 'matches';
-                this.render();
+                this.render(this.container);
             });
         });
         
@@ -484,7 +492,7 @@ export class MatchesTab {
             backBtn.addEventListener('click', () => {
                 this.currentView = 'selection';
                 this.selectedGroup = null;
-                this.render();
+                this.render(this.container);
             });
         }
         
@@ -493,8 +501,9 @@ export class MatchesTab {
         movieCards.forEach(card => {
             card.addEventListener('click', () => {
                 const movieId = card.dataset.movieId;
-                const movies = store.get('movies');
-                const movie = movies.find(m => m.id === movieId);
+                const state = store.getState();
+                const movies = state.movies || [];
+                const movie = movies.find(m => String(m.id) === String(movieId));
                 if (movie) {
                     movieModal.show(movie);
                 }
@@ -542,7 +551,7 @@ export class MatchesTab {
             { id: 'friend4', name: 'Tom', avatar: '👨‍🦳', matchCount: 6, compatibility: 54 }
         ];
         
-        // FIXED: Use setState() instead of non-existent set() method
+        // FIXED: Use setState() instead of set()
         store.setState({
             groups: demoGroups,
             friends: demoFriends
@@ -552,7 +561,7 @@ export class MatchesTab {
             console.log('[MatchesTab] ✅ Demo data loaded successfully');
         }
         
-        this.render();
+        this.render(this.container);
     }
     
     destroy() {
