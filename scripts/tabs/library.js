@@ -1,10 +1,10 @@
 /**
  * Library Tab Component
- * Browse all TMDB movies + Filter to show your swipes
+ * Browse UNLIMITED TMDB movies with infinite scroll
  */
 
 import { store } from '../state/store.js';
-import { getTMDBService } from '../services/tmdb.js';
+import { getTMDBService, GENRE_IDS } from '../services/tmdb.js';
 import { movieModal } from '../components/movie-modal.js';
 import { ENV } from '../config/env.js';
 
@@ -14,8 +14,13 @@ export class LibraryTab {
         this.allMovies = [];
         this.filteredMovies = [];
         this.currentFilter = 'all'; // 'all', 'loved', 'liked', 'maybe', 'passed'
+        this.currentGenre = 'all'; // 'all' or genre ID
+        this.currentPlatform = 'all'; // 'all', 'Netflix', 'Hulu', etc.
         this.searchQuery = '';
         this.isLoading = false;
+        this.currentPage = 1;
+        this.hasMorePages = true;
+        this.scrollListener = null;
     }
     
     async render(container) {
@@ -24,14 +29,17 @@ export class LibraryTab {
         // Show loading state
         this.container.innerHTML = this.renderLoading();
         
-        // Load all TMDB movies
-        await this.loadAllMovies();
+        // Load initial movies
+        await this.loadMovies(1);
         
         // Render full UI
         this.renderContent();
+        
+        // Setup infinite scroll
+        this.setupInfiniteScroll();
     }
     
-    async loadAllMovies() {
+    async loadMovies(page) {
         if (this.isLoading) return;
         this.isLoading = true;
         
@@ -39,23 +47,21 @@ export class LibraryTab {
             const tmdbService = getTMDBService();
             
             if (tmdbService) {
-                // Load popular, trending, and top-rated movies
-                const [popular, trending, topRated] = await Promise.all([
-                    tmdbService.fetchPopularMovies(3),    // 60 movies
-                    tmdbService.fetchTrendingMovies(),     // 20 movies
-                    tmdbService.fetchTopRatedMovies(2)     // 40 movies
-                ]);
+                // Load multiple pages of popular movies
+                const movies = await tmdbService.fetchPopularMovies(1, page);
                 
-                // Combine and deduplicate
-                const allMoviesMap = new Map();
-                [...popular, ...trending, ...topRated].forEach(movie => {
-                    allMoviesMap.set(movie.id, movie);
-                });
-                
-                this.allMovies = Array.from(allMoviesMap.values());
+                if (movies.length === 0) {
+                    this.hasMorePages = false;
+                } else {
+                    // Add new movies (deduplicate by ID)
+                    const existingIds = new Set(this.allMovies.map(m => m.id));
+                    const newMovies = movies.filter(m => !existingIds.has(m.id));
+                    this.allMovies.push(...newMovies);
+                    this.currentPage = page;
+                }
                 
                 if (ENV.APP.debug) {
-                    console.log('[LibraryTab] Loaded movies:', this.allMovies.length);
+                    console.log('[LibraryTab] Total movies loaded:', this.allMovies.length, 'Page:', page);
                 }
             } else {
                 // Fallback to demo movies
@@ -63,17 +69,40 @@ export class LibraryTab {
                 if (app && typeof app.getFallbackMovies === 'function') {
                     this.allMovies = app.getFallbackMovies();
                 }
+                this.hasMorePages = false;
             }
             
             this.filteredMovies = [...this.allMovies];
             
         } catch (error) {
             console.error('[LibraryTab] Error loading movies:', error);
-            this.allMovies = [];
-            this.filteredMovies = [];
+            this.hasMorePages = false;
         } finally {
             this.isLoading = false;
         }
+    }
+    
+    setupInfiniteScroll() {
+        // Remove old listener if exists
+        if (this.scrollListener) {
+            window.removeEventListener('scroll', this.scrollListener);
+        }
+        
+        // Create new scroll listener
+        this.scrollListener = async () => {
+            // Check if near bottom of page
+            const scrollHeight = document.documentElement.scrollHeight;
+            const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+            const clientHeight = window.innerHeight;
+            
+            if (scrollHeight - scrollTop - clientHeight < 500 && !this.isLoading && this.hasMorePages && this.currentFilter === 'all') {
+                // Load next page
+                await this.loadMovies(this.currentPage + 1);
+                this.updateMoviesGrid();
+            }
+        };
+        
+        window.addEventListener('scroll', this.scrollListener);
     }
     
     renderLoading() {
@@ -106,7 +135,7 @@ export class LibraryTab {
                         📚 Movie Library
                     </h1>
                     <p style="color: rgba(255, 255, 255, 0.6); font-size: 0.875rem; margin: 0;">
-                        Browse ${this.allMovies.length} movies or filter your swipes
+                        ${this.allMovies.length}+ movies • Scroll for more!
                     </p>
                 </div>
                 
@@ -115,35 +144,112 @@ export class LibraryTab {
                     <input 
                         type="text" 
                         id="search-input" 
-                        placeholder="Search movies..." 
+                        placeholder="Search movies by title..." 
                         value="${this.searchQuery}"
                         style="width: 100%; padding: 1rem; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 1rem; color: white; font-size: 1rem;"
                     >
                 </div>
                 
-                <!-- Filter Buttons -->
-                <div style="display: flex; gap: 0.5rem; overflow-x: auto; padding-bottom: 0.5rem; margin-bottom: 1.5rem; -webkit-overflow-scrolling: touch;">
-                    <button class="filter-btn" data-filter="all" style="padding: 0.75rem 1.5rem; background: ${this.currentFilter === 'all' ? 'linear-gradient(135deg, #ff2e63, #d90062)' : 'rgba(255, 255, 255, 0.05)'}; border: 1px solid ${this.currentFilter === 'all' ? '#ff2e63' : 'rgba(255, 255, 255, 0.1)'}; border-radius: 0.75rem; color: white; font-size: 0.875rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.3s;">
-                        🎬 All Movies (${this.allMovies.length})
-                    </button>
-                    <button class="filter-btn" data-filter="loved" style="padding: 0.75rem 1.5rem; background: ${this.currentFilter === 'loved' ? 'linear-gradient(135deg, #ff006e, #d90062)' : 'rgba(255, 255, 255, 0.05)'}; border: 1px solid ${this.currentFilter === 'loved' ? '#ff006e' : 'rgba(255, 255, 255, 0.1)'}; border-radius: 0.75rem; color: white; font-size: 0.875rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.3s;">
-                        ❤️ Loved (${swipeCounts.loved})
-                    </button>
-                    <button class="filter-btn" data-filter="liked" style="padding: 0.75rem 1.5rem; background: ${this.currentFilter === 'liked' ? 'linear-gradient(135deg, #10b981, #059669)' : 'rgba(255, 255, 255, 0.05)'}; border: 1px solid ${this.currentFilter === 'liked' ? '#10b981' : 'rgba(255, 255, 255, 0.1)'}; border-radius: 0.75rem; color: white; font-size: 0.875rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.3s;">
-                        👍 Liked (${swipeCounts.liked})
-                    </button>
-                    <button class="filter-btn" data-filter="maybe" style="padding: 0.75rem 1.5rem; background: ${this.currentFilter === 'maybe' ? 'linear-gradient(135deg, #fbbf24, #f59e0b)' : 'rgba(255, 255, 255, 0.05)'}; border: 1px solid ${this.currentFilter === 'maybe' ? '#fbbf24' : 'rgba(255, 255, 255, 0.1)'}; border-radius: 0.75rem; color: white; font-size: 0.875rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.3s;">
-                        🤔 Maybe (${swipeCounts.maybe})
-                    </button>
-                    <button class="filter-btn" data-filter="passed" style="padding: 0.75rem 1.5rem; background: ${this.currentFilter === 'passed' ? 'linear-gradient(135deg, #ef4444, #dc2626)' : 'rgba(255, 255, 255, 0.05)'}; border: 1px solid ${this.currentFilter === 'passed' ? '#ef4444' : 'rgba(255, 255, 255, 0.1)'}; border-radius: 0.75rem; color: white; font-size: 0.875rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.3s;">
-                        ✕ Passed (${swipeCounts.passed})
-                    </button>
+                <!-- Filter: Swipe Actions -->
+                <div style="margin-bottom: 1rem;">
+                    <h3 style="font-size: 0.875rem; font-weight: 700; color: rgba(255, 255, 255, 0.7); text-transform: uppercase; letter-spacing: 0.05em; margin: 0 0 0.5rem 0;">
+                        Your Swipes
+                    </h3>
+                    <div style="display: flex; gap: 0.5rem; overflow-x: auto; padding-bottom: 0.5rem; -webkit-overflow-scrolling: touch;">
+                        <button class="filter-btn" data-filter="all" style="padding: 0.75rem 1.5rem; background: ${this.currentFilter === 'all' ? 'linear-gradient(135deg, #ff2e63, #d90062)' : 'rgba(255, 255, 255, 0.05)'}; border: 1px solid ${this.currentFilter === 'all' ? '#ff2e63' : 'rgba(255, 255, 255, 0.1)'}; border-radius: 0.75rem; color: white; font-size: 0.875rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.3s;">
+                            🎬 All
+                        </button>
+                        <button class="filter-btn" data-filter="loved" style="padding: 0.75rem 1.5rem; background: ${this.currentFilter === 'loved' ? 'linear-gradient(135deg, #ff006e, #d90062)' : 'rgba(255, 255, 255, 0.05)'}; border: 1px solid ${this.currentFilter === 'loved' ? '#ff006e' : 'rgba(255, 255, 255, 0.1)'}; border-radius: 0.75rem; color: white; font-size: 0.875rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.3s;">
+                            ❤️ Loved (${swipeCounts.loved})
+                        </button>
+                        <button class="filter-btn" data-filter="liked" style="padding: 0.75rem 1.5rem; background: ${this.currentFilter === 'liked' ? 'linear-gradient(135deg, #10b981, #059669)' : 'rgba(255, 255, 255, 0.05)'}; border: 1px solid ${this.currentFilter === 'liked' ? '#10b981' : 'rgba(255, 255, 255, 0.1)'}; border-radius: 0.75rem; color: white; font-size: 0.875rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.3s;">
+                            👍 Liked (${swipeCounts.liked})
+                        </button>
+                        <button class="filter-btn" data-filter="maybe" style="padding: 0.75rem 1.5rem; background: ${this.currentFilter === 'maybe' ? 'linear-gradient(135deg, #fbbf24, #f59e0b)' : 'rgba(255, 255, 255, 0.05)'}; border: 1px solid ${this.currentFilter === 'maybe' ? '#fbbf24' : 'rgba(255, 255, 255, 0.1)'}; border-radius: 0.75rem; color: white; font-size: 0.875rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.3s;">
+                            🤔 Maybe (${swipeCounts.maybe})
+                        </button>
+                        <button class="filter-btn" data-filter="passed" style="padding: 0.75rem 1.5rem; background: ${this.currentFilter === 'passed' ? 'linear-gradient(135deg, #ef4444, #dc2626)' : 'rgba(255, 255, 255, 0.05)'}; border: 1px solid ${this.currentFilter === 'passed' ? '#ef4444' : 'rgba(255, 255, 255, 0.1)'}; border-radius: 0.75rem; color: white; font-size: 0.875rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.3s;">
+                            ✕ Passed (${swipeCounts.passed})
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Filter: Genres -->
+                <div style="margin-bottom: 1rem;">
+                    <h3 style="font-size: 0.875rem; font-weight: 700; color: rgba(255, 255, 255, 0.7); text-transform: uppercase; letter-spacing: 0.05em; margin: 0 0 0.5rem 0;">
+                        Genre
+                    </h3>
+                    <div style="display: flex; gap: 0.5rem; overflow-x: auto; padding-bottom: 0.5rem; -webkit-overflow-scrolling: touch;">
+                        <button class="genre-btn" data-genre="all" style="padding: 0.75rem 1.5rem; background: ${this.currentGenre === 'all' ? 'linear-gradient(135deg, #8b5cf6, #7c3aed)' : 'rgba(255, 255, 255, 0.05)'}; border: 1px solid ${this.currentGenre === 'all' ? '#8b5cf6' : 'rgba(255, 255, 255, 0.1)'}; border-radius: 0.75rem; color: white; font-size: 0.875rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.3s;">
+                            All Genres
+                        </button>
+                        <button class="genre-btn" data-genre="${GENRE_IDS.ACTION}" style="padding: 0.75rem 1.5rem; background: ${this.currentGenre == GENRE_IDS.ACTION ? 'linear-gradient(135deg, #8b5cf6, #7c3aed)' : 'rgba(255, 255, 255, 0.05)'}; border: 1px solid ${this.currentGenre == GENRE_IDS.ACTION ? '#8b5cf6' : 'rgba(255, 255, 255, 0.1)'}; border-radius: 0.75rem; color: white; font-size: 0.875rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.3s;">
+                            💥 Action
+                        </button>
+                        <button class="genre-btn" data-genre="${GENRE_IDS.COMEDY}" style="padding: 0.75rem 1.5rem; background: ${this.currentGenre == GENRE_IDS.COMEDY ? 'linear-gradient(135deg, #8b5cf6, #7c3aed)' : 'rgba(255, 255, 255, 0.05)'}; border: 1px solid ${this.currentGenre == GENRE_IDS.COMEDY ? '#8b5cf6' : 'rgba(255, 255, 255, 0.1)'}; border-radius: 0.75rem; color: white; font-size: 0.875rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.3s;">
+                            😂 Comedy
+                        </button>
+                        <button class="genre-btn" data-genre="${GENRE_IDS.DRAMA}" style="padding: 0.75rem 1.5rem; background: ${this.currentGenre == GENRE_IDS.DRAMA ? 'linear-gradient(135deg, #8b5cf6, #7c3aed)' : 'rgba(255, 255, 255, 0.05)'}; border: 1px solid ${this.currentGenre == GENRE_IDS.DRAMA ? '#8b5cf6' : 'rgba(255, 255, 255, 0.1)'}; border-radius: 0.75rem; color: white; font-size: 0.875rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.3s;">
+                            🎭 Drama
+                        </button>
+                        <button class="genre-btn" data-genre="${GENRE_IDS.HORROR}" style="padding: 0.75rem 1.5rem; background: ${this.currentGenre == GENRE_IDS.HORROR ? 'linear-gradient(135deg, #8b5cf6, #7c3aed)' : 'rgba(255, 255, 255, 0.05)'}; border: 1px solid ${this.currentGenre == GENRE_IDS.HORROR ? '#8b5cf6' : 'rgba(255, 255, 255, 0.1)'}; border-radius: 0.75rem; color: white; font-size: 0.875rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.3s;">
+                            👻 Horror
+                        </button>
+                        <button class="genre-btn" data-genre="${GENRE_IDS.SCIFI}" style="padding: 0.75rem 1.5rem; background: ${this.currentGenre == GENRE_IDS.SCIFI ? 'linear-gradient(135deg, #8b5cf6, #7c3aed)' : 'rgba(255, 255, 255, 0.05)'}; border: 1px solid ${this.currentGenre == GENRE_IDS.SCIFI ? '#8b5cf6' : 'rgba(255, 255, 255, 0.1)'}; border-radius: 0.75rem; color: white; font-size: 0.875rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.3s;">
+                            🚀 Sci-Fi
+                        </button>
+                        <button class="genre-btn" data-genre="${GENRE_IDS.ROMANCE}" style="padding: 0.75rem 1.5rem; background: ${this.currentGenre == GENRE_IDS.ROMANCE ? 'linear-gradient(135deg, #8b5cf6, #7c3aed)' : 'rgba(255, 255, 255, 0.05)'}; border: 1px solid ${this.currentGenre == GENRE_IDS.ROMANCE ? '#8b5cf6' : 'rgba(255, 255, 255, 0.1)'}; border-radius: 0.75rem; color: white; font-size: 0.875rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.3s;">
+                            💕 Romance
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Filter: Platforms -->
+                <div style="margin-bottom: 1.5rem;">
+                    <h3 style="font-size: 0.875rem; font-weight: 700; color: rgba(255, 255, 255, 0.7); text-transform: uppercase; letter-spacing: 0.05em; margin: 0 0 0.5rem 0;">
+                        Platform
+                    </h3>
+                    <div style="display: flex; gap: 0.5rem; overflow-x: auto; padding-bottom: 0.5rem; -webkit-overflow-scrolling: touch;">
+                        <button class="platform-btn" data-platform="all" style="padding: 0.75rem 1.5rem; background: ${this.currentPlatform === 'all' ? 'linear-gradient(135deg, #ec4899, #db2777)' : 'rgba(255, 255, 255, 0.05)'}; border: 1px solid ${this.currentPlatform === 'all' ? '#ec4899' : 'rgba(255, 255, 255, 0.1)'}; border-radius: 0.75rem; color: white; font-size: 0.875rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.3s;">
+                            All Platforms
+                        </button>
+                        <button class="platform-btn" data-platform="Netflix" style="padding: 0.75rem 1.5rem; background: ${this.currentPlatform === 'Netflix' ? 'rgba(229, 9, 20, 0.8)' : 'rgba(255, 255, 255, 0.05)'}; border: 1px solid ${this.currentPlatform === 'Netflix' ? '#E50914' : 'rgba(255, 255, 255, 0.1)'}; border-radius: 0.75rem; color: white; font-size: 0.875rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.3s;">
+                            Netflix
+                        </button>
+                        <button class="platform-btn" data-platform="Hulu" style="padding: 0.75rem 1.5rem; background: ${this.currentPlatform === 'Hulu' ? 'rgba(28, 231, 131, 0.8)' : 'rgba(255, 255, 255, 0.05)'}; border: 1px solid ${this.currentPlatform === 'Hulu' ? '#1CE783' : 'rgba(255, 255, 255, 0.1)'}; border-radius: 0.75rem; color: white; font-size: 0.875rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.3s;">
+                            Hulu
+                        </button>
+                        <button class="platform-btn" data-platform="Prime Video" style="padding: 0.75rem 1.5rem; background: ${this.currentPlatform === 'Prime Video' ? 'rgba(0, 168, 225, 0.8)' : 'rgba(255, 255, 255, 0.05)'}; border: 1px solid ${this.currentPlatform === 'Prime Video' ? '#00A8E1' : 'rgba(255, 255, 255, 0.1)'}; border-radius: 0.75rem; color: white; font-size: 0.875rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.3s;">
+                            Prime Video
+                        </button>
+                        <button class="platform-btn" data-platform="Disney+" style="padding: 0.75rem 1.5rem; background: ${this.currentPlatform === 'Disney+' ? 'rgba(17, 60, 207, 0.8)' : 'rgba(255, 255, 255, 0.05)'}; border: 1px solid ${this.currentPlatform === 'Disney+' ? '#113CCF' : 'rgba(255, 255, 255, 0.1)'}; border-radius: 0.75rem; color: white; font-size: 0.875rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.3s;">
+                            Disney+
+                        </button>
+                        <button class="platform-btn" data-platform="HBO Max" style="padding: 0.75rem 1.5rem; background: ${this.currentPlatform === 'HBO Max' ? 'rgba(178, 0, 255, 0.8)' : 'rgba(255, 255, 255, 0.05)'}; border: 1px solid ${this.currentPlatform === 'HBO Max' ? '#B200FF' : 'rgba(255, 255, 255, 0.1)'}; border-radius: 0.75rem; color: white; font-size: 0.875rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.3s;">
+                            HBO Max
+                        </button>
+                    </div>
                 </div>
                 
                 <!-- Movies Grid -->
                 <div id="movies-grid">
                     ${this.renderMoviesGrid()}
                 </div>
+                
+                <!-- Loading More Indicator -->
+                ${this.isLoading ? `
+                    <div style="text-align: center; padding: 2rem;">
+                        <div style="width: 40px; height: 40px; border: 3px solid rgba(255, 46, 99, 0.3); border-top-color: #ff2e63; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto;"></div>
+                    </div>
+                ` : ''}
+                
+                ${!this.hasMorePages && this.currentFilter === 'all' ? `
+                    <div style="text-align: center; padding: 2rem;">
+                        <p style="color: rgba(255, 255, 255, 0.5); font-size: 0.875rem;">
+                            🎬 You've reached the end!
+                        </p>
+                    </div>
+                ` : ''}
             </div>
         `;
         
@@ -166,13 +272,25 @@ export class LibraryTab {
             moviesToShow = moviesToShow.filter(m => swipedMovieIds.includes(String(m.id)));
         }
         
+        // Filter by genre
+        if (this.currentGenre !== 'all') {
+            moviesToShow = moviesToShow.filter(m => {
+                const genreId = parseInt(this.currentGenre);
+                return m.genre_ids && m.genre_ids.includes(genreId);
+            });
+        }
+        
+        // Filter by platform
+        if (this.currentPlatform !== 'all') {
+            moviesToShow = moviesToShow.filter(m => m.platform === this.currentPlatform);
+        }
+        
         // Filter by search query
         if (this.searchQuery) {
             const query = this.searchQuery.toLowerCase();
             moviesToShow = moviesToShow.filter(m => 
                 m.title.toLowerCase().includes(query) ||
-                (m.synopsis && m.synopsis.toLowerCase().includes(query)) ||
-                (m.genre && m.genre.toLowerCase().includes(query))
+                (m.overview && m.overview.toLowerCase().includes(query))
             );
         }
         
@@ -223,9 +341,9 @@ export class LibraryTab {
                         <h3 style="font-size: 0.8125rem; font-weight: 700; color: white; margin: 0; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">
                             ${movie.title}
                         </h3>
-                        ${movie.year ? `
+                        ${movie.year || movie.release_date ? `
                             <p style="font-size: 0.6875rem; color: rgba(255, 255, 255, 0.7); margin: 0.25rem 0 0 0;">
-                                ${movie.year}
+                                ${movie.year || new Date(movie.release_date).getFullYear()}
                             </p>
                         ` : ''}
                     </div>
@@ -270,7 +388,7 @@ export class LibraryTab {
                 <div style="font-size: 4rem; margin-bottom: 1rem;">${icon}</div>
                 <h3 style="font-size: 1.25rem; font-weight: 700; color: white; margin: 0 0 0.5rem 0;">${message}</h3>
                 <p style="color: rgba(255, 255, 255, 0.6); font-size: 0.875rem; margin: 0;">
-                    ${this.currentFilter !== 'all' ? 'Start swiping to build your library!' : 'Try a different search term'}
+                    ${this.currentFilter !== 'all' ? 'Start swiping to build your library!' : 'Try adjusting your filters'}
                 </p>
             </div>
         `;
@@ -286,11 +404,44 @@ export class LibraryTab {
             });
         }
         
-        // Filter buttons
+        // Filter buttons (swipe actions)
         const filterBtns = this.container.querySelectorAll('.filter-btn');
         filterBtns.forEach(btn => {
             btn.addEventListener('click', () => {
                 this.currentFilter = btn.dataset.filter;
+                this.renderContent();
+            });
+        });
+        
+        // Genre buttons
+        const genreBtns = this.container.querySelectorAll('.genre-btn');
+        genreBtns.forEach(btn => {
+            btn.addEventListener('click', async () => {
+                this.currentGenre = btn.dataset.genre;
+                
+                // If filtering by genre and showing all movies, load genre-specific movies
+                if (this.currentGenre !== 'all' && this.currentFilter === 'all') {
+                    const tmdbService = getTMDBService();
+                    if (tmdbService) {
+                        this.allMovies = [];
+                        this.isLoading = true;
+                        this.renderContent();
+                        
+                        const movies = await tmdbService.fetchMoviesByGenre(parseInt(this.currentGenre));
+                        this.allMovies = movies;
+                        this.isLoading = false;
+                    }
+                }
+                
+                this.renderContent();
+            });
+        });
+        
+        // Platform buttons
+        const platformBtns = this.container.querySelectorAll('.platform-btn');
+        platformBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                this.currentPlatform = btn.dataset.platform;
                 this.renderContent();
             });
         });
@@ -333,6 +484,10 @@ export class LibraryTab {
     }
     
     destroy() {
-        // Cleanup if needed
+        // Remove scroll listener
+        if (this.scrollListener) {
+            window.removeEventListener('scroll', this.scrollListener);
+            this.scrollListener = null;
+        }
     }
 }
