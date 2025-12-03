@@ -1,12 +1,12 @@
 /**
  * Firebase Configuration and Initialization
- * Using Firebase v9 Compat SDK
+ * Using Firebase v8 (Namespaced SDK) - Works with CDN
  */
 
-// Import Firebase v9.6.1 compat
-import firebase from 'https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js';
-import 'https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js';
-import 'https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js';
+// Import Firebase v8 from CDN
+import 'https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js';
+import 'https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js';
+import 'https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js';
 
 // Your Firebase configuration
 const firebaseConfig = {
@@ -19,15 +19,15 @@ const firebaseConfig = {
   measurementId: "G-5TEXFJFSNR"
 };
 
-// Initialize Firebase
-if (!firebase.apps.length) {
-  firebase.initializeApp(firebaseConfig);
+// Initialize Firebase (v8 attaches to window.firebase)
+if (!window.firebase.apps.length) {
+  window.firebase.initializeApp(firebaseConfig);
 }
 
-// Export Firebase services with proper named exports
+// Export Firebase services
+export const firebase = window.firebase;
 export const auth = firebase.auth();
 export const db = firebase.firestore();
-export { firebase };
 
 // Optional: Analytics
 let analytics = null;
@@ -40,3 +40,5 @@ try {
 }
 
 export { analytics };
+
+console.log('[Firebase] Initialized successfully with v8 SDK');
