@@ -9,10 +9,10 @@
     <title>Movie Picker - Swipe, Match, Watch</title>
     
     <!-- Favicon -->
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎬</text></svg>">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>Film</text></svg>">
     
     <!-- Apple Touch Icon -->
-    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎬</text></svg>">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>Film</text></svg>">
     
     <!-- PWA Manifest -->
     <link rel="manifest" href="/manifest.json">
@@ -26,42 +26,16 @@
     <link rel="preconnect" href="https://api.themoviedb.org">
     <link rel="preconnect" href="https://image.tmdb.org/t/p">
     
-    <!-- Configuration -->
+    <!-- ============================================ -->
+    <!-- TMDB API KEY – THIS WAS THE PROBLEM! -->
+    <!-- ============================================ -->
     <script>
-        // ============================================
-        // TMDB API KEY CONFIGURATION
-        // ============================================
-        // 🔑 Get your free API key at: https://www.themoviedb.org/settings/api
-        // 
-        // IMPORTANT: TMDB API keys are meant to be public and client-side.
-        // They are read-only and don't pose a security risk.
-        // See: https://developers.themoviedb.org/3/getting-started/introduction
-        //
-        // TO GET YOUR KEY:
-        // 1. Sign up at https://www.themoviedb.org/signup
-        // 2. Go to https://www.themoviedb.org/settings/api
-        // 3. Click "Request an API Key" → Choose "Developer"
-        // 4. Fill out the simple form (just say "Personal project")
-        // 5. Copy your API key and paste it below
-        // ============================================
+        // Your app reads `window.__tmdb_api_key`
+        // You had `window.tmdbApiKey` → that’s why it said “not found”
+        window.__tmdb_api_key = 'fb172ed62b2cd58897d484ad8ba0cf60';
         
-        window.tmdbApiKey = 'fb172ed62b2cd58897d484ad8ba0cf60';
-        
-        // ============================================
-        // DEBUG MODE
-        // ============================================
-        // Set to true for development (shows console logs)
-        // Set to false for production (hides console logs)
-        // ============================================
-        
-        window.__debug = false;
-        
-        // ============================================
-        // APP INFO (Optional - for analytics/tracking)
-        // ============================================
-        
-        window.appVersion = '1.0.0';
-        window.appName = 'Movie Picker';
+        // Debug mode (set to true while testing)
+        window.__debug = true;
     </script>
 </head>
 <body>
@@ -120,17 +94,13 @@
     
     <!-- PWA Service Worker Registration (Optional - for offline support) -->
     <script>
-        // Register service worker for PWA functionality
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                // Uncomment below when you create a service worker
-                // navigator.serviceWorker.register('/sw.js')
-                //     .then(reg => console.log('Service Worker registered'))
-                //     .catch(err => console.log('Service Worker registration failed'));
+                // Uncomment when you add a service worker
+                // navigator.serviceWorker.register('/sw.js');
             });
         }
     </script>
     
 </body>
 </html>
-
