@@ -142,4 +142,107 @@ export function calculateMatchScore(user1Swipes, user2Swipes) {
     
     // Calculate percentage match
     const totalMovies = new Set([...user1Movies, ...user2Movies]).size;
-    const matchPercentage = t
+    const matchPercentage = totalMovies > 0 
+        ? Math.round((commonMovies.length / totalMovies) * 100)
+        : 0;
+    
+    // Get full movie objects for common movies
+    const commonMovieObjects = user1Swipes
+        .filter(entry => commonMovies.includes(entry.movie.id))
+        .map(entry => entry.movie);
+    
+    if (ENV.APP.debug) {
+        console.log('[Scoring] Match score:', matchPercentage, '% with', commonMovies.length, 'common movies');
+    }
+    
+    return {
+        score: matchPercentage,
+        commonMovies: commonMovieObjects,
+        commonCount: commonMovies.length,
+        isPerfectMatch: matchPercentage >= 80
+    };
+}
+
+/**
+ * Calculate group compatibility score
+ * Finds movies that all group members like
+ * 
+ * @param {Array} groupMembers - Array of user objects with swipe history
+ * @returns {Object} Group match data
+ */
+export function calculateGroupScore(groupMembers) {
+    if (groupMembers.length === 0) {
+        return { score: 0, commonMovies: [], isPerfectMatch: false };
+    }
+    
+    // Get liked/loved movies for each member
+    const memberMovieSets = groupMembers.map(member => 
+        new Set(
+            (member.swipeHistory || [])
+                .filter(entry => ['love', 'like'].includes(entry.action))
+                .map(entry => entry.movie.id)
+        )
+    );
+    
+    // Find intersection (movies liked by ALL members)
+    const intersection = [...memberMovieSets[0]].filter(movieId =>
+        memberMovieSets.every(set => set.has(movieId))
+    );
+    
+    // Calculate average individual library size
+    const avgLibrarySize = memberMovieSets.reduce((sum, set) => sum + set.size, 0) / memberMovieSets.length;
+    
+    // Calculate group score
+    const groupScore = avgLibrarySize > 0
+        ? Math.round((intersection.length / avgLibrarySize) * 100)
+        : 0;
+    
+    // Get full movie objects
+    const allSwipes = groupMembers.flatMap(m => m.swipeHistory || []);
+    const commonMovieObjects = intersection.map(id => 
+        allSwipes.find(entry => entry.movie.id === id)?.movie
+    ).filter(Boolean);
+    
+    if (ENV.APP.debug) {
+        console.log('[Scoring] Group score:', groupScore, '% with', intersection.length, 'common movies');
+    }
+    
+    return {
+        score: groupScore,
+        commonMovies: commonMovieObjects,
+        commonCount: intersection.length,
+        isPerfectMatch: groupScore >= 70 && intersection.length >= 3
+    };
+}
+
+/**
+ * Get recommended movies based on user preferences
+ * 
+ * @param {Array} allMovies - All available movies
+ * @param {Array} userSwipeHistory - User's swipe history
+ * @param {Object} userPreferences - User preferences
+ * @param {number} limit - Number of recommendations (default: 10)
+ * @returns {Array} Recommended movies sorted by score
+ */
+export function getRecommendedMovies(allMovies, userSwipeHistory, userPreferences, limit = 10) {
+    // Filter out already swiped movies
+    const swipedIds = new Set(userSwipeHistory.map(entry => entry.movie.id));
+    const unswipedMovies = allMovies.filter(movie => !swipedIds.has(movie.id));
+    
+    // Calculate score for each movie
+    const scoredMovies = unswipedMovies.map(movie => ({
+        ...movie,
+        recommendationScore: calculateIntelligentScore(movie, userPreferences, userSwipeHistory)
+    }));
+    
+    // Sort by score and return top results
+    const recommendations = scoredMovies
+        .sort((a, b) => b.recommendationScore - a.recommendationScore)
+        .slice(0, limit);
+    
+    if (ENV.APP.debug) {
+        console.log('[Scoring] Generated', recommendations.length, 'recommendations');
+    }
+    
+    return recommendations;
+}
