@@ -322,18 +322,45 @@ export class SwipeCard {
         }, 400);
     }
     
+    // ✨ ENHANCED: handleAction with UNDO functionality
     handleAction(action) {
         if (ENV.APP.debug) {
             console.log(`[SwipeCard] Action: ${action} for movie: ${this.movie.title}`);
         }
         
-        // Store swipe in history (LOCAL ONLY - no Firebase)
-        store.addSwipeToHistory({
+        // Store the swipe action
+        const swipeEntry = {
             movie: this.movie,
             action: action,
             timestamp: Date.now()
+        };
+        
+        // Add to history
+        store.addSwipeToHistory(swipeEntry);
+        
+        // ✨ NEW: Create undo function
+        const undo = () => {
+            const state = store.getState();
+            const history = [...state.swipeHistory];
+            
+            // Remove the last swipe (this one)
+            const removed = history.pop();
+            
+            if (removed) {
+                store.setState({ swipeHistory: history });
+                
+                if (ENV.APP.debug) {
+                    console.log('[SwipeCard] ⏪ Undo performed for:', removed.movie.title);
+                }
+            }
+        };
+        
+        // ✨ NEW: Import and show toast with undo button
+        import('../utils/notifications.js').then(({ showSwipeToast }) => {
+            showSwipeToast(this.movie.title, action, undo);
         });
         
+        // Dispatch swipe action event
         document.dispatchEvent(new CustomEvent('swipe-action', {
             detail: { movie: this.movie, action }
         }));
