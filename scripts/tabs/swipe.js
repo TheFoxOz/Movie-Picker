@@ -70,7 +70,7 @@ export class SwipeTab {
                     </div>
                 </div>
                 
-                <!-- Completed State (NEW!) -->
+                <!-- Completed State -->
                 <div id="swipe-completed" style="display: none; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; padding: 2rem; text-align: center; background: rgba(10, 10, 15, 0.95); z-index: 10;">
                     <div style="font-size: 5rem; margin-bottom: 1.5rem;">🎉</div>
                     <h2 style="font-size: 2rem; font-weight: 800; color: white; margin: 0 0 1rem 0;">
@@ -162,7 +162,7 @@ export class SwipeTab {
             cardContainer.innerHTML = '';
             completedEl.style.display = 'flex';
             
-            // FIXED: Show confetti celebration!
+            // Show confetti celebration!
             const state = store.getState();
             const swipeCount = (state.swipeHistory || []).length;
             
