@@ -1,6 +1,6 @@
 /**
  * Swipe Tab Component
- * FIXED: Emojis only + swipe button perfectly aligned with bottom nav
+ * PERFECT: Only emojis + all buttons perfectly aligned (no more high heart)
  */
 
 import { store } from '../state/store.js';
@@ -50,7 +50,7 @@ export class SwipeTab {
                     </div>
                 </div>
 
-                <!-- PERFECTLY ALIGNED ACTION BUTTONS (emojis only) -->
+                <!-- PERFECTLY ALIGNED ACTION BUTTONS — EMOJIS ONLY -->
                 <div style="position: fixed; bottom: 6.8rem; left: 0; right: 0; z-index: 90; padding: 0 1.5rem; pointer-events: none;">
                     <div style="display: flex; align-items: center; justify-content: center; gap: 2rem; pointer-events: auto;">
                         <button id="swipe-pass" class="swipe-action-btn" data-action="pass">No</button>
@@ -76,15 +76,16 @@ export class SwipeTab {
             </div>
         `;
 
-        // PERFECT BUTTON STYLES — EMOJIS ONLY + EXACT ALIGNMENT
+        // PERFECT EMOJI BUTTON STYLES
         const style = document.createElement('style');
         style.textContent = `
             .swipe-action-btn {
-                width: 70px;
-                height: 70px;
+                width: 72px;
+                height: 72px;
                 border-radius: 50%;
                 border: none;
-                font-size: 2.4rem;
+                font-size: 2.6rem;
+                line-height: 1 !important;
                 cursor: pointer;
                 transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
                 box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
@@ -92,20 +93,14 @@ export class SwipeTab {
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                position: relative;
             }
-            #swipe-pass { background: rgba(239, 68, 68, 0.25); border: 4px solid rgba(239, 68, 68, 0.6); color: #ef4444; }
-            #swipe-maybe { background: rgba(251, 191, 36, 0.25); border: 4px solid rgba(251, 191, 36, 0.6); color: #fbbf24; }
-            #swipe-like { background: rgba(16, 185, 129, 0.25); border: 4px solid rgba(16, 185, 129, 0.6); color: #10b981; }
-            #swipe-love { background: rgba(255, 46, 99, 0.25); border: 4px solid rgba(255, 46, 99, 0.6); color: #ff2e63; }
+            #swipe-pass   { background: rgba(239, 68, 68, 0.25);   border: 4px solid rgba(239, 68, 68, 0.6);   color: #ef4444; }
+            #swipe-maybe  { background: rgba(251, 191, 36, 0.25);  border: 4px solid rgba(251, 191, 36, 0.6);  color: #fbbf24; }
+            #swipe-like   { background: rgba(16, 185, 129, 0.25);  border: 4px solid rgba(16, 185, 129, 0.6);  color: #10b981; }
+            #swipe-love   { background: rgba(255, 46, 99, 0.25);   border: 4px solid rgba(255, 46, 99, 0.6);   color: #ff2e63; }
 
-            .swipe-action-btn:hover {
-                transform: scale(1.18) !important;
-                box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
-            }
-            .swipe-action-btn:active {
-                transform: scale(0.95) !important;
-            }
+            .swipe-action-btn:hover   { transform: scale(1.18) !important; box-shadow: 0 20px 50px rgba(0,0,0,0.7); }
+            .swipe-action-btn:active  { transform: scale(0.95) !important; }
         `;
         document.head.appendChild(style);
 
