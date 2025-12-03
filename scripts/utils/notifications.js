@@ -1,246 +1,254 @@
 /**
- * Notifications Utility
- * Toast notifications and announcements
+ * Toast Notification System
+ * Shows temporary success/error/info messages
  */
+
+import { ENV } from '../config/env.js';
 
 let toastContainer = null;
-let announcer = null;
-let toastCounter = 0;
+let activeToast = null;
+let undoCallback = null;
 
 /**
- * Initialize notification system
+ * Initialize toast container
  */
-export function initNotifications() {
-    toastContainer = document.getElementById('toast-container');
-    announcer = document.getElementById('announcer');
+function initToastContainer() {
+    if (toastContainer) return;
     
-    if (!toastContainer || !announcer) {
-        console.warn('[Notifications] Toast container or announcer not found');
-    }
+    toastContainer = document.createElement('div');
+    toastContainer.id = 'toast-container';
+    toastContainer.style.cssText = `
+        position: fixed;
+        bottom: 6rem;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        pointer-events: none;
+        width: calc(100% - 2rem);
+        max-width: 400px;
+    `;
+    document.body.appendChild(toastContainer);
 }
 
 /**
  * Show a toast notification
- * @param {String} message - Toast message
- * @param {Object} options - Toast options
- * @returns {String} Toast ID
+ * @param {string} message - Message to display
+ * @param {string} type - Type: 'success', 'error', 'info', 'warning'
+ * @param {number} duration - Duration in ms (default: 3000)
+ * @param {function} onUndo - Optional undo callback function
  */
-export function showToast(message, options = {}) {
-    if (!toastContainer) {
-        console.warn('[Notifications] Toast container not initialized');
-        return null;
+export function showToast(message, type = 'info', duration = 3000, onUndo = null) {
+    initToastContainer();
+    
+    // Remove active toast if exists
+    if (activeToast) {
+        removeToast(activeToast);
     }
     
-    const {
-        duration = 5000,
-        action = null,
-        actionLabel = 'Undo',
-        type = 'info',
-        icon = null
-    } = options;
+    // Store undo callback
+    undoCallback = onUndo;
     
-    const toastId = `toast-${++toastCounter}`;
-    const toast = createToastElement(toastId, message, { action, actionLabel, type, icon });
-    
-    toastContainer.appendChild(toast);
-    
-    // Trigger enter animation
-    requestAnimationFrame(() => {
-        toast.classList.add('entering');
-    });
-    
-    // Auto-dismiss after duration
-    if (duration > 0) {
-        setTimeout(() => {
-            dismissToast(toastId);
-        }, duration);
-    }
-    
-    return toastId;
-}
-
-/**
- * Create toast element
- * @param {String} id - Toast ID
- * @param {String} message - Toast message
- * @param {Object} options - Toast options
- * @returns {HTMLElement} Toast element
- */
-function createToastElement(id, message, options) {
     const toast = document.createElement('div');
-    toast.id = id;
     toast.className = 'toast';
-    toast.setAttribute('role', 'status');
-    toast.setAttribute('aria-live', 'polite');
     
-    const iconHtml = options.icon ? `
-        <svg class="toast-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-            ${options.icon}
-        </svg>
-    ` : '';
+    // Set colors based on type
+    const styles = {
+        success: {
+            bg: 'rgba(16, 185, 129, 0.15)',
+            border: 'rgba(16, 185, 129, 0.4)',
+            color: '#10b981',
+            icon: '✓'
+        },
+        error: {
+            bg: 'rgba(239, 68, 68, 0.15)',
+            border: 'rgba(239, 68, 68, 0.4)',
+            color: '#ef4444',
+            icon: '✕'
+        },
+        warning: {
+            bg: 'rgba(251, 191, 36, 0.15)',
+            border: 'rgba(251, 191, 36, 0.4)',
+            color: '#fbbf24',
+            icon: '⚠'
+        },
+        info: {
+            bg: 'rgba(99, 102, 241, 0.15)',
+            border: 'rgba(99, 102, 241, 0.4)',
+            color: '#6366f1',
+            icon: 'ℹ'
+        }
+    };
     
-    const actionHtml = options.action ? `
-        <button class="btn btn-ghost btn-sm toast-action" data-action="true">
-            ${options.actionLabel}
-        </button>
-    ` : '';
+    const style = styles[type] || styles.info;
     
-    toast.innerHTML = `
-        <div class="toast-content">
-            ${iconHtml}
-            <span class="toast-message">${message}</span>
-        </div>
-        ${actionHtml}
+    toast.style.cssText = `
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        padding: 1rem 1.25rem;
+        background: ${style.bg};
+        backdrop-filter: blur(10px);
+        border: 1px solid ${style.border};
+        border-radius: 1rem;
+        color: white;
+        font-size: 0.9375rem;
+        font-weight: 600;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        pointer-events: auto;
+        transform: translateY(20px);
+        opacity: 0;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     `;
     
-    // Add action listener
-    if (options.action) {
-        const actionBtn = toast.querySelector('[data-action]');
-        actionBtn.addEventListener('click', () => {
-            options.action();
-            dismissToast(id);
-        });
+    // Build toast content
+    let toastHTML = `
+        <div style="display: flex; align-items: center; gap: 0.75rem; flex: 1; min-width: 0;">
+            <span style="font-size: 1.25rem; flex-shrink: 0;">${style.icon}</span>
+            <span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${message}</span>
+        </div>
+    `;
+    
+    // Add undo button if callback provided
+    if (onUndo) {
+        toastHTML += `
+            <button 
+                class="toast-undo-btn"
+                style="padding: 0.375rem 0.875rem; background: rgba(255, 255, 255, 0.15); border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 0.5rem; color: white; font-size: 0.8125rem; font-weight: 700; cursor: pointer; transition: all 0.2s; text-transform: uppercase; letter-spacing: 0.05em; flex-shrink: 0;"
+                onmouseover="this.style.background='rgba(255, 255, 255, 0.25)'"
+                onmouseout="this.style.background='rgba(255, 255, 255, 0.15)'"
+            >
+                Undo
+            </button>
+        `;
     }
     
-    return toast;
+    toast.innerHTML = toastHTML;
+    toastContainer.appendChild(toast);
+    activeToast = toast;
+    
+    // Attach undo button listener
+    if (onUndo) {
+        const undoBtn = toast.querySelector('.toast-undo-btn');
+        if (undoBtn) {
+            undoBtn.addEventListener('click', () => {
+                onUndo();
+                removeToast(toast);
+                showToast('↩️ Action undone', 'info', 2000);
+                
+                if (ENV.APP.debug) {
+                    console.log('[Notifications] Undo action triggered');
+                }
+            });
+        }
+    }
+    
+    // Animate in
+    requestAnimationFrame(() => {
+        toast.style.transform = 'translateY(0)';
+        toast.style.opacity = '1';
+    });
+    
+    // Auto-remove after duration
+    const timeout = setTimeout(() => {
+        removeToast(toast);
+    }, duration);
+    
+    // Store timeout for early removal
+    toast.dataset.timeout = timeout;
+    
+    if (ENV.APP.debug) {
+        console.log('[Notifications] Toast shown:', message, type);
+    }
 }
 
 /**
- * Dismiss a toast
- * @param {String} toastId - Toast ID
+ * Remove a toast
  */
-export function dismissToast(toastId) {
-    const toast = document.getElementById(toastId);
-    if (!toast) return;
+function removeToast(toast) {
+    if (!toast || !toast.parentNode) return;
     
-    toast.classList.remove('entering');
-    toast.classList.add('exiting');
+    // Clear timeout
+    if (toast.dataset.timeout) {
+        clearTimeout(parseInt(toast.dataset.timeout));
+    }
+    
+    // Animate out
+    toast.style.transform = 'translateY(20px)';
+    toast.style.opacity = '0';
     
     setTimeout(() => {
-        toast.remove();
+        if (toast.parentNode) {
+            toast.remove();
+        }
+        if (activeToast === toast) {
+            activeToast = null;
+            undoCallback = null;
+        }
     }, 300);
 }
 
 /**
- * Show swipe undo toast
- * @param {String} movieTitle - Movie title
- * @param {String} action - Swipe action
- * @param {Function} undoCallback - Undo callback
- * @returns {String} Toast ID
+ * Show a swipe action toast with undo
+ * @param {string} movieTitle - Movie title
+ * @param {string} action - Swipe action (love, like, maybe, pass)
+ * @param {function} onUndo - Undo callback
  */
-export function showSwipeToast(movieTitle, action, undoCallback) {
-    const actionText = action.toUpperCase();
-    const message = `${actionText}: ${movieTitle}`;
-    
-    return showToast(message, {
-        duration: 5000,
-        action: undoCallback,
-        actionLabel: 'UNDO',
-        icon: getSwipeIcon(action)
-    });
-}
-
-/**
- * Get swipe icon SVG path
- * @param {String} action - Swipe action
- * @returns {String} SVG path
- */
-function getSwipeIcon(action) {
-    const icons = {
-        love: '<path stroke-linecap="round" stroke-linejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.054-4.312 2.655-.715-1.601-2.377-2.655-4.313-2.655C4.099 3.75 2 5.765 2 8.25c0 7.22 9 12 10 12s10-4.78 10-12z" />',
-        like: '<path stroke-linecap="round" stroke-linejoin="round" d="M6.633 10.5c.806 0 1.533-.446 2.031-1.08a9.041 9.041 0 012.861-2.4c.723-.384 1.35-.956 1.653-1.715a4.498 4.498 0 00.322-1.672V3a.75.75 0 01.75-.75A2.25 2.25 0 0116.5 4.5c0 1.152-.26 2.243-.723 3.218-.266.558.107 1.282.725 1.282h3.126c1.026 0 1.945.694 2.054 1.715.045.422.068.85.068 1.285a11.95 11.95 0 01-2.649 7.521c-.388.482-.987.729-1.605.729H13.48c-.483 0-.964-.078-1.423-.23l-3.114-1.04a4.501 4.501 0 00-1.423-.23H5.904M14.25 9h2.25M5.904 18.75c.083.205.173.405.27.602.197.4-.078.898-.523.898h-.908c-.889 0-1.713-.518-1.972-1.368a12 12 0 01-.521-3.507c0-1.553.295-3.036.831-4.398C3.387 10.203 4.167 9.75 5 9.75h1.053c.472 0 .745.556.5.96a8.958 8.958 0 00-1.302 4.665c0 1.194.232 2.333.654 3.375z" />',
-        maybe: '<path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />',
-        pass: '<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />'
+export function showSwipeToast(movieTitle, action, onUndo) {
+    const actionEmoji = {
+        love: '❤️',
+        like: '👍',
+        maybe: '🤔',
+        pass: '✕'
     };
-    return icons[action] || icons.pass;
+    
+    const actionText = {
+        love: 'Loved',
+        like: 'Liked',
+        maybe: 'Maybe later',
+        pass: 'Passed'
+    };
+    
+    const actionType = {
+        love: 'success',
+        like: 'success',
+        maybe: 'warning',
+        pass: 'error'
+    };
+    
+    const message = `${actionEmoji[action]} ${actionText[action]}`;
+    const type = actionType[action] || 'info';
+    
+    showToast(message, type, 4000, onUndo);
 }
 
 /**
- * Show success notification
- * @param {String} message - Success message
- */
-export function showSuccess(message) {
-    showToast(message, {
-        duration: 3000,
-        type: 'success',
-        icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />'
-    });
-}
-
-/**
- * Show error notification
- * @param {String} message - Error message
+ * Show error toast
  */
 export function showError(message) {
-    showToast(message, {
-        duration: 5000,
-        type: 'error',
-        icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.446-.866 3.376 0 4.822 1.065 1.76 2.983 2.377 4.779 2.377h11.048c1.796 0 3.713-.617 4.778-2.377.866-1.446.866-3.376 0-4.822-1.065-1.76-2.982-2.377-4.778-2.377H6.476c-1.796 0-3.714.617-4.779 2.377z" />'
-    });
+    showToast(message, 'error', 4000);
 }
 
 /**
- * Show info notification
- * @param {String} message - Info message
+ * Show success toast
+ */
+export function showSuccess(message) {
+    showToast(message, 'success', 3000);
+}
+
+/**
+ * Show info toast
  */
 export function showInfo(message) {
-    showToast(message, {
-        duration: 3000,
-        type: 'info',
-        icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />'
-    });
+    showToast(message, 'info', 3000);
 }
 
 /**
- * Announce to screen readers
- * @param {String} message - Message to announce
- * @param {String} priority - 'polite' or 'assertive'
+ * Show warning toast
  */
-export function announce(message, priority = 'polite') {
-    if (!announcer) return;
-    
-    announcer.setAttribute('aria-live', priority);
-    announcer.textContent = message;
-    
-    // Clear after announcement
-    setTimeout(() => {
-        announcer.textContent = '';
-    }, 1000);
-}
-
-/**
- * Show confetti effect
- */
-export function showConfetti() {
-    if (typeof confetti === 'undefined') {
-        console.warn('[Notifications] Confetti library not loaded');
-        return;
-    }
-    
-    confetti({
-        particleCount: 200,
-        spread: 120,
-        gravity: 0.8,
-        decay: 0.95,
-        scalar: 1.2,
-        zIndex: 1000,
-        origin: { y: 0.6 }
-    });
-}
-
-/**
- * Trigger haptic feedback (if supported)
- * @param {String} type - 'light', 'medium', 'heavy'
- */
-export function hapticFeedback(type = 'medium') {
-    if (!navigator.vibrate) return;
-    
-    const patterns = {
-        light: [10],
-        medium: [30],
-        heavy: [50, 50, 50],
-        success: [30, 10, 30]
-    };
-    
-    navigator.vibrate(patterns[type] || patterns.medium);
+export function showWarning(message) {
+    showToast(message, 'warning', 3000);
 }
