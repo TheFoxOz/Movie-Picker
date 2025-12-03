@@ -16,6 +16,7 @@ export class SwipeTab {
         this.currentCard = null;
         this.movieQueue = [];
         this.isLoading = false;
+        this.swipeHandler = null;
     }
     
     async render(container) {
@@ -189,31 +190,17 @@ export class SwipeTab {
         if (loveBtn) loveBtn.addEventListener('click', () => this.handleButtonAction('love'));
         
         // Listen for swipe actions
-        document.addEventListener('swipe-action', (e) => {
+        this.swipeHandler = (e) => {
             const { action } = e.detail;
             
-            // Show toast with action
-            const actionEmoji = {
-                love: '❤️',
-                like: '👍',
-                maybe: '🤔',
-                pass: '✕'
-            };
-            
-            const actionText = {
-                love: 'Loved',
-                like: 'Liked',
-                maybe: 'Maybe later',
-                pass: 'Passed'
-            };
-            
-            showToast(`${actionEmoji[action]} ${actionText[action]}`, 'success');
-            
-            // Show next card
+            // Toast with undo is now shown by SwipeCard component
+            // Just show next card after delay
             setTimeout(() => {
                 this.showNextCard();
             }, 400);
-        });
+        };
+        
+        document.addEventListener('swipe-action', this.swipeHandler);
         
         // "Go to Library" button in completed state
         const gotoLibraryBtn = this.container.querySelector('#goto-library');
@@ -235,6 +222,12 @@ export class SwipeTab {
     destroy() {
         if (this.currentCard) {
             this.currentCard.destroy();
+        }
+        
+        // Remove swipe event listener
+        if (this.swipeHandler) {
+            document.removeEventListener('swipe-action', this.swipeHandler);
+            this.swipeHandler = null;
         }
     }
 }
