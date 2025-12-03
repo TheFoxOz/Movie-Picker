@@ -1,204 +1,419 @@
 /**
  * Authentication Service
- * Handles user sign up, sign in, and authentication state
+ * Handles user authentication and real-time sync
  */
 
 import { auth, db } from './firebase-config.js';
 import { 
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  signInWithPopup,
-  GoogleAuthProvider,
-  signOut as firebaseSignOut,
-  onAuthStateChanged,
-  updateProfile
+    createUserWithEmailAndPassword,
+    signInWithEmailAndPassword,
+    signOut,
+    onAuthStateChanged,
+    GoogleAuthProvider,
+    signInWithPopup,
+    updateProfile
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 import { 
-  doc, 
-  setDoc, 
-  getDoc,
-  serverTimestamp 
+    doc, 
+    setDoc, 
+    getDoc, 
+    updateDoc,
+    collection,
+    query,
+    where,
+    getDocs,
+    onSnapshot,
+    arrayUnion,
+    arrayRemove,
+    serverTimestamp
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import { store } from '../state/store.js';
+import { showSuccess, showError } from '../utils/notifications.js';
+import { ENV } from '../config/env.js';
 
 class AuthService {
-  constructor() {
-    this.currentUser = null;
-    this.unsubscribe = null;
-  }
-  
-  /**
-   * Sign up with email and password
-   */
-  async signUp(email, password, displayName) {
-    try {
-      console.log('[Auth] Creating account for:', email);
-      
-      // Create user account
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-      
-      // Update profile with display name
-      await updateProfile(user, {
-        displayName: displayName
-      });
-      
-      // Create user profile in Firestore
-      await this.createUserProfile(user.uid, {
-        name: displayName,
-        email: email,
-        avatar: '😊'
-      });
-      
-      console.log('[Auth] ✅ Account created successfully');
-      return user;
-      
-    } catch (error) {
-      console.error('[Auth] Sign up error:', error);
-      throw this.formatError(error);
+    constructor() {
+        this.currentUser = null;
+        this.unsubscribers = [];
+        this.setupAuthListener();
     }
-  }
-  
-  /**
-   * Sign in with email and password
-   */
-  async signIn(email, password) {
-    try {
-      console.log('[Auth] Signing in:', email);
-      
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      console.log('[Auth] ✅ Signed in successfully');
-      return userCredential.user;
-      
-    } catch (error) {
-      console.error('[Auth] Sign in error:', error);
-      throw this.formatError(error);
-    }
-  }
-  
-  /**
-   * Sign in with Google
-   */
-  async signInWithGoogle() {
-    try {
-      console.log('[Auth] Starting Google sign in...');
-      
-      const provider = new GoogleAuthProvider();
-      const userCredential = await signInWithPopup(auth, provider);
-      const user = userCredential.user;
-      
-      // Check if this is first time sign in
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
-      if (!userDoc.exists()) {
-        // Create profile for new Google user
-        await this.createUserProfile(user.uid, {
-          name: user.displayName || 'User',
-          email: user.email,
-          avatar: user.photoURL || '😊'
-        });
-      }
-      
-      console.log('[Auth] ✅ Google sign in successful');
-      return user;
-      
-    } catch (error) {
-      console.error('[Auth] Google sign in error:', error);
-      throw this.formatError(error);
-    }
-  }
-  
-  /**
-   * Sign out
-   */
-  async signOut() {
-    try {
-      console.log('[Auth] Signing out...');
-      await firebaseSignOut(auth);
-      console.log('[Auth] ✅ Signed out successfully');
-    } catch (error) {
-      console.error('[Auth] Sign out error:', error);
-      throw error;
-    }
-  }
-  
-  /**
-   * Listen to authentication state changes
-   */
-  onAuthStateChange(callback) {
-    this.unsubscribe = onAuthStateChanged(auth, (user) => {
-      this.currentUser = user;
-      console.log('[Auth] Auth state changed:', user ? user.email : 'No user');
-      callback(user);
-    });
-    return this.unsubscribe;
-  }
-  
-  /**
-   * Stop listening to auth state changes
-   */
-  stopListening() {
-    if (this.unsubscribe) {
-      this.unsubscribe();
-      this.unsubscribe = null;
-    }
-  }
-  
-  /**
-   * Get current user
-   */
-  getCurrentUser() {
-    return auth.currentUser || this.currentUser;
-  }
-  
-  /**
-   * Create user profile in Firestore
-   */
-  async createUserProfile(userId, data) {
-    try {
-      console.log('[Auth] Creating user profile in Firestore...');
-      
-      await setDoc(doc(db, 'users', userId), {
-        name: data.name,
-        email: data.email,
-        avatar: data.avatar,
-        createdAt: serverTimestamp(),
-        friends: [],
-        groups: [],
-        stats: {
-          moviesRated: 0,
-          friendsCount: 0,
-          groupsCount: 0
-        }
-      });
-      
-      console.log('[Auth] ✅ User profile created');
-    } catch (error) {
-      console.error('[Auth] Error creating profile:', error);
-      throw error;
-    }
-  }
-  
-  /**
-   * Format Firebase error messages to be user-friendly
-   */
-  formatError(error) {
-    const errorMessages = {
-      'auth/email-already-in-use': 'This email is already registered. Try signing in instead.',
-      'auth/invalid-email': 'Please enter a valid email address.',
-      'auth/operation-not-allowed': 'Email/password accounts are not enabled.',
-      'auth/weak-password': 'Password should be at least 6 characters.',
-      'auth/user-disabled': 'This account has been disabled.',
-      'auth/user-not-found': 'No account found with this email.',
-      'auth/wrong-password': 'Incorrect password. Please try again.',
-      'auth/invalid-credential': 'Invalid email or password.',
-      'auth/too-many-requests': 'Too many failed attempts. Please try again later.',
-      'auth/network-request-failed': 'Network error. Please check your connection.',
-      'auth/popup-closed-by-user': 'Sign-in cancelled.',
-      'auth/cancelled-popup-request': 'Sign-in cancelled.'
-    };
     
-    const message = errorMessages[error.code] || error.message || 'An error occurred. Please try again.';
-    return new Error(message);
-  }
+    /**
+     * Listen for auth state changes
+     */
+    setupAuthListener() {
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                this.currentUser = user;
+                
+                if (ENV.APP.debug) {
+                    console.log('[Auth] User signed in:', user.email);
+                }
+                
+                // Load user data from Firestore
+                await this.loadUserData(user.uid);
+                
+                // Setup real-time listeners
+                this.setupRealtimeListeners(user.uid);
+                
+                // Update store
+                store.setState({ 
+                    userId: user.uid,
+                    userEmail: user.email,
+                    userName: user.displayName || 'User',
+                    isAuthenticated: true
+                });
+                
+            } else {
+                this.currentUser = null;
+                this.cleanup();
+                
+                store.setState({ 
+                    userId: null,
+                    userEmail: null,
+                    userName: null,
+                    isAuthenticated: false,
+                    friends: [],
+                    groups: []
+                });
+                
+                if (ENV.APP.debug) {
+                    console.log('[Auth] User signed out');
+                }
+            }
+        });
+    }
+    
+    /**
+     * Sign up with email and password
+     */
+    async signUp(email, password, displayName) {
+        try {
+            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+            const user = userCredential.user;
+            
+            // Update display name
+            await updateProfile(user, { displayName });
+            
+            // Create user document in Firestore
+            await setDoc(doc(db, 'users', user.uid), {
+                uid: user.uid,
+                email: user.email,
+                displayName: displayName,
+                avatar: '😊',
+                createdAt: serverTimestamp(),
+                swipeHistory: [],
+                friends: [],
+                groups: []
+            });
+            
+            showSuccess('Account created successfully!');
+            
+            if (ENV.APP.debug) {
+                console.log('[Auth] User signed up:', email);
+            }
+            
+            return user;
+            
+        } catch (error) {
+            console.error('[Auth] Sign up error:', error);
+            
+            const errorMessages = {
+                'auth/email-already-in-use': 'This email is already registered',
+                'auth/weak-password': 'Password should be at least 6 characters',
+                'auth/invalid-email': 'Invalid email address'
+            };
+            
+            showError(errorMessages[error.code] || 'Failed to create account');
+            throw error;
+        }
+    }
+    
+    /**
+     * Sign in with email and password
+     */
+    async signIn(email, password) {
+        try {
+            const userCredential = await signInWithEmailAndPassword(auth, email, password);
+            showSuccess('Welcome back!');
+            
+            if (ENV.APP.debug) {
+                console.log('[Auth] User signed in:', email);
+            }
+            
+            return userCredential.user;
+            
+        } catch (error) {
+            console.error('[Auth] Sign in error:', error);
+            
+            const errorMessages = {
+                'auth/user-not-found': 'No account found with this email',
+                'auth/wrong-password': 'Incorrect password',
+                'auth/invalid-email': 'Invalid email address',
+                'auth/too-many-requests': 'Too many failed attempts. Try again later'
+            };
+            
+            showError(errorMessages[error.code] || 'Failed to sign in');
+            throw error;
+        }
+    }
+    
+    /**
+     * Sign in with Google
+     */
+    async signInWithGoogle() {
+        try {
+            const provider = new GoogleAuthProvider();
+            const userCredential = await signInWithPopup(auth, provider);
+            const user = userCredential.user;
+            
+            // Check if user document exists
+            const userDoc = await getDoc(doc(db, 'users', user.uid));
+            
+            if (!userDoc.exists()) {
+                // Create user document for new Google users
+                await setDoc(doc(db, 'users', user.uid), {
+                    uid: user.uid,
+                    email: user.email,
+                    displayName: user.displayName,
+                    avatar: user.photoURL || '😊',
+                    createdAt: serverTimestamp(),
+                    swipeHistory: [],
+                    friends: [],
+                    groups: []
+                });
+            }
+            
+            showSuccess('Signed in with Google!');
+            
+            if (ENV.APP.debug) {
+                console.log('[Auth] Google sign in:', user.email);
+            }
+            
+            return user;
+            
+        } catch (error) {
+            console.error('[Auth] Google sign in error:', error);
+            showError('Failed to sign in with Google');
+            throw error;
+        }
+    }
+    
+    /**
+     * Sign out
+     */
+    async signOut() {
+        try {
+            await signOut(auth);
+            showSuccess('Signed out successfully');
+            
+        } catch (error) {
+            console.error('[Auth] Sign out error:', error);
+            showError('Failed to sign out');
+            throw error;
+        }
+    }
+    
+    /**
+     * Load user data from Firestore
+     */
+    async loadUserData(uid) {
+        try {
+            const userDoc = await getDoc(doc(db, 'users', uid));
+            
+            if (userDoc.exists()) {
+                const userData = userDoc.data();
+                
+                store.setState({
+                    swipeHistory: userData.swipeHistory || [],
+                    friends: userData.friends || [],
+                    groups: userData.groups || []
+                });
+                
+                if (ENV.APP.debug) {
+                    console.log('[Auth] User data loaded');
+                }
+            }
+            
+        } catch (error) {
+            console.error('[Auth] Load user data error:', error);
+        }
+    }
+    
+    /**
+     * Setup real-time listeners
+     */
+    setupRealtimeListeners(uid) {
+        // Listen to user document changes
+        const unsubUser = onSnapshot(doc(db, 'users', uid), (doc) => {
+            if (doc.exists()) {
+                const userData = doc.data();
+                
+                store.setState({
+                    swipeHistory: userData.swipeHistory || [],
+                    friends: userData.friends || [],
+                    groups: userData.groups || []
+                });
+                
+                if (ENV.APP.debug) {
+                    console.log('[Auth] User data updated');
+                }
+            }
+        });
+        
+        this.unsubscribers.push(unsubUser);
+    }
+    
+    /**
+     * Sync swipe history to Firestore
+     */
+    async syncSwipeHistory(swipeHistory) {
+        if (!this.currentUser) return;
+        
+        try {
+            await updateDoc(doc(db, 'users', this.currentUser.uid), {
+                swipeHistory: swipeHistory
+            });
+            
+            if (ENV.APP.debug) {
+                console.log('[Auth] Swipe history synced');
+            }
+            
+        } catch (error) {
+            console.error('[Auth] Sync error:', error);
+        }
+    }
+    
+    /**
+     * Add friend by email
+     */
+    async addFriend(friendEmail) {
+        if (!this.currentUser) {
+            showError('You must be signed in to add friends');
+            return;
+        }
+        
+        try {
+            // Find friend by email
+            const usersRef = collection(db, 'users');
+            const q = query(usersRef, where('email', '==', friendEmail));
+            const querySnapshot = await getDocs(q);
+            
+            if (querySnapshot.empty) {
+                showError('No user found with that email');
+                return;
+            }
+            
+            const friendDoc = querySnapshot.docs[0];
+            const friendData = friendDoc.data();
+            
+            if (friendData.uid === this.currentUser.uid) {
+                showError('You cannot add yourself as a friend');
+                return;
+            }
+            
+            // Add friend to current user's friends list
+            await updateDoc(doc(db, 'users', this.currentUser.uid), {
+                friends: arrayUnion({
+                    id: friendData.uid,
+                    name: friendData.displayName,
+                    email: friendData.email,
+                    avatar: friendData.avatar || '👤',
+                    addedAt: new Date().toISOString()
+                })
+            });
+            
+            // Add current user to friend's friends list
+            await updateDoc(doc(db, 'users', friendData.uid), {
+                friends: arrayUnion({
+                    id: this.currentUser.uid,
+                    name: this.currentUser.displayName || 'User',
+                    email: this.currentUser.email,
+                    avatar: '😊',
+                    addedAt: new Date().toISOString()
+                })
+            });
+            
+            showSuccess(`Added ${friendData.displayName} as a friend!`);
+            
+            if (ENV.APP.debug) {
+                console.log('[Auth] Friend added:', friendEmail);
+            }
+            
+        } catch (error) {
+            console.error('[Auth] Add friend error:', error);
+            showError('Failed to add friend');
+        }
+    }
+    
+    /**
+     * Create a group
+     */
+    async createGroup(groupName, groupEmoji = '🎬') {
+        if (!this.currentUser) {
+            showError('You must be signed in to create groups');
+            return;
+        }
+        
+        try {
+            const groupId = `group_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            
+            const newGroup = {
+                id: groupId,
+                name: groupName,
+                emoji: groupEmoji,
+                createdBy: this.currentUser.uid,
+                createdAt: new Date().toISOString(),
+                members: [{
+                    id: this.currentUser.uid,
+                    name: this.currentUser.displayName || 'User',
+                    email: this.currentUser.email,
+                    avatar: '😊',
+                    role: 'admin'
+                }],
+                matchCount: 0
+            };
+            
+            // Add group to user's groups list
+            await updateDoc(doc(db, 'users', this.currentUser.uid), {
+                groups: arrayUnion(newGroup)
+            });
+            
+            showSuccess(`Group "${groupName}" created!`);
+            
+            if (ENV.APP.debug) {
+                console.log('[Auth] Group created:', groupName);
+            }
+            
+            return groupId;
+            
+        } catch (error) {
+            console.error('[Auth] Create group error:', error);
+            showError('Failed to create group');
+        }
+    }
+    
+    /**
+     * Cleanup listeners
+     */
+    cleanup() {
+        this.unsubscribers.forEach(unsubscribe => unsubscribe());
+        this.unsubscribers = [];
+    }
+    
+    /**
+     * Get current user
+     */
+    getCurrentUser() {
+        return this.currentUser;
+    }
+    
+    /**
+     * Check if user is authenticated
+     */
+    isAuthenticated() {
+        return !!this.currentUser;
+    }
 }
 
 // Export singleton instance
