@@ -1,14 +1,12 @@
 /**
- * Swipe Tab Component
- * PERFECT: Only emojis + all buttons perfectly aligned (no more high heart)
+ * Swipe Tab Component – CLEAN & FIXED VERSION
  */
 
-import { store } from '../state/store.js';
-import { SwipeCard } from '../components/swipe-card.js';
-import { getTMDBService } from '../services/tmdb.js';
-import { showToast } from '../utils/notifications.js';
-import { showConfetti } from '../utils/confetti.js';
-import { ENV } from '../config/env.js';
+import { store } from "../state/store.js";
+import { SwipeCard } from "../components/swipe-card.js";
+import { getTMDBService } from "../services/tmdb.js";
+import { showToast } from "../utils/notifications.js";
+import { showConfetti } from "../utils/confetti.js";
 
 export class SwipeTab {
     constructor() {
@@ -19,10 +17,10 @@ export class SwipeTab {
         this.swipeHandler = null;
         this.hasLoaded = false;
     }
-    
+
     async render(container) {
         this.container = container;
-        
+
         if (this.hasLoaded) {
             this.showNextCard();
             return;
@@ -45,24 +43,24 @@ export class SwipeTab {
                 <!-- Card Container -->
                 <div id="swipe-container" style="flex: 1; position: relative; display: flex; align-items: center; justify-content: center; padding: 0 1rem;">
                     <div style="color: rgba(255,255,255,0.6); text-align: center;">
-                        <div style="font-size: 3rem; margin-bottom: 1rem;">Film</div>
+                        <div style="font-size: 3rem; margin-bottom: 1rem;">🎬</div>
                         <p>Loading your movies...</p>
                     </div>
                 </div>
 
-                <!-- PERFECTLY ALIGNED ACTION BUTTONS — EMOJIS ONLY -->
+                <!-- PERFECT EMOJI BUTTONS -->
                 <div style="position: fixed; bottom: 6.8rem; left: 0; right: 0; z-index: 90; padding: 0 1.5rem; pointer-events: none;">
                     <div style="display: flex; align-items: center; justify-content: center; gap: 2rem; pointer-events: auto;">
-                        <button id="swipe-pass" class="swipe-action-btn" data-action="pass">No</button>
-                        <button id="swipe-maybe" class="swipe-action-btn" data-action="maybe">Question</button>
-                        <button id="swipe-like" class="swipe-action-btn" data-action="like">Thumbs Up</button>
-                        <button id="swipe-love" class="swipe-action-btn" data-action="love">Heart</button>
+                        <button id="swipe-pass" class="swipe-action-btn">❌</button>
+                        <button id="swipe-maybe" class="swipe-action-btn">❓</button>
+                        <button id="swipe-like" class="swipe-action-btn">👍</button>
+                        <button id="swipe-love" class="swipe-action-btn">❤️</button>
                     </div>
                 </div>
 
                 <!-- Completed State -->
                 <div id="swipe-completed" style="display: none; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; padding: 2rem; text-align: center; background: rgba(10, 10, 15, 0.95); z-index: 10;">
-                    <div style="font-size: 5rem; margin-bottom: 1.5rem;">Party Popper</div>
+                    <div style="font-size: 5rem; margin-bottom: 1.5rem;">🎉</div>
                     <h2 style="font-size: 2rem; font-weight: 800; color: white; margin: 0 0 1rem 0;">
                         You Did It!
                     </h2>
@@ -76,8 +74,20 @@ export class SwipeTab {
             </div>
         `;
 
-        // PERFECT EMOJI BUTTON STYLES
-        const style = document.createElement('style');
+        this.injectButtonStyles();
+        await this.loadMoviesWithRetry();
+        this.attachListeners();
+        this.showNextCard();
+    }
+
+    /**
+     * FIXED: Style is added ONCE only
+     */
+    injectButtonStyles() {
+        if (document.getElementById("swipe-btn-style")) return;
+
+        const style = document.createElement("style");
+        style.id = "swipe-btn-style";
         style.textContent = `
             .swipe-action-btn {
                 width: 72px;
@@ -103,108 +113,114 @@ export class SwipeTab {
             .swipe-action-btn:active  { transform: scale(0.95) !important; }
         `;
         document.head.appendChild(style);
-
-        await this.loadMoviesWithRetry();
-        this.attachListeners();
-        this.showNextCard();
     }
 
+    /**
+     * FIXED: Correct retry logic, no infinite loading, no blocked attempts
+     */
     async loadMoviesWithRetry(attempt = 1) {
         if (this.isLoading) return;
         this.isLoading = true;
 
         try {
-            const tmdbService = getTMDBService();
-            if (!tmdbService) throw new Error('TMDB service not ready');
+            const tmdb = getTMDBService();
+            if (!tmdb) throw new Error("TMDB not ready");
 
-            const sources = await Promise.all([
-                tmdbService.fetchPopularMovies(5),
-                tmdbService.fetchTrendingMovies(),
-                tmdbService.fetchTopRatedMovies(5)
+            const lists = await Promise.all([
+                tmdb.fetchPopularMovies(5),
+                tmdb.fetchTrendingMovies(),
+                tmdb.fetchTopRatedMovies(5)
             ]);
 
+            // merge & dedupe
             const map = new Map();
-            sources.flat().forEach(m => map.set(m.id, m));
-            let movies = Array.from(map.values());
+            lists.flat().forEach(m => map.set(m.id, m));
 
+            const movies = Array.from(map.values());
+
+            // remove swiped
             const state = store.getState();
-            const swipedIds = new Set((state.swipeHistory || []).map(s => String(s.movie.id)));
-            this.movieQueue = movies.filter(m => !swipedIds.has(String(m.id)));
+            const swiped = new Set((state.swipeHistory || []).map(s => String(s.movie.id)));
 
+            this.movieQueue = movies.filter(m => !swiped.has(String(m.id)));
+
+            // Retry up to 3 times if list is too small
             if (this.movieQueue.length < 10 && attempt <= 3) {
+                this.isLoading = false;  // <-- FIXED
                 setTimeout(() => this.loadMoviesWithRetry(attempt + 1), 1000);
                 return;
             }
 
-        } catch (error) {
-            console.error('[SwipeTab] Failed to load movies:', error);
-            showToast('Failed to load movies. Retrying...', 'error');
+            if (attempt > 3 && this.movieQueue.length === 0) {
+                showToast("No movies available at the moment.", "error");
+            }
+        } catch (err) {
+            console.error("[SwipeTab] Load failed:", err);
+            showToast("Failed to load movies. Retrying...", "error");
+
             if (attempt <= 3) {
-                setTimeout(() => this.loadMoviesWithRetry(attempt + 1), 2000);
+                this.isLoading = false;  // <-- FIXED
+                setTimeout(() => this.loadMoviesWithRetry(attempt + 1), 1500);
             }
         } finally {
             this.isLoading = false;
         }
     }
-    
+
     showNextCard() {
-        const container = this.container.querySelector('#swipe-container');
-        const completed = this.container.querySelector('#swipe-completed');
-        
+        const container = this.container.querySelector("#swipe-container");
+        const completed = this.container.querySelector("#swipe-completed");
+
         if (!container) return;
 
         if (this.movieQueue.length === 0) {
-            container.innerHTML = '';
-            if (completed) completed.style.display = 'flex';
+            container.innerHTML = "";
+            completed.style.display = "flex";
             showConfetti();
             return;
         }
 
-        if (completed) completed.style.display = 'none';
+        completed.style.display = "none";
 
         const movie = this.movieQueue.shift();
-        container.innerHTML = '';
+        container.innerHTML = "";
         this.currentCard = new SwipeCard(container, movie);
     }
-    
+
     attachListeners() {
-        const actions = {
-            'swipe-pass': 'pass',
-            'swipe-maybe': 'maybe',
-            'swipe-like': 'like',
-            'swipe-love': 'love'
+        const ACTION_MAP = {
+            "swipe-pass": "pass",
+            "swipe-maybe": "maybe",
+            "swipe-like": "like",
+            "swipe-love": "love"
         };
 
-        Object.entries(actions).forEach(([id, action]) => {
+        Object.entries(ACTION_MAP).forEach(([id, action]) => {
             const btn = this.container.querySelector(`#${id}`);
-            if (btn) {
-                btn.addEventListener('click', () => this.handleButtonAction(action));
-            }
+            if (btn) btn.addEventListener("click", () => this.handleButtonAction(action));
         });
 
         this.swipeHandler = () => setTimeout(() => this.showNextCard(), 400);
-        document.addEventListener('swipe-action', this.swipeHandler);
+        document.addEventListener("swipe-action", this.swipeHandler);
 
-        const gotoLibrary = this.container.querySelector('#goto-library');
+        const gotoLibrary = this.container.querySelector("#goto-library");
         if (gotoLibrary) {
-            gotoLibrary.addEventListener('click', () => {
-                document.dispatchEvent(new CustomEvent('navigate-tab', {
-                    detail: { tab: 'library' }
-                }));
+            gotoLibrary.addEventListener("click", () => {
+                document.dispatchEvent(
+                    new CustomEvent("navigate-tab", { detail: { tab: "library" } })
+                );
             });
         }
     }
-    
+
     handleButtonAction(action) {
-        if (this.currentCard) {
-            this.currentCard.handleAction(action);
-        }
+        if (this.currentCard) this.currentCard.handleAction(action);
     }
-    
+
     destroy() {
         if (this.currentCard) this.currentCard.destroy();
         if (this.swipeHandler) {
-            document.removeEventListener('swipe-action', this.swipeHandler);
+            document.removeEventListener("swipe-action", this.swipeHandler);
             this.swipeHandler = null;
         }
         this.hasLoaded = false;
