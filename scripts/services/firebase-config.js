@@ -1,48 +1,27 @@
 /**
- * Firebase Configuration (SECURE VERSION)
- * Uses environment variables from Vercel
- * NO hardcoded API keys!
+ * Firebase Configuration and Initialization
  */
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
 import { getAuth } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
-import { ENV } from '../config/env.js';
+import { getAnalytics } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics.js';
 
-// Firebase configuration from environment variables
+// Your Firebase configuration
 const firebaseConfig = {
-  apiKey: ENV.FIREBASE.apiKey,
-  authDomain: ENV.FIREBASE.authDomain,
-  projectId: ENV.FIREBASE.projectId,
-  storageBucket: ENV.FIREBASE.storageBucket,
-  messagingSenderId: ENV.FIREBASE.messagingSenderId,
-  appId: ENV.FIREBASE.appId,
-  measurementId: ENV.FIREBASE.measurementId
+  apiKey: "AIzaSyAGcGmVODn3UF4wuBzEKJlkst8J1Ul8Onw",
+  authDomain: "movie-picker-19390.firebaseapp.com",
+  projectId: "movie-picker-19390",
+  storageBucket: "movie-picker-19390.firebasestorage.app",
+  messagingSenderId: "123870382386",
+  appId: "1:123870382386:web:a4189b35dd1da0a95bef2b",
+  measurementId: "G-5TEXFJFSNR"
 };
 
-// Validate configuration
-if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
-  console.error('[Firebase] ❌ Missing configuration in environment variables!');
-  console.error('[Firebase] Check Vercel Dashboard → Settings → Environment Variables');
-  throw new Error('Firebase configuration not found in environment variables');
-}
-
 // Initialize Firebase
-let app, auth, db;
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const analytics = getAnalytics(app);
 
-try {
-  app = initializeApp(firebaseConfig);
-  auth = getAuth(app);
-  db = getFirestore(app);
-  
-  console.log('[Firebase] ✅ Initialized from environment variables');
-  console.log('[Firebase] Project:', firebaseConfig.projectId);
-  
-} catch (error) {
-  console.error('[Firebase] ❌ Initialization failed:', error);
-  throw error;
-}
-
-// Export initialized services
-export { auth, db, app };
-export default { auth, db, app };
+export { app, auth, db, analytics };
