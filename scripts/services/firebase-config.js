@@ -1,11 +1,13 @@
 /**
  * Firebase Configuration and Initialization
+ * Using Firebase v9 Compat SDK for easier integration
  */
 
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-import { getAuth } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
-import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
-import { getAnalytics } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics.js';
+// Import Firebase using compat mode (works without build system)
+import firebase from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js';
+import 'https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js';
+import 'https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js';
+import 'https://www.gstatic.com/firebasejs/9.22.0/firebase-analytics-compat.js';
 
 // Your Firebase configuration
 const firebaseConfig = {
@@ -19,9 +21,13 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-const analytics = getAnalytics(app);
+if (!firebase.apps.length) {
+  firebase.initializeApp(firebaseConfig);
+}
 
-export { app, auth, db, analytics };
+// Get Firebase services
+const auth = firebase.auth();
+const db = firebase.firestore();
+const analytics = firebase.analytics();
+
+export { firebase, auth, db, analytics };
