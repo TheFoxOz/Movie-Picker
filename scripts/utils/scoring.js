@@ -1,252 +1,145 @@
 /**
- * Scoring Utilities
- * Calculate match percentages and rankings
+ * Movie Scoring & Matching System
+ * Calculates compatibility scores between users and movies
  */
 
-// Swipe action score values
-export const SWIPE_SCORES = {
-    love: 4,
-    like: 3,
-    maybe: 1,
-    pass: 0
-};
+import { ENV } from '../config/env.js';
 
 /**
- * Calculate match data for a group/couple
- * @param {Object} match - Match object with swipes and metadata
- * @returns {Object} Calculated match data
+ * Calculate intelligent score for a movie
+ * Used for sorting in Library and recommendations
+ * 
+ * Scoring factors:
+ * - Base score from TMDB rating (0-100 points)
+ * - Popularity/vote count (0-50 points)
+ * - Recency bonus (0-30 points)
+ * - User preference match (0-30 points) - NEW!
+ * - Platform availability (0-15 points) - NEW!
+ * 
+ * @param {Object} movie - Movie object
+ * @param {Object} userPreferences - User preferences (optional)
+ * @param {Array} userSwipeHistory - User's swipe history (optional)
+ * @returns {number} Score (0-225)
  */
-export function calculateMatchData(match) {
-    const maxPossibleScore = match.totalMembers * SWIPE_SCORES.love;
-    let actualScore = 0;
-    let loveCount = 0;
-    let likeCount = 0;
-    let maybeCount = 0;
-    let passCount = 0;
+export function calculateIntelligentScore(movie, userPreferences = null, userSwipeHistory = null) {
+    let score = 0;
     
-    // Calculate actual score and counts
-    match.swipes.forEach(swipe => {
-        const score = SWIPE_SCORES[swipe.action] || 0;
-        actualScore += score;
+    // 1. Base score from rating (0-100 points)
+    const rating = parseFloat(movie.vote_average || movie.imdb || 0);
+    score += rating * 10; // Convert 0-10 scale to 0-100
+    
+    // 2. Popularity bonus (0-50 points)
+    const voteCount = parseInt(movie.vote_count || 0);
+    if (voteCount > 5000) score += 50;
+    else if (voteCount > 2000) score += 35;
+    else if (voteCount > 1000) score += 20;
+    else if (voteCount > 500) score += 10;
+    
+    // 3. Recency bonus (0-30 points)
+    const year = parseInt(movie.year || movie.release_date?.substring(0, 4) || 0);
+    const currentYear = new Date().getFullYear();
+    const yearDiff = currentYear - year;
+    
+    if (yearDiff <= 1) score += 30; // This year or last year
+    else if (yearDiff <= 3) score += 20; // Last 3 years
+    else if (yearDiff <= 5) score += 10; // Last 5 years
+    
+    // 4. User preference match (0-30 points) - NEW!
+    if (userPreferences && userSwipeHistory) {
+        const preferenceScore = calculateUserPreferenceMatch(movie, userPreferences, userSwipeHistory);
+        score += preferenceScore;
         
-        switch (swipe.action) {
-            case 'love': loveCount++; break;
-            case 'like': likeCount++; break;
-            case 'maybe': maybeCount++; break;
-            case 'pass': passCount++; break;
+        if (ENV.APP.debug) {
+            console.log('[Scoring] Preference match for', movie.title, ':', preferenceScore);
         }
-    });
-    
-    // Calculate match percentage
-    const matchPercentage = maxPossibleScore > 0 
-        ? Math.round((actualScore / maxPossibleScore) * 100) 
-        : 0;
-    
-    // Determine match quality
-    const matchQuality = getMatchQuality(matchPercentage);
-    
-    return {
-        matchPercentage,
-        actualScore,
-        maxPossibleScore,
-        loveCount,
-        likeCount,
-        maybeCount,
-        passCount,
-        matchQuality,
-        isPerfectMatch: matchPercentage === 100,
-        isStrongMatch: matchPercentage >= 75,
-        isGoodMatch: matchPercentage >= 50,
-    };
-}
-
-/**
- * Get match quality description
- * @param {Number} percentage - Match percentage
- * @returns {String} Quality description
- */
-export function getMatchQuality(percentage) {
-    if (percentage === 100) return 'Perfect Match! 🎉';
-    if (percentage >= 75) return 'Strong Match';
-    if (percentage >= 50) return 'Good Match';
-    if (percentage >= 25) return 'Okay Match';
-    return 'Weak Match';
-}
-
-/**
- * Sort matches by score (descending)
- * @param {Array} matches - Array of match objects
- * @returns {Array} Sorted matches with calculated data
- */
-export function sortMatchesByScore(matches) {
-    return matches
-        .map(match => ({
-            ...match,
-            ...calculateMatchData(match)
-        }))
-        .sort((a, b) => b.matchPercentage - a.matchPercentage);
-}
-
-/**
- * Get color for match percentage
- * @param {Number} percentage - Match percentage
- * @returns {String} CSS color variable
- */
-export function getMatchColor(percentage) {
-    if (percentage === 100) return 'var(--love-glow)';
-    if (percentage >= 75) return 'var(--like-glow)';
-    if (percentage >= 50) return 'var(--maybe-glow)';
-    return 'var(--nope-glow)';
-}
-
-/**
- * Get platform icon and color
- * @param {String} platform - Platform name
- * @returns {Object} Icon and color properties
- */
-export function getPlatformStyle(platform) {
-    const platformMap = {
-        'Netflix': { icon: 'N', color: '#E50914', textColor: 'white' },
-        'Prime Video': { icon: 'P', color: '#00A8E1', textColor: 'white' },
-        'Hulu': { icon: 'H', color: '#1CE783', textColor: 'black' },
-        'Max (HBO)': { icon: 'M', color: '#0060FF', textColor: 'white' },
-        'Disney+': { icon: 'D', color: '#113CCF', textColor: 'white' },
-        'Apple TV+': { icon: 'A', color: '#000000', textColor: 'white' },
-    };
-    
-    return platformMap[platform] || { 
-        icon: '?', 
-        color: '#6b7280', 
-        textColor: 'white' 
-    };
-}
-
-/**
- * Calculate recommendation score for a movie
- * @param {Object} movie - Movie data
- * @param {Object} userPreferences - User preferences
- * @returns {Number} Recommendation score (0-100)
- */
-export function calculateRecommendationScore(movie, userPreferences) {
-    let score = 50; // Base score
-    
-    // Genre match
-    if (userPreferences.favoriteGenres?.includes(movie.genre)) {
-        score += 20;
     }
     
-    // Actor match
-    const hasPreferredActor = movie.actors?.some(actor => 
-        userPreferences.favoriteActors?.includes(actor)
-    );
-    if (hasPreferredActor) {
+    // 5. Platform availability (0-15 points) - NEW!
+    if (userPreferences?.platforms?.length > 0) {
+        if (userPreferences.platforms.includes(movie.platform)) {
+            score += 15;
+            
+            if (ENV.APP.debug) {
+                console.log('[Scoring] Platform match for', movie.title);
+            }
+        }
+    }
+    
+    if (ENV.APP.debug) {
+        console.log('[Scoring] Total score for', movie.title, ':', Math.round(score));
+    }
+    
+    return Math.round(score);
+}
+
+/**
+ * Calculate user preference match
+ * Analyzes user's swipe history to find similar movies
+ * 
+ * @param {Object} movie - Movie to score
+ * @param {Object} userPreferences - User preferences
+ * @param {Array} userSwipeHistory - User's swipe history
+ * @returns {number} Score (0-30)
+ */
+function calculateUserPreferenceMatch(movie, userPreferences, userSwipeHistory) {
+    let score = 0;
+    
+    // Get loved movies
+    const lovedMovies = userSwipeHistory
+        .filter(entry => entry.action === 'love')
+        .map(entry => entry.movie);
+    
+    if (lovedMovies.length === 0) return 0;
+    
+    // Check genre match
+    const lovedGenres = lovedMovies.map(m => m.genre).filter(Boolean);
+    if (lovedGenres.includes(movie.genre)) {
         score += 15;
     }
     
-    // Rating preference
-    if (movie.imdb >= 7.5) {
-        score += 10;
+    // Check year range match (same decade)
+    const lovedYears = lovedMovies.map(m => parseInt(m.year || 0)).filter(y => y > 0);
+    const movieYear = parseInt(movie.year || 0);
+    if (movieYear > 0 && lovedYears.length > 0) {
+        const avgYear = lovedYears.reduce((a, b) => a + b, 0) / lovedYears.length;
+        const yearDiff = Math.abs(movieYear - avgYear);
+        if (yearDiff <= 5) score += 10;
+        else if (yearDiff <= 10) score += 5;
     }
     
-    // Platform availability
-    if (userPreferences.connectedPlatforms?.includes(movie.platform)) {
-        score += 5;
+    // Check rating range match
+    const lovedRatings = lovedMovies.map(m => parseFloat(m.imdb || 0)).filter(r => r > 0);
+    const movieRating = parseFloat(movie.imdb || 0);
+    if (movieRating > 0 && lovedRatings.length > 0) {
+        const avgRating = lovedRatings.reduce((a, b) => a + b, 0) / lovedRatings.length;
+        const ratingDiff = Math.abs(movieRating - avgRating);
+        if (ratingDiff <= 1) score += 5;
     }
     
-    return Math.min(100, Math.max(0, score));
+    return score;
 }
 
 /**
- * Find best watch time for a group
- * @param {Array} availabilities - Member availabilities
- * @param {Number} movieRuntime - Movie runtime in minutes
- * @returns {Object} Best time slot
+ * Calculate match score between two users
+ * Used in Matches tab for group compatibility
+ * 
+ * @param {Array} user1Swipes - User 1's swipe history
+ * @param {Array} user2Swipes - User 2's swipe history
+ * @returns {Object} Match data with score and common movies
  */
-export function findBestWatchTime(availabilities, movieRuntime) {
-    // Simple implementation - find overlapping time slots
-    // In a real app, this would be more sophisticated
+export function calculateMatchScore(user1Swipes, user2Swipes) {
+    // Get loved/liked movies for both users
+    const user1Movies = user1Swipes
+        .filter(entry => ['love', 'like'].includes(entry.action))
+        .map(entry => entry.movie.id);
     
-    const overlaps = [];
+    const user2Movies = user2Swipes
+        .filter(entry => ['love', 'like'].includes(entry.action))
+        .map(entry => entry.movie.id);
     
-    // Mock implementation
-    const today = new Date();
-    const tonight = new Date(today);
-    tonight.setHours(20, 0, 0, 0);
+    // Find common movies
+    const commonMovies = user1Movies.filter(id => user2Movies.includes(id));
     
-    overlaps.push({
-        startTime: tonight,
-        endTime: new Date(tonight.getTime() + (movieRuntime + 30) * 60000),
-        availableMembers: availabilities.length,
-        confidence: 85
-    });
-    
-    return {
-        bestTime: overlaps[0],
-        alternativeTimes: overlaps.slice(1, 4),
-        allAvailable: overlaps[0]?.availableMembers === availabilities.length
-    };
-}
-
-/**
- * Calculate consensus level
- * @param {Array} swipes - Array of swipe actions
- * @returns {Object} Consensus data
- */
-export function calculateConsensus(swipes) {
-    const total = swipes.length;
-    const loveCount = swipes.filter(s => s.action === 'love').length;
-    const likeCount = swipes.filter(s => s.action === 'like').length;
-    const positiveCount = loveCount + likeCount;
-    
-    const consensusPercentage = Math.round((positiveCount / total) * 100);
-    
-    return {
-        consensusPercentage,
-        isUnanimous: consensusPercentage === 100,
-        isStrong: consensusPercentage >= 75,
-        message: getConsensusMessage(consensusPercentage)
-    };
-}
-
-/**
- * Get consensus message
- * @param {Number} percentage - Consensus percentage
- * @returns {String} Message
- */
-function getConsensusMessage(percentage) {
-    if (percentage === 100) return 'Everyone loves this!';
-    if (percentage >= 75) return 'Strong group consensus';
-    if (percentage >= 50) return 'Mixed opinions';
-    return 'Divergent preferences';
-}
-
-/**
- * Get action emoji
- * @param {String} action - Swipe action
- * @returns {String} Emoji
- */
-export function getActionEmoji(action) {
-    const emojiMap = {
-        love: '💖',
-        like: '👍',
-        maybe: '🤔',
-        pass: '👎'
-    };
-    return emojiMap[action] || '❓';
-}
-
-/**
- * Format runtime
- * @param {Number|String} runtime - Runtime in minutes or formatted string
- * @returns {String} Formatted runtime
- */
-export function formatRuntime(runtime) {
-    if (typeof runtime === 'string') return runtime;
-    
-    const hours = Math.floor(runtime / 60);
-    const minutes = runtime % 60;
-    
-    if (hours === 0) return `${minutes}m`;
-    if (minutes === 0) return `${hours}h`;
-    return `${hours}h ${minutes}m`;
-}
+    // Calculate percentage match
+    const totalMovies = new Set([...user1Movies, ...user2Movies]).size;
+    const matchPercentage = t
