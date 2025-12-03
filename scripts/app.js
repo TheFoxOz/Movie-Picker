@@ -84,6 +84,11 @@ class App {
         // Get main container
         this.container = document.getElementById('app-container');
         
+        if (!this.container) {
+            console.error('[App] ❌ app-container not found in DOM');
+            return;
+        }
+        
         // Get nav buttons
         this.navButtons = {
             home: document.querySelector('[data-tab="home"]'),
@@ -111,9 +116,19 @@ class App {
             return;
         }
         
+        // Check if container exists
+        if (!this.container) {
+            console.error('[App] Container not found');
+            return;
+        }
+        
         // Destroy current tab if it has cleanup
         if (this.tabs[this.currentTab]?.destroy) {
-            this.tabs[this.currentTab].destroy();
+            try {
+                this.tabs[this.currentTab].destroy();
+            } catch (error) {
+                console.warn('[App] Error destroying tab:', error);
+            }
         }
         
         // Update current tab
@@ -136,7 +151,20 @@ class App {
         this.container.innerHTML = '';
         
         // Render new tab
-        this.tabs[tabName].render(this.container);
+        try {
+            this.tabs[tabName].render(this.container);
+        } catch (error) {
+            console.error('[App] Error rendering tab:', error);
+            this.container.innerHTML = `
+                <div style="display: flex; align-items: center; justify-content: center; height: 100%; padding: 2rem; text-align: center;">
+                    <div>
+                        <div style="font-size: 4rem; margin-bottom: 1rem;">⚠️</div>
+                        <h2 style="color: white; font-size: 1.5rem; margin-bottom: 0.5rem;">Error Loading Tab</h2>
+                        <p style="color: rgba(255, 255, 255, 0.6); font-size: 0.875rem;">Please refresh the page or try another tab.</p>
+                    </div>
+                </div>
+            `;
+        }
         
         if (ENV.APP.debug) {
             console.log(`[App] Switched to tab: ${tabName}`);
