@@ -157,7 +157,7 @@ class App {
             {
                 id: 550,
                 title: 'Fight Club',
-                synopsis: 'A depressed man suffering from insomnia meets a strange soap salesman and they form an underground fight club.',
+                synopsis: 'A depressed man suffering from insomnia meets a strange soap salesman.',
                 year: '1999',
                 genre: 'Drama',
                 imdb: '8.8',
@@ -169,12 +169,12 @@ class App {
                 genre_ids: [18],
                 vote_average: 8.8,
                 release_date: '1999-10-15',
-                overview: 'A depressed man suffering from insomnia meets a strange soap salesman and they form an underground fight club.'
+                overview: 'A depressed man suffering from insomnia meets a strange soap salesman.'
             },
             {
                 id: 13,
                 title: 'Forrest Gump',
-                synopsis: 'The presidencies of Kennedy and Johnson, the Vietnam War, and other historical events unfold from the perspective of an Alabama man.',
+                synopsis: 'The presidencies of Kennedy and Johnson unfold from the perspective of an Alabama man.',
                 year: '1994',
                 genre: 'Drama',
                 imdb: '8.8',
@@ -186,12 +186,12 @@ class App {
                 genre_ids: [35, 18],
                 vote_average: 8.8,
                 release_date: '1994-06-23',
-                overview: 'The presidencies of Kennedy and Johnson, the Vietnam War, and other historical events unfold from the perspective of an Alabama man.'
+                overview: 'The presidencies of Kennedy and Johnson unfold from the perspective of an Alabama man.'
             },
             {
                 id: 680,
                 title: 'Pulp Fiction',
-                synopsis: 'The lives of two mob hitmen, a boxer, a gangster and his wife intertwine in four tales of violence and redemption.',
+                synopsis: 'The lives of two mob hitmen intertwine in tales of violence and redemption.',
                 year: '1994',
                 genre: 'Crime',
                 imdb: '8.9',
@@ -203,12 +203,12 @@ class App {
                 genre_ids: [80, 53],
                 vote_average: 8.9,
                 release_date: '1994-09-10',
-                overview: 'The lives of two mob hitmen, a boxer, a gangster and his wife intertwine in four tales of violence and redemption.'
+                overview: 'The lives of two mob hitmen intertwine in tales of violence and redemption.'
             },
             {
                 id: 155,
                 title: 'The Dark Knight',
-                synopsis: 'When the menace known as the Joker wreaks havoc on Gotham, Batman must accept one of the greatest psychological tests.',
+                synopsis: 'Batman must accept one of the greatest psychological tests.',
                 year: '2008',
                 genre: 'Action',
                 imdb: '9.0',
@@ -220,12 +220,12 @@ class App {
                 genre_ids: [28, 80, 18],
                 vote_average: 9.0,
                 release_date: '2008-07-16',
-                overview: 'When the menace known as the Joker wreaks havoc on Gotham, Batman must accept one of the greatest psychological tests.'
+                overview: 'Batman must accept one of the greatest psychological tests.'
             },
             {
                 id: 27205,
                 title: 'Inception',
-                synopsis: 'A thief who steals corporate secrets through dream-sharing technology is given the inverse task of planting an idea.',
+                synopsis: 'A thief who steals secrets through dream technology.',
                 year: '2010',
                 genre: 'Sci-Fi',
                 imdb: '8.8',
@@ -237,12 +237,12 @@ class App {
                 genre_ids: [28, 878, 53],
                 vote_average: 8.8,
                 release_date: '2010-07-08',
-                overview: 'A thief who steals corporate secrets through dream-sharing technology is given the inverse task of planting an idea.'
+                overview: 'A thief who steals secrets through dream technology.'
             },
             {
                 id: 278,
                 title: 'The Shawshank Redemption',
-                synopsis: 'Two imprisoned men bond over years, finding solace and redemption through acts of common decency.',
+                synopsis: 'Two imprisoned men bond over years finding redemption.',
                 year: '1994',
                 genre: 'Drama',
                 imdb: '9.3',
@@ -254,12 +254,12 @@ class App {
                 genre_ids: [18, 80],
                 vote_average: 9.3,
                 release_date: '1994-09-23',
-                overview: 'Two imprisoned men bond over years, finding solace and redemption through acts of common decency.'
+                overview: 'Two imprisoned men bond over years finding redemption.'
             },
             {
                 id: 238,
                 title: 'The Godfather',
-                synopsis: 'The aging patriarch of an organized crime dynasty transfers control of his empire to his reluctant son.',
+                synopsis: 'The patriarch of a crime dynasty transfers control to his son.',
                 year: '1972',
                 genre: 'Crime',
                 imdb: '9.2',
@@ -271,12 +271,12 @@ class App {
                 genre_ids: [18, 80],
                 vote_average: 9.2,
                 release_date: '1972-03-14',
-                overview: 'The aging patriarch of an organized crime dynasty transfers control of his empire to his reluctant son.'
+                overview: 'The patriarch of a crime dynasty transfers control to his son.'
             },
             {
                 id: 424,
-                title: "Schindler's List",
-                synopsis: 'In German-occupied Poland, industrialist Oskar Schindler saves his Jewish employees from the Holocaust.',
+                title: 'Schindler List',
+                synopsis: 'Industrialist Oskar Schindler saves Jews from the Holocaust.',
                 year: '1993',
                 genre: 'Drama',
                 imdb: '9.0',
@@ -288,12 +288,12 @@ class App {
                 genre_ids: [18, 36, 10752],
                 vote_average: 9.0,
                 release_date: '1993-12-15',
-                overview: 'In German-occupied Poland, industrialist Oskar Schindler saves his Jewish employees from the Holocaust.'
+                overview: 'Industrialist Oskar Schindler saves Jews from the Holocaust.'
             },
             {
                 id: 389,
                 title: '12 Angry Men',
-                synopsis: 'A jury holdout attempts to prevent a miscarriage of justice by forcing his colleagues to reconsider the evidence.',
+                synopsis: 'A jury holdout prevents a miscarriage of justice.',
                 year: '1957',
                 genre: 'Drama',
                 imdb: '9.0',
@@ -305,12 +305,12 @@ class App {
                 genre_ids: [18],
                 vote_average: 9.0,
                 release_date: '1957-04-10',
-                overview: 'A jury holdout attempts to prevent a miscarriage of justice by forcing his colleagues to reconsider the evidence.'
+                overview: 'A jury holdout prevents a miscarriage of justice.'
             },
             {
                 id: 129,
                 title: 'Spirited Away',
-                synopsis: 'During her family\'s move to the suburbs, a sullen 10-year-old girl wanders into a world ruled by gods and witches.',
+                synopsis: 'A girl wanders into a world ruled by gods and witches.',
                 year: '2001',
                 genre: 'Animation',
                 imdb: '8.6',
@@ -322,7 +322,7 @@ class App {
                 genre_ids: [16, 10751, 14],
                 vote_average: 8.6,
                 release_date: '2001-07-20',
-                overview: 'During her family\'s move to the suburbs, a sullen 10-year-old girl wanders into a world ruled by gods and witches.'
+                overview: 'A girl wanders into a world ruled by gods and witches.'
             }
         ];
     }
@@ -333,25 +333,3 @@ document.addEventListener('DOMContentLoaded', () => {
     window.app = new App();
     window.app.init();
 });
-```
-
----
-
-## **🚀 TEST & DEBUG**
-
-1. **Save** `/scripts/app.js`
-2. **Hard refresh** (Ctrl+Shift+R)
-3. **Open console** (F12)
-4. **Look for these logs:**
-```
-[App] 🎬 Initializing Movie Picker...
-[App] ✅ TMDB API key found
-[TMDB] ✅ Service initialized
-[App] ✅ TMDB service ready
-[App] ✅ UI initialized
-[App] ✅ Switched to: home
-[HomeTab] 🎬 Loading TMDB data...
-[TMDB] Loaded popular page 1, 20 movies
-[TMDB] Loaded popular page 2, 20 movies
-[TMDB] Loaded popular page 3, 20 movies
-[HomeTab] ✅ Loaded 60 movies
