@@ -1,6 +1,6 @@
 /**
  * Library Tab Component
- * TRUE UNLIMITED TMDB movies — no CSP issues, no eval(), infinite scroll
+ * TRUE UNLIMITED TMDB movies — no CSP issues, infinite scroll, all filters
  */
 
 import { store } from '../state/store.js';
@@ -57,7 +57,7 @@ export class LibraryTab {
             let newMovies = [];
 
             if (page === 1) {
-                console.log('[Library] Loading rich initial collection...');
+                console.log('[Library] Loading initial collection...');
                 const sources = await Promise.all([
                     tmdbService.fetchPopularMovies(8),
                     tmdbService.fetchTrendingMovies(),
@@ -71,14 +71,14 @@ export class LibraryTab {
                 this.allMovies = Array.from(map.values());
             }
 
-            // TRUE UNLIMITED: Use TMDB Discover API for all pages
+            // TRUE UNLIMITED: Discover API from page 1 onward
             console.log(`[Library] Loading Discover page ${page}...`);
             const response = await fetch(
-                `https://api.themoviedb.org/3/discover/movie?api_key=${tmdbService.apiKey}&language=en-US&sort_by=popularity.desc&page=${page}&include_adult=false&include_video=false`
+                `https://api.themoviedb.org/3/discover/movie?api_key=${tmdbService.apiKey}&language=en-US&sort_by=popularity.desc&page=${page}&include_adult=false`
             );
 
             if (!response.ok) {
-                console.warn('[Library] TMDB rate limited or error — stopping');
+                console.warn('[Library] TMDB limit reached');
                 this.hasMorePages = false;
                 return;
             }
@@ -88,16 +88,13 @@ export class LibraryTab {
 
             if (newMovies.length === 0) {
                 this.hasMorePages = false;
-                console.log('[Library] End of TMDB catalog reached');
                 return;
             }
 
-            // Remove duplicates
             const existingIds = new Set(this.allMovies.map(m => m.id));
             const filtered = newMovies.filter(m => !existingIds.has(m.id));
             this.allMovies.push(...filtered);
 
-            // Apply preferences
             this.filteredMovies = this.filterMoviesByPreferences(this.allMovies);
             this.currentPage = page;
 
@@ -113,14 +110,12 @@ export class LibraryTab {
 
     setupInfiniteScroll() {
         if (this.scrollListener) window.removeEventListener('scroll', this.scrollListener);
-
         this.scrollListener = () => {
             const { scrollTop, scrollHeight, clientHeight } = document.documentElement;
             if (scrollHeight - scrollTop - clientHeight < 800 && !this.isLoading && this.hasMorePages) {
                 this.loadMovies(this.currentPage + 1).then(() => this.updateMoviesGrid());
             }
         };
-
         window.addEventListener('scroll', this.scrollListener);
     }
 
@@ -131,6 +126,13 @@ export class LibraryTab {
                 <p style="color:rgba(255,255,255,0.7);">Loading infinite library...</p>
             </div>
         `;
+    }
+
+    // FIXED: getButtonStyle method was missing!
+    getButtonStyle(isActive, activeGradient, defaultBg = 'rgba(255,255,255,0.05)') {
+        const bg = isActive ? activeGradient : defaultBg;
+        const border = isActive ? activeGradient.split(',')[0].replace('linear-gradient(135deg, ', '') : 'rgba(255,255,255,0.1)';
+        return `padding:0.75rem 1.5rem;background:${bg};border:1px solid ${border};border-radius:0.75rem;color:white;font-size:0.875rem;font-weight:600;cursor:pointer;white-space:nowrap;transition:all 0.3s;`;
     }
 
     renderContent() {
@@ -254,7 +256,7 @@ export class LibraryTab {
 
         return `
             <div class="library-movie-card" data-movie-id="${movie.id}">
-                <div style="position:relative;width:100%;aspect-ratio:2/3;border-radius:0.75rem;overflow:hidden;background:rgba(255,255,255,0.05);box-shadow:0 4px 16px rgba(0,0,0,0.3);transition:transform 0.3s;">
+                <div style="position:relative;width:100%;aspect-ratio:2/3;border-radius:0.75rem;overflow:hidden;background:rgba(255,255,255,0.05);box-shadow:0 4px 16px rgba(0,0,0,0.3);transition:transform 0.3s;cursor:pointer;">
                     <img src="${posterUrl}" alt="${movie.title}" style="width:100%;height:100%;object-fit:cover;"
                          onerror="this.src='https://placehold.co/300x450/1a1a2e/ffffff?text=${encodeURIComponent(movie.title)}'">
                     ${movie.vote_average ? `
