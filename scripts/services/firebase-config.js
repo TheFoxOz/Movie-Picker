@@ -3,7 +3,7 @@
  * Using Firebase v9 Compat SDK
  */
 
-// Import Firebase v9.6.1 compat (stable version)
+// Import Firebase v9.6.1 compat
 import firebase from 'https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js';
 import 'https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js';
 import 'https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js';
@@ -24,16 +24,19 @@ if (!firebase.apps.length) {
   firebase.initializeApp(firebaseConfig);
 }
 
-// Get Firebase services
-const auth = firebase.auth();
-const db = firebase.firestore();
+// Export Firebase services with proper named exports
+export const auth = firebase.auth();
+export const db = firebase.firestore();
+export { firebase };
 
-// Initialize analytics only if available
+// Optional: Analytics
 let analytics = null;
 try {
-  analytics = firebase.analytics();
+  if (typeof firebase.analytics === 'function') {
+    analytics = firebase.analytics();
+  }
 } catch (e) {
   console.log('[Firebase] Analytics not available');
 }
 
-export { firebase, auth, db, analytics };
+export { analytics };
