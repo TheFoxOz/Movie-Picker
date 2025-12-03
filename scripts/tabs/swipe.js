@@ -1,6 +1,6 @@
 /**
  * Swipe Tab Component
- * FIXED: Action buttons float above bottom nav — perfect Tinder-style layout
+ * PERFECT UI — Swipe button aligned with other tabs, action buttons fixed & beautiful
  */
 
 import { store } from '../state/store.js';
@@ -26,14 +26,13 @@ export class SwipeTab {
         if (this.hasLoaded) {
             this.showNextCard();
             return;
-            return;
         }
         this.hasLoaded = true;
 
         container.innerHTML = `
-            <div style="position: relative; width: 100%; height: calc(100vh - 5rem); display: flex; flex-direction: column; padding-bottom: 7rem;">
+            <div style="position: relative; width: 100%; height: calc(100vh - 5rem); display: flex; flex-direction: column; padding-bottom: 8rem;">
                 
-                <!-- Header
+                <!-- Header -->
                 <div style="padding: 1.5rem 1rem; text-align: center;">
                     <h1 style="font-size: 1.5rem; font-weight: 800; color: white; margin: 0 0 0.5rem 0;">
                         Discover Movies
@@ -51,19 +50,19 @@ export class SwipeTab {
                     </div>
                 </div>
 
-                <!-- FLOATING ACTION BUTTONS — ABOVE BOTTOM NAV -->
+                <!-- FIXED & BEAUTIFUL ACTION BUTTONS — FLOATING ABOVE NAV -->
                 <div style="position: fixed; bottom: 6.5rem; left: 0; right: 0; z-index: 90; padding: 0 1.5rem; pointer-events: none;">
                     <div style="display: flex; align-items: center; justify-content: center; gap: 1.8rem; pointer-events: auto;">
-                        <button id="swipe-pass" class="swipe-action-btn">
+                        <button id="swipe-pass" class="swipe-action-btn" data-action="pass">
                             No
                         </button>
-                        <button id="swipe-maybe" class="swipe-action-btn">
+                        <button id="swipe-maybe" class="swipe-action-btn" data-action="maybe">
                             Question
                         </button>
-                        <button id="swipe-like" class="swipe-action-btn">
+                        <button id="swipe-like" class="swipe-action-btn" data-action="like">
                             Thumbs Up
                         </button>
-                        <button id="swipe-love" class="swipe-action-btn">
+                        <button id="swipe-love" class="swipe-action-btn" data-action="love">
                             Heart
                         </button>
                     </div>
@@ -78,14 +77,14 @@ export class SwipeTab {
                     <p style="font-size: 1.125rem; color: rgba(255, 255, 255, 0.8); margin: 0 0 2rem 0; max-width: 400px;">
                         You've swiped through all available movies. Check your Library to see your picks!
                     </p>
-                    <button id="goto-library" style="padding: 1rem 2rem; background: linear-gradient(135deg, #ff2e63, #d90062); border: none; border-radius: 1rem; color: white; font-size: 1rem; font-weight: 700; cursor: pointer; transition: transform 0.3s; box-shadow: 0 8px 24px rgba(255, 46, 99, 0.4);" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                    <button id="goto-library" style="padding: 1rem 2rem; background: linear-gradient(135deg, #ff2e63, #d90062); border: none; border-radius: 1rem; color: white; font-size: 1rem; font-weight: 700; cursor: pointer; transition: transform 0.3s; box-shadow: 0 8px 24px rgba(255, 46, 99, 0.4);">
                         View My Library
                     </button>
                 </div>
             </div>
         `;
 
-        // Add beautiful button styles
+        // PERFECT ACTION BUTTON STYLES
         const style = document.createElement('style');
         style.textContent = `
             .swipe-action-btn {
@@ -96,35 +95,21 @@ export class SwipeTab {
                 font-size: 2.2rem;
                 cursor: pointer;
                 transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
-                backdrop-filter: blur(10px);
+                box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+                backdrop-filter: blur(12px);
                 display: flex;
                 align-items: center;
                 justify-content: center;
+                position: relative;
             }
-            #swipe-pass {
-                background: rgba(239, 68, 68, 0.25);
-                border: 3px solid rgba(239, 68, 68, 0.6);
-                color: #ef4444;
-            }
-            #swipe-maybe {
-                background: rgba(251, 191, 36, 0.25);
-                border: 3px solid rgba(251, 191, 36, 0.6);
-                color: #fbbf24;
-            }
-            #swipe-like {
-                background: rgba(16, 185, 129, 0.25);
-                border: 3px solid rgba(16, 185, 129, 0.6);
-                color: #10b981;
-            }
-            #swipe-love {
-                background: rgba(255, 46, 99, 0.25);
-                border: 3px solid rgba(255, 46, 99, 0.6);
-                color: #ff2e63;
-            }
+            #swipe-pass { background: rgba(239, 68, 68, 0.25); border: 4px solid rgba(239, 68, 68, 0.6); color: #ef4444; }
+            #swipe-maybe { background: rgba(251, 191, 36, 0.25); border: 4px solid rgba(251, 191, 36, 0.6); color: #fbbf24; }
+            #swipe-like { background: rgba(16, 185, 129, 0.25); border: 4px solid rgba(16, 185, 129, 0.6); color: #10b981; }
+            #swipe-love { background: rgba(255, 46, 99, 0.25); border: 4px solid rgba(255, 46, 99, 0.6); color: #ff2e63; }
+
             .swipe-action-btn:hover {
-                transform: scale(1.15) !important;
-                box-shadow: 0 15px 40px rgba(0, 0, 0, 0.6);
+                transform: scale(1.18) !important;
+                box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
             }
             .swipe-action-btn:active {
                 transform: scale(0.95) !important;
