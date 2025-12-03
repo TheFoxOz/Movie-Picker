@@ -8,6 +8,7 @@ import { SwipeTab } from './tabs/swipe.js';
 import { LibraryTab } from './tabs/library.js';
 import { MatchesTab } from './tabs/matches.js';
 import { ProfileTab } from './tabs/profile.js';
+import { getTMDBService } from './services/tmdb.js';
 import { ENV } from './config/env.js';
 
 class App {
@@ -26,7 +27,10 @@ class App {
     }
     
     async init() {
-        console.log('[App] Initializing Movie Picker...');
+        console.log('[App] 🎬 Initializing Movie Picker...');
+        
+        // Check TMDB API key
+        this.checkTMDBAPI();
         
         // Initialize UI
         this.initUI();
@@ -34,7 +38,26 @@ class App {
         // Load initial tab
         this.switchTab('home');
         
-        console.log('[App] ✅ App initialized');
+        console.log('[App] ✅ App initialized successfully');
+    }
+    
+    checkTMDBAPI() {
+        const apiKey = window.__tmdb_api_key;
+        
+        if (!apiKey || apiKey === 'YOUR_TMDB_API_KEY_HERE') {
+            console.error('[App] ❌ TMDB API key not found!');
+            console.error('[App] 📝 Add to index.html: window.__tmdb_api_key = "your_key"');
+        } else {
+            console.log('[App] ✅ TMDB API key found');
+            
+            // Try to initialize TMDB service
+            const tmdbService = getTMDBService();
+            if (tmdbService) {
+                console.log('[App] ✅ TMDB service ready');
+            } else {
+                console.error('[App] ❌ TMDB service failed to initialize');
+            }
+        }
     }
     
     initUI() {
@@ -60,16 +83,18 @@ class App {
                 button.addEventListener('click', () => this.switchTab(tab));
             }
         });
+        
+        console.log('[App] ✅ UI initialized');
     }
     
     switchTab(tabName) {
         if (!this.tabs[tabName]) {
-            console.error(`[App] Tab "${tabName}" not found`);
+            console.error(`[App] ❌ Tab "${tabName}" not found`);
             return;
         }
         
         if (!this.container) {
-            console.error('[App] Container not found');
+            console.error('[App] ❌ Container not found');
             return;
         }
         
@@ -78,7 +103,7 @@ class App {
             try {
                 this.tabs[this.currentTab].destroy();
             } catch (error) {
-                console.warn('[App] Error destroying tab:', error);
+                console.warn('[App] ⚠️  Error destroying tab:', error);
             }
         }
         
@@ -104,22 +129,29 @@ class App {
         // Render new tab
         try {
             this.tabs[tabName].render(this.container);
+            console.log(`[App] ✅ Switched to: ${tabName}`);
         } catch (error) {
-            console.error('[App] Error rendering tab:', error);
+            console.error('[App] ❌ Error rendering tab:', error);
             this.container.innerHTML = `
                 <div style="display: flex; align-items: center; justify-content: center; height: 100%; padding: 2rem; text-align: center;">
                     <div>
                         <div style="font-size: 4rem; margin-bottom: 1rem;">⚠️</div>
                         <h2 style="color: white; font-size: 1.5rem; margin-bottom: 0.5rem;">Error Loading Tab</h2>
-                        <p style="color: rgba(255, 255, 255, 0.6); font-size: 0.875rem;">Please refresh the page</p>
+                        <p style="color: rgba(255, 255, 255, 0.6); font-size: 0.875rem; margin: 0 0 1rem 0;">
+                            ${error.message}
+                        </p>
+                        <button onclick="location.reload()" style="padding: 0.75rem 1.5rem; background: linear-gradient(135deg, #ff2e63, #d90062); border: none; border-radius: 0.75rem; color: white; font-weight: 600; cursor: pointer;">
+                            Refresh Page
+                        </button>
                     </div>
                 </div>
             `;
         }
-        
-        console.log(`[App] Switched to: ${tabName}`);
     }
     
+    /**
+     * Fallback movies (used when TMDB fails)
+     */
     getFallbackMovies() {
         return [
             {
@@ -206,6 +238,91 @@ class App {
                 vote_average: 8.8,
                 release_date: '2010-07-08',
                 overview: 'A thief who steals corporate secrets through dream-sharing technology is given the inverse task of planting an idea.'
+            },
+            {
+                id: 278,
+                title: 'The Shawshank Redemption',
+                synopsis: 'Two imprisoned men bond over years, finding solace and redemption through acts of common decency.',
+                year: '1994',
+                genre: 'Drama',
+                imdb: '9.3',
+                platform: 'Netflix',
+                poster_path: 'https://image.tmdb.org/t/p/w500/q6y0Go1tsGEsmtFryDOJo3dEmqu.jpg',
+                backdrop_path: 'https://image.tmdb.org/t/p/w1280/kXfqcdQKsToO0OUXHcrrNCHDBzO.jpg',
+                cast: ['Tim Robbins', 'Morgan Freeman', 'Bob Gunton'],
+                director: 'Frank Darabont',
+                genre_ids: [18, 80],
+                vote_average: 9.3,
+                release_date: '1994-09-23',
+                overview: 'Two imprisoned men bond over years, finding solace and redemption through acts of common decency.'
+            },
+            {
+                id: 238,
+                title: 'The Godfather',
+                synopsis: 'The aging patriarch of an organized crime dynasty transfers control of his empire to his reluctant son.',
+                year: '1972',
+                genre: 'Crime',
+                imdb: '9.2',
+                platform: 'Prime Video',
+                poster_path: 'https://image.tmdb.org/t/p/w500/3bhkrj58Vtu7enYsRolD1fZdja1.jpg',
+                backdrop_path: 'https://image.tmdb.org/t/p/w1280/tmU7GeKVybMWFButWEGl2M4GeiP.jpg',
+                cast: ['Marlon Brando', 'Al Pacino', 'James Caan'],
+                director: 'Francis Ford Coppola',
+                genre_ids: [18, 80],
+                vote_average: 9.2,
+                release_date: '1972-03-14',
+                overview: 'The aging patriarch of an organized crime dynasty transfers control of his empire to his reluctant son.'
+            },
+            {
+                id: 424,
+                title: "Schindler's List",
+                synopsis: 'In German-occupied Poland, industrialist Oskar Schindler saves his Jewish employees from the Holocaust.',
+                year: '1993',
+                genre: 'Drama',
+                imdb: '9.0',
+                platform: 'Netflix',
+                poster_path: 'https://image.tmdb.org/t/p/w500/sF1U4EUQS8YHUYjNl3pMGNIQyr0.jpg',
+                backdrop_path: 'https://image.tmdb.org/t/p/w1280/loRmRzQXZeqG78TqZuyvSlEQfZb.jpg',
+                cast: ['Liam Neeson', 'Ben Kingsley', 'Ralph Fiennes'],
+                director: 'Steven Spielberg',
+                genre_ids: [18, 36, 10752],
+                vote_average: 9.0,
+                release_date: '1993-12-15',
+                overview: 'In German-occupied Poland, industrialist Oskar Schindler saves his Jewish employees from the Holocaust.'
+            },
+            {
+                id: 389,
+                title: '12 Angry Men',
+                synopsis: 'A jury holdout attempts to prevent a miscarriage of justice by forcing his colleagues to reconsider the evidence.',
+                year: '1957',
+                genre: 'Drama',
+                imdb: '9.0',
+                platform: 'Hulu',
+                poster_path: 'https://image.tmdb.org/t/p/w500/ow3wq89wM8qd5X7hWKxiRfsFf9C.jpg',
+                backdrop_path: 'https://image.tmdb.org/t/p/w1280/qqHQsStV6exghCM7zbObuYBiYxw.jpg',
+                cast: ['Henry Fonda', 'Lee J. Cobb', 'Martin Balsam'],
+                director: 'Sidney Lumet',
+                genre_ids: [18],
+                vote_average: 9.0,
+                release_date: '1957-04-10',
+                overview: 'A jury holdout attempts to prevent a miscarriage of justice by forcing his colleagues to reconsider the evidence.'
+            },
+            {
+                id: 129,
+                title: 'Spirited Away',
+                synopsis: 'During her family\'s move to the suburbs, a sullen 10-year-old girl wanders into a world ruled by gods and witches.',
+                year: '2001',
+                genre: 'Animation',
+                imdb: '8.6',
+                platform: 'HBO Max',
+                poster_path: 'https://image.tmdb.org/t/p/w500/39wmItIWsg5sZMyRUHLkWBcuVCM.jpg',
+                backdrop_path: 'https://image.tmdb.org/t/p/w1280/djgM2d3e42p9GFQObg6lNHTbDw8.jpg',
+                cast: ['Rumi Hiiragi', 'Miyu Irino', 'Mari Natsuki'],
+                director: 'Hayao Miyazaki',
+                genre_ids: [16, 10751, 14],
+                vote_average: 8.6,
+                release_date: '2001-07-20',
+                overview: 'During her family\'s move to the suburbs, a sullen 10-year-old girl wanders into a world ruled by gods and witches.'
             }
         ];
     }
@@ -216,3 +333,25 @@ document.addEventListener('DOMContentLoaded', () => {
     window.app = new App();
     window.app.init();
 });
+```
+
+---
+
+## **🚀 TEST & DEBUG**
+
+1. **Save** `/scripts/app.js`
+2. **Hard refresh** (Ctrl+Shift+R)
+3. **Open console** (F12)
+4. **Look for these logs:**
+```
+[App] 🎬 Initializing Movie Picker...
+[App] ✅ TMDB API key found
+[TMDB] ✅ Service initialized
+[App] ✅ TMDB service ready
+[App] ✅ UI initialized
+[App] ✅ Switched to: home
+[HomeTab] 🎬 Loading TMDB data...
+[TMDB] Loaded popular page 1, 20 movies
+[TMDB] Loaded popular page 2, 20 movies
+[TMDB] Loaded popular page 3, 20 movies
+[HomeTab] ✅ Loaded 60 movies
