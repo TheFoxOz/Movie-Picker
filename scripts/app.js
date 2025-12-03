@@ -8,9 +8,6 @@ import { SwipeTab } from './tabs/swipe.js';
 import { LibraryTab } from './tabs/library.js';
 import { MatchesTab } from './tabs/matches.js';
 import { ProfileTab } from './tabs/profile.js';
-import { getTMDBService } from './services/tmdb.js';
-import { authService } from './services/auth-service.js';
-import { showError } from './utils/notifications.js';
 import { ENV } from './config/env.js';
 
 class App {
@@ -29,12 +26,7 @@ class App {
     }
     
     async init() {
-        if (ENV.APP.debug) {
-            console.log('[App] Initializing Movie Picker...');
-        }
-        
-        // Check TMDB API key
-        this.checkTMDBKey();
+        console.log('[App] Initializing Movie Picker...');
         
         // Initialize UI
         this.initUI();
@@ -42,42 +34,14 @@ class App {
         // Load initial tab
         this.switchTab('home');
         
-        // Setup global navigation listener
-        document.addEventListener('navigate-tab', (e) => {
-            const { tab } = e.detail;
-            this.switchTab(tab);
-        });
-        
-        if (ENV.APP.debug) {
-            console.log('[App] ✅ App initialized successfully');
-        }
-    }
-    
-    checkTMDBKey() {
-        // Get API key from window (set in index.html)
-        const tmdbApiKey = window.__tmdb_api_key || window.tmdbApiKey;
-        
-        // Validate API key
-        if (!tmdbApiKey || tmdbApiKey === 'YOUR_TMDB_API_KEY_HERE') {
-            console.warn('[App] ⚠️  TMDB API key not configured!');
-            console.warn('[App] 📝 Get your free API key at: https://www.themoviedb.org/settings/api');
-            console.warn('[App] 💡 Add it to index.html: window.__tmdb_api_key = "your_key_here"');
-        } else {
-            // Store the API key globally
-            window.__tmdb_api_key = tmdbApiKey;
-            
-            if (ENV.APP.debug) {
-                console.log('[App] ✅ TMDB API key found');
-            }
-        }
+        console.log('[App] ✅ App initialized');
     }
     
     initUI() {
-        // Get main container
         this.container = document.getElementById('app-container');
         
         if (!this.container) {
-            console.error('[App] ❌ app-container not found in DOM');
+            console.error('[App] ❌ app-container not found');
             return;
         }
         
@@ -96,25 +60,20 @@ class App {
                 button.addEventListener('click', () => this.switchTab(tab));
             }
         });
-        
-        if (ENV.APP.debug) {
-            console.log('[App] UI initialized');
-        }
     }
     
     switchTab(tabName) {
         if (!this.tabs[tabName]) {
-            console.error(`[App] Tab "${tabName}" does not exist`);
+            console.error(`[App] Tab "${tabName}" not found`);
             return;
         }
         
-        // Check if container exists
         if (!this.container) {
             console.error('[App] Container not found');
             return;
         }
         
-        // Destroy current tab if it has cleanup
+        // Destroy current tab
         if (this.tabs[this.currentTab]?.destroy) {
             try {
                 this.tabs[this.currentTab].destroy();
@@ -152,116 +111,101 @@ class App {
                     <div>
                         <div style="font-size: 4rem; margin-bottom: 1rem;">⚠️</div>
                         <h2 style="color: white; font-size: 1.5rem; margin-bottom: 0.5rem;">Error Loading Tab</h2>
-                        <p style="color: rgba(255, 255, 255, 0.6); font-size: 0.875rem;">Please refresh the page or try another tab.</p>
+                        <p style="color: rgba(255, 255, 255, 0.6); font-size: 0.875rem;">Please refresh the page</p>
                     </div>
                 </div>
             `;
         }
         
-        if (ENV.APP.debug) {
-            console.log(`[App] Switched to tab: ${tabName}`);
-        }
+        console.log(`[App] Switched to: ${tabName}`);
     }
     
-    /**
-     * Get fallback movies when TMDB is not available
-     */
     getFallbackMovies() {
         return [
             {
-                id: 'fallback-1',
-                title: 'The Shawshank Redemption',
-                synopsis: 'Two imprisoned men bond over a number of years, finding solace and eventual redemption through acts of common decency.',
-                year: '1994',
+                id: 550,
+                title: 'Fight Club',
+                synopsis: 'A depressed man suffering from insomnia meets a strange soap salesman and they form an underground fight club.',
+                year: '1999',
                 genre: 'Drama',
-                imdb: '9.3',
-                runtime: '142 min',
+                imdb: '8.8',
                 platform: 'Netflix',
-                poster_path: 'https://image.tmdb.org/t/p/w500/q6y0Go1tsGEsmtFryDOJo3dEmqu.jpg',
-                backdrop_path: 'https://image.tmdb.org/t/p/w500/kXfqcdQKsToO0OUXHcrrNCHDBzO.jpg',
-                cast: ['Tim Robbins', 'Morgan Freeman', 'Bob Gunton', 'William Sadler'],
-                director: 'Frank Darabont',
+                poster_path: 'https://image.tmdb.org/t/p/w500/pB8BM7pdSp6B6Ih7QZ4DrQ3PmJK.jpg',
+                backdrop_path: 'https://image.tmdb.org/t/p/w1280/fCayJrkfRaCRCTh8GqN30f8oyQF.jpg',
+                cast: ['Brad Pitt', 'Edward Norton', 'Helena Bonham Carter'],
+                director: 'David Fincher',
                 genre_ids: [18],
-                vote_average: 9.3,
-                release_date: '1994-09-23',
-                overview: 'Two imprisoned men bond over a number of years, finding solace and eventual redemption through acts of common decency.',
-                triggerWarnings: ['Violence', 'Prison brutality']
+                vote_average: 8.8,
+                release_date: '1999-10-15',
+                overview: 'A depressed man suffering from insomnia meets a strange soap salesman and they form an underground fight club.'
             },
             {
-                id: 'fallback-2',
-                title: 'The Godfather',
-                synopsis: 'The aging patriarch of an organized crime dynasty transfers control of his clandestine empire to his reluctant son.',
-                year: '1972',
-                genre: 'Crime',
-                imdb: '9.2',
-                runtime: '175 min',
-                platform: 'Prime Video',
-                poster_path: 'https://image.tmdb.org/t/p/w500/3bhkrj58Vtu7enYsRolD1fZdja1.jpg',
-                backdrop_path: 'https://image.tmdb.org/t/p/w500/tmU7GeKVybMWFButWEGl2M4GeiP.jpg',
-                cast: ['Marlon Brando', 'Al Pacino', 'James Caan', 'Diane Keaton'],
-                director: 'Francis Ford Coppola',
-                genre_ids: [80, 18],
-                vote_average: 9.2,
-                release_date: '1972-03-14',
-                overview: 'The aging patriarch of an organized crime dynasty transfers control of his clandestine empire to his reluctant son.',
-                triggerWarnings: ['Violence', 'Crime']
-            },
-            {
-                id: 'fallback-3',
-                title: 'The Dark Knight',
-                synopsis: 'When the menace known as the Joker wreaks havoc and chaos on the people of Gotham, Batman must accept one of the greatest psychological tests.',
-                year: '2008',
-                genre: 'Action',
-                imdb: '9.0',
-                runtime: '152 min',
-                platform: 'HBO Max',
-                poster_path: 'https://image.tmdb.org/t/p/w500/qJ2tW6WMUDux911r6m7haRef0WH.jpg',
-                backdrop_path: 'https://image.tmdb.org/t/p/w500/hkBaDkMWbLaf8B1lsWsKX7Ew3Xq.jpg',
-                cast: ['Christian Bale', 'Heath Ledger', 'Aaron Eckhart', 'Michael Caine'],
-                director: 'Christopher Nolan',
-                genre_ids: [28, 80, 18],
-                vote_average: 9.0,
-                release_date: '2008-07-16',
-                overview: 'When the menace known as the Joker wreaks havoc and chaos on the people of Gotham, Batman must accept one of the greatest psychological tests.',
-                triggerWarnings: ['Violence', 'Intense action']
-            },
-            {
-                id: 'fallback-4',
-                title: 'Pulp Fiction',
-                synopsis: 'The lives of two mob hitmen, a boxer, a gangster and his wife intertwine in four tales of violence and redemption.',
-                year: '1994',
-                genre: 'Crime',
-                imdb: '8.9',
-                runtime: '154 min',
-                platform: 'Netflix',
-                poster_path: 'https://image.tmdb.org/t/p/w500/d5iIlFn5s0ImszYzBPb8JPIfbXD.jpg',
-                backdrop_path: 'https://image.tmdb.org/t/p/w500/suaEOtk1N1sgg2MTM7oZd2cfVp3.jpg',
-                cast: ['John Travolta', 'Uma Thurman', 'Samuel L. Jackson', 'Bruce Willis'],
-                director: 'Quentin Tarantino',
-                genre_ids: [80, 53],
-                vote_average: 8.9,
-                release_date: '1994-09-10',
-                overview: 'The lives of two mob hitmen, a boxer, a gangster and his wife intertwine in four tales of violence and redemption.',
-                triggerWarnings: ['Violence', 'Strong language', 'Drug use']
-            },
-            {
-                id: 'fallback-5',
+                id: 13,
                 title: 'Forrest Gump',
                 synopsis: 'The presidencies of Kennedy and Johnson, the Vietnam War, and other historical events unfold from the perspective of an Alabama man.',
                 year: '1994',
                 genre: 'Drama',
                 imdb: '8.8',
-                runtime: '142 min',
                 platform: 'Prime Video',
                 poster_path: 'https://image.tmdb.org/t/p/w500/arw2vcBveWOVZr6pxd9XTd1TdQa.jpg',
-                backdrop_path: 'https://image.tmdb.org/t/p/w500/7c9UVPPiTPltouxRVY6N9uAXMjD.jpg',
-                cast: ['Tom Hanks', 'Robin Wright', 'Gary Sinise', 'Sally Field'],
+                backdrop_path: 'https://image.tmdb.org/t/p/w1280/7c9UVPPiTPltouxRVY6N9uAXMjD.jpg',
+                cast: ['Tom Hanks', 'Robin Wright', 'Gary Sinise'],
                 director: 'Robert Zemeckis',
-                genre_ids: [35, 18, 10749],
+                genre_ids: [35, 18],
                 vote_average: 8.8,
                 release_date: '1994-06-23',
-                overview: 'The presidencies of Kennedy and Johnson, the Vietnam War, and other historical events unfold from the perspective of an Alabama man.',
-                triggerWarnings: ['War violence']
+                overview: 'The presidencies of Kennedy and Johnson, the Vietnam War, and other historical events unfold from the perspective of an Alabama man.'
+            },
+            {
+                id: 680,
+                title: 'Pulp Fiction',
+                synopsis: 'The lives of two mob hitmen, a boxer, a gangster and his wife intertwine in four tales of violence and redemption.',
+                year: '1994',
+                genre: 'Crime',
+                imdb: '8.9',
+                platform: 'Netflix',
+                poster_path: 'https://image.tmdb.org/t/p/w500/d5iIlFn5s0ImszYzBPb8JPIfbXD.jpg',
+                backdrop_path: 'https://image.tmdb.org/t/p/w1280/suaEOtk1N1sgg2MTM7oZd2cfVp3.jpg',
+                cast: ['John Travolta', 'Uma Thurman', 'Samuel L. Jackson'],
+                director: 'Quentin Tarantino',
+                genre_ids: [80, 53],
+                vote_average: 8.9,
+                release_date: '1994-09-10',
+                overview: 'The lives of two mob hitmen, a boxer, a gangster and his wife intertwine in four tales of violence and redemption.'
+            },
+            {
+                id: 155,
+                title: 'The Dark Knight',
+                synopsis: 'When the menace known as the Joker wreaks havoc on Gotham, Batman must accept one of the greatest psychological tests.',
+                year: '2008',
+                genre: 'Action',
+                imdb: '9.0',
+                platform: 'HBO Max',
+                poster_path: 'https://image.tmdb.org/t/p/w500/qJ2tW6WMUDux911r6m7haRef0WH.jpg',
+                backdrop_path: 'https://image.tmdb.org/t/p/w1280/hkBaDkMWbLaf8B1lsWsKX7Ew3Xq.jpg',
+                cast: ['Christian Bale', 'Heath Ledger', 'Aaron Eckhart'],
+                director: 'Christopher Nolan',
+                genre_ids: [28, 80, 18],
+                vote_average: 9.0,
+                release_date: '2008-07-16',
+                overview: 'When the menace known as the Joker wreaks havoc on Gotham, Batman must accept one of the greatest psychological tests.'
+            },
+            {
+                id: 27205,
+                title: 'Inception',
+                synopsis: 'A thief who steals corporate secrets through dream-sharing technology is given the inverse task of planting an idea.',
+                year: '2010',
+                genre: 'Sci-Fi',
+                imdb: '8.8',
+                platform: 'HBO Max',
+                poster_path: 'https://image.tmdb.org/t/p/w500/9gk7adHYeDvHkCSEqAvQNLV5Uge.jpg',
+                backdrop_path: 'https://image.tmdb.org/t/p/w1280/s3TBrRGB1iav7gFOCNx3H31MoES.jpg',
+                cast: ['Leonardo DiCaprio', 'Joseph Gordon-Levitt', 'Ellen Page'],
+                director: 'Christopher Nolan',
+                genre_ids: [28, 878, 53],
+                vote_average: 8.8,
+                release_date: '2010-07-08',
+                overview: 'A thief who steals corporate secrets through dream-sharing technology is given the inverse task of planting an idea.'
             }
         ];
     }
@@ -272,27 +216,3 @@ document.addEventListener('DOMContentLoaded', () => {
     window.app = new App();
     window.app.init();
 });
-```
-
----
-
-## **🚀 KEY CHANGES**
-
-1. ✅ **Removed** `initTMDBService()` call (line 78 in old file)
-2. ✅ **Simplified** TMDB initialization - just checks if key exists
-3. ✅ **Added** `showError` import for error handling
-4. ✅ **Fixed** fallback movies to have proper TMDB structure
-
----
-
-## **🎯 SAVE AND TEST**
-
-1. **Save** `/scripts/app.js`
-2. **Hard refresh** (Ctrl+Shift+R)
-3. **Check console** - Should see:
-```
-   [App] Initializing Movie Picker...
-   [App] ✅ TMDB API key found
-   [App] UI initialized
-   [App] ✅ App initialized successfully
-   [App] Switched to tab: home
