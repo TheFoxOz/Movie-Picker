@@ -3,30 +3,7 @@
  * Handles user authentication and real-time sync
  */
 
-import { auth, db } from './firebase-config.js';
-import { 
-    createUserWithEmailAndPassword,
-    signInWithEmailAndPassword,
-    signOut,
-    onAuthStateChanged,
-    GoogleAuthProvider,
-    signInWithPopup,
-    updateProfile
-} from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
-import { 
-    doc, 
-    setDoc, 
-    getDoc, 
-    updateDoc,
-    collection,
-    query,
-    where,
-    getDocs,
-    onSnapshot,
-    arrayUnion,
-    arrayRemove,
-    serverTimestamp
-} from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import { firebase, auth, db } from './firebase-config.js';
 import { store } from '../state/store.js';
 import { showSuccess, showError } from '../utils/notifications.js';
 import { ENV } from '../config/env.js';
@@ -42,7 +19,7 @@ class AuthService {
      * Listen for auth state changes
      */
     setupAuthListener() {
-        onAuthStateChanged(auth, async (user) => {
+        auth.onAuthStateChanged(async (user) => {
             if (user) {
                 this.currentUser = user;
                 
@@ -89,19 +66,19 @@ class AuthService {
      */
     async signUp(email, password, displayName) {
         try {
-            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+            const userCredential = await auth.createUserWithEmailAndPassword(email, password);
             const user = userCredential.user;
             
             // Update display name
-            await updateProfile(user, { displayName });
+            await user.updateProfile({ displayName });
             
             // Create user document in Firestore
-            await setDoc(doc(db, 'users', user.uid), {
+            await db.collection('users').doc(user.uid).set({
                 uid: user.uid,
                 email: user.email,
                 displayName: displayName,
                 avatar: '😊',
-                createdAt: serverTimestamp(),
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
                 swipeHistory: [],
                 friends: [],
                 groups: []
@@ -134,7 +111,7 @@ class AuthService {
      */
     async signIn(email, password) {
         try {
-            const userCredential = await signInWithEmailAndPassword(auth, email, password);
+            const userCredential = await auth.signInWithEmailAndPassword(email, password);
             showSuccess('Welcome back!');
             
             if (ENV.APP.debug) {
@@ -163,21 +140,21 @@ class AuthService {
      */
     async signInWithGoogle() {
         try {
-            const provider = new GoogleAuthProvider();
-            const userCredential = await signInWithPopup(auth, provider);
+            const provider = new firebase.auth.GoogleAuthProvider();
+            const userCredential = await auth.signInWithPopup(provider);
             const user = userCredential.user;
             
             // Check if user document exists
-            const userDoc = await getDoc(doc(db, 'users', user.uid));
+            const userDoc = await db.collection('users').doc(user.uid).get();
             
-            if (!userDoc.exists()) {
+            if (!userDoc.exists) {
                 // Create user document for new Google users
-                await setDoc(doc(db, 'users', user.uid), {
+                await db.collection('users').doc(user.uid).set({
                     uid: user.uid,
                     email: user.email,
                     displayName: user.displayName,
                     avatar: user.photoURL || '😊',
-                    createdAt: serverTimestamp(),
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
                     swipeHistory: [],
                     friends: [],
                     groups: []
@@ -204,7 +181,7 @@ class AuthService {
      */
     async signOut() {
         try {
-            await signOut(auth);
+            await auth.signOut();
             showSuccess('Signed out successfully');
             
         } catch (error) {
@@ -219,9 +196,9 @@ class AuthService {
      */
     async loadUserData(uid) {
         try {
-            const userDoc = await getDoc(doc(db, 'users', uid));
+            const userDoc = await db.collection('users').doc(uid).get();
             
-            if (userDoc.exists()) {
+            if (userDoc.exists) {
                 const userData = userDoc.data();
                 
                 store.setState({
@@ -245,8 +222,8 @@ class AuthService {
      */
     setupRealtimeListeners(uid) {
         // Listen to user document changes
-        const unsubUser = onSnapshot(doc(db, 'users', uid), (doc) => {
-            if (doc.exists()) {
+        const unsubUser = db.collection('users').doc(uid).onSnapshot((doc) => {
+            if (doc.exists) {
                 const userData = doc.data();
                 
                 store.setState({
@@ -271,7 +248,7 @@ class AuthService {
         if (!this.currentUser) return;
         
         try {
-            await updateDoc(doc(db, 'users', this.currentUser.uid), {
+            await db.collection('users').doc(this.currentUser.uid).update({
                 swipeHistory: swipeHistory
             });
             
@@ -295,9 +272,9 @@ class AuthService {
         
         try {
             // Find friend by email
-            const usersRef = collection(db, 'users');
-            const q = query(usersRef, where('email', '==', friendEmail));
-            const querySnapshot = await getDocs(q);
+            const querySnapshot = await db.collection('users')
+                .where('email', '==', friendEmail)
+                .get();
             
             if (querySnapshot.empty) {
                 showError('No user found with that email');
@@ -312,20 +289,22 @@ class AuthService {
                 return;
             }
             
+            const friendInfo = {
+                id: friendData.uid,
+                name: friendData.displayName,
+                email: friendData.email,
+                avatar: friendData.avatar || '👤',
+                addedAt: new Date().toISOString()
+            };
+            
             // Add friend to current user's friends list
-            await updateDoc(doc(db, 'users', this.currentUser.uid), {
-                friends: arrayUnion({
-                    id: friendData.uid,
-                    name: friendData.displayName,
-                    email: friendData.email,
-                    avatar: friendData.avatar || '👤',
-                    addedAt: new Date().toISOString()
-                })
+            await db.collection('users').doc(this.currentUser.uid).update({
+                friends: firebase.firestore.FieldValue.arrayUnion(friendInfo)
             });
             
             // Add current user to friend's friends list
-            await updateDoc(doc(db, 'users', friendData.uid), {
-                friends: arrayUnion({
+            await db.collection('users').doc(friendData.uid).update({
+                friends: firebase.firestore.FieldValue.arrayUnion({
                     id: this.currentUser.uid,
                     name: this.currentUser.displayName || 'User',
                     email: this.currentUser.email,
@@ -375,8 +354,8 @@ class AuthService {
             };
             
             // Add group to user's groups list
-            await updateDoc(doc(db, 'users', this.currentUser.uid), {
-                groups: arrayUnion(newGroup)
+            await db.collection('users').doc(this.currentUser.uid).update({
+                groups: firebase.firestore.FieldValue.arrayUnion(newGroup)
             });
             
             showSuccess(`Group "${groupName}" created!`);
