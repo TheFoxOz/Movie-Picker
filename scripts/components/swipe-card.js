@@ -1,16 +1,16 @@
 /**
  * Swipe Card Component
  * Interactive movie card with gesture controls
- * DEBUG VERSION - Shows poster URL loading
  */
 
 import { store } from '../state/store.js';
+import { ENV } from '../config/env.js';
 
 export class SwipeCard {
     constructor(container, movie) {
-        console.log('[SwipeCard] Constructor - Movie:', movie.title);
-        console.log('[SwipeCard] poster_path:', movie.poster_path);
-        console.log('[SwipeCard] backdrop_path:', movie.backdrop_path);
+        if (ENV.APP.debug) {
+            console.log('[SwipeCard] Creating card for:', movie.title);
+        }
         
         this.container = container;
         this.movie = movie;
@@ -28,13 +28,14 @@ export class SwipeCard {
     render() {
         const { icon, color } = this.getPlatformStyle(this.movie.platform);
         
-        // FIXED: Use real TMDB poster URL
+        // Use real TMDB poster URL
         const posterUrl = this.movie.poster_path 
             || this.movie.backdrop_path 
             || `https://placehold.co/400x600/${color.replace('#', '')}/ffffff?text=${encodeURIComponent(this.movie.title)}`;
         
-        console.log('[SwipeCard] Final poster URL:', posterUrl);
-        console.log('[SwipeCard] Platform:', this.movie.platform, 'Color:', color);
+        if (ENV.APP.debug) {
+            console.log('[SwipeCard] Poster URL:', posterUrl);
+        }
         
         this.card = document.createElement('div');
         this.card.className = 'swipe-card';
@@ -55,26 +56,19 @@ export class SwipeCard {
         this.card.innerHTML = `
             <div style="position: relative; width: 100%; height: 100%; border-radius: 2rem; overflow: hidden; background: ${color}; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);">
                 
-                <!-- DEBUG: Show poster URL -->
-                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 100; background: rgba(0, 0, 0, 0.8); padding: 1rem; border-radius: 0.5rem; max-width: 80%; word-break: break-all; display: none;" class="debug-url">
-                    <div style="color: white; font-size: 0.75rem; margin-bottom: 0.5rem;">Poster URL:</div>
-                    <div style="color: #10b981; font-size: 0.625rem; font-family: monospace;">${posterUrl}</div>
-                </div>
-                
                 <!-- Poster Image -->
                 <img 
+                    class="poster-image"
                     src="${posterUrl}" 
                     alt="${this.movie.title}"
                     style="width: 100%; height: 100%; object-fit: cover; display: block;"
-                    onerror="console.error('[SwipeCard] Image failed to load:', this.src); this.style.display='none'; this.parentElement.querySelector('.poster-fallback').style.display='flex'; this.parentElement.querySelector('.debug-url').style.display='block';"
-                    onload="console.log('[SwipeCard] Image loaded successfully:', this.src);"
                     draggable="false"
                 >
                 
                 <!-- Fallback if poster fails to load -->
                 <div class="poster-fallback" style="display: none; position: absolute; inset: 0; align-items: center; justify-content: center; font-size: 8rem; opacity: 0.3; background: linear-gradient(135deg, ${color}, ${color}dd); flex-direction: column;">
                     <div>🎬</div>
-                    <div style="font-size: 1rem; margin-top: 1rem; opacity: 0.8; color: white;">Poster failed to load</div>
+                    <div style="font-size: 1rem; margin-top: 1rem; opacity: 0.8; color: white;">Poster unavailable</div>
                 </div>
                 
                 <!-- Gradient Overlay -->
@@ -152,7 +146,24 @@ export class SwipeCard {
         `;
         
         this.container.appendChild(this.card);
-        console.log('[SwipeCard] Card element appended to container');
+        
+        // FIXED: Proper image error handling with JS instead of inline
+        const img = this.card.querySelector('.poster-image');
+        const fallback = this.card.querySelector('.poster-fallback');
+        
+        if (img && fallback) {
+            img.onload = () => {
+                if (ENV.APP.debug) {
+                    console.log('[SwipeCard] Poster loaded successfully');
+                }
+            };
+            
+            img.onerror = () => {
+                console.warn('[SwipeCard] Poster failed to load, showing fallback');
+                img.style.display = 'none';
+                fallback.style.display = 'flex';
+            };
+        }
     }
     
     attachListeners() {
@@ -312,7 +323,9 @@ export class SwipeCard {
     }
     
     handleAction(action) {
-        console.log(`[SwipeCard] Action: ${action} for movie: ${this.movie.title}`);
+        if (ENV.APP.debug) {
+            console.log(`[SwipeCard] Action: ${action} for movie: ${this.movie.title}`);
+        }
         
         // Store swipe in history (LOCAL ONLY - no Firebase)
         store.addSwipeToHistory({
