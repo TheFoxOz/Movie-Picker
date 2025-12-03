@@ -142,7 +142,29 @@ export class SwipeTab {
             const state = store.getState();
             const swiped = new Set((state.swipeHistory || []).map(s => String(s.movie.id)));
 
-            this.movieQueue = movies.filter(m => !swiped.has(String(m.id)));
+            // APPLY PROFILE FILTERS: platforms + blocked triggers
+            const user = state.user || {};
+            const selectedPlatforms = Array.isArray(user.selectedPlatforms) ? user.selectedPlatforms : [];
+            const blockedTriggers = Array.isArray(user.blockedTriggers) ? user.blockedTriggers : [];
+
+            const matchesPlatform = (movie) => {
+                if (!selectedPlatforms || selectedPlatforms.length === 0) return true;
+                // movie.platform or movie.platforms (support both)
+                const moviePlatforms = movie.platforms || (movie.platform ? [movie.platform] : []);
+                if (!moviePlatforms || moviePlatforms.length === 0) return true;
+                return moviePlatforms.some(p => selectedPlatforms.includes(String(p).toLowerCase()) || selectedPlatforms.includes(p));
+            };
+
+            const hasBlockedTrigger = (movie) => {
+                if (!blockedTriggers || blockedTriggers.length === 0) return false;
+                const warnings = movie.triggerWarnings || movie.warnings || [];
+                return warnings.some(w => blockedTriggers.includes(String(w)));
+            };
+
+            this.movieQueue = movies
+                .filter(m => !swiped.has(String(m.id)))
+                .filter(m => matchesPlatform(m))
+                .filter(m => !hasBlockedTrigger(m));
 
             // Retry up to 3 times if list is too small
             if (this.movieQueue.length < 10 && attempt <= 3) {
@@ -175,12 +197,12 @@ export class SwipeTab {
 
         if (this.movieQueue.length === 0) {
             container.innerHTML = "";
-            completed.style.display = "flex";
+            if (completed) completed.style.display = "flex";
             showConfetti();
             return;
         }
 
-        completed.style.display = "none";
+        if (completed) completed.style.display = "none";
 
         const movie = this.movieQueue.shift();
         container.innerHTML = "";
