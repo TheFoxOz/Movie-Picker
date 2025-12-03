@@ -35,26 +35,19 @@ function initToastContainer() {
 
 /**
  * Show a toast notification
- * @param {string} message - Message to display
- * @param {string} type - Type: 'success', 'error', 'info', 'warning'
- * @param {number} duration - Duration in ms (default: 3000)
- * @param {function} onUndo - Optional undo callback function
  */
 export function showToast(message, type = 'info', duration = 3000, onUndo = null) {
     initToastContainer();
     
-    // Remove active toast if exists
     if (activeToast) {
         removeToast(activeToast);
     }
     
-    // Store undo callback
     undoCallback = onUndo;
     
     const toast = document.createElement('div');
     toast.className = 'toast';
     
-    // Set colors based on type
     const styles = {
         success: {
             bg: 'rgba(16, 185, 129, 0.15)',
@@ -104,60 +97,73 @@ export function showToast(message, type = 'info', duration = 3000, onUndo = null
         transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     `;
     
-    // Build toast content
-    let toastHTML = `
-        <div style="display: flex; align-items: center; gap: 0.75rem; flex: 1; min-width: 0;">
-            <span style="font-size: 1.25rem; flex-shrink: 0;">${style.icon}</span>
-            <span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${message}</span>
-        </div>
-    `;
+    const iconSpan = document.createElement('span');
+    iconSpan.style.cssText = 'font-size: 1.25rem; flex-shrink: 0;';
+    iconSpan.textContent = style.icon;
     
-    // Add undo button if callback provided
+    const messageSpan = document.createElement('span');
+    messageSpan.style.cssText = 'flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;';
+    messageSpan.textContent = message;
+    
+    const contentDiv = document.createElement('div');
+    contentDiv.style.cssText = 'display: flex; align-items: center; gap: 0.75rem; flex: 1; min-width: 0;';
+    contentDiv.appendChild(iconSpan);
+    contentDiv.appendChild(messageSpan);
+    
+    toast.appendChild(contentDiv);
+    
     if (onUndo) {
-        toastHTML += `
-            <button 
-                class="toast-undo-btn"
-                style="padding: 0.375rem 0.875rem; background: rgba(255, 255, 255, 0.15); border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 0.5rem; color: white; font-size: 0.8125rem; font-weight: 700; cursor: pointer; transition: all 0.2s; text-transform: uppercase; letter-spacing: 0.05em; flex-shrink: 0;"
-                onmouseover="this.style.background='rgba(255, 255, 255, 0.25)'"
-                onmouseout="this.style.background='rgba(255, 255, 255, 0.15)'"
-            >
-                Undo
-            </button>
+        const undoBtn = document.createElement('button');
+        undoBtn.className = 'toast-undo-btn';
+        undoBtn.textContent = 'Undo';
+        undoBtn.style.cssText = `
+            padding: 0.375rem 0.875rem;
+            background: rgba(255, 255, 255, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 0.5rem;
+            color: white;
+            font-size: 0.8125rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            flex-shrink: 0;
         `;
+        
+        undoBtn.addEventListener('mouseover', () => {
+            undoBtn.style.background = 'rgba(255, 255, 255, 0.25)';
+        });
+        
+        undoBtn.addEventListener('mouseout', () => {
+            undoBtn.style.background = 'rgba(255, 255, 255, 0.15)';
+        });
+        
+        undoBtn.addEventListener('click', () => {
+            onUndo();
+            removeToast(toast);
+            showToast('↩️ Action undone', 'info', 2000);
+            
+            if (ENV.APP.debug) {
+                console.log('[Notifications] Undo action triggered');
+            }
+        });
+        
+        toast.appendChild(undoBtn);
     }
     
-    toast.innerHTML = toastHTML;
     toastContainer.appendChild(toast);
     activeToast = toast;
     
-    // Attach undo button listener
-    if (onUndo) {
-        const undoBtn = toast.querySelector('.toast-undo-btn');
-        if (undoBtn) {
-            undoBtn.addEventListener('click', () => {
-                onUndo();
-                removeToast(toast);
-                showToast('↩️ Action undone', 'info', 2000);
-                
-                if (ENV.APP.debug) {
-                    console.log('[Notifications] Undo action triggered');
-                }
-            });
-        }
-    }
-    
-    // Animate in
     requestAnimationFrame(() => {
         toast.style.transform = 'translateY(0)';
         toast.style.opacity = '1';
     });
     
-    // Auto-remove after duration
     const timeout = setTimeout(() => {
         removeToast(toast);
     }, duration);
     
-    // Store timeout for early removal
     toast.dataset.timeout = timeout;
     
     if (ENV.APP.debug) {
@@ -171,12 +177,10 @@ export function showToast(message, type = 'info', duration = 3000, onUndo = null
 function removeToast(toast) {
     if (!toast || !toast.parentNode) return;
     
-    // Clear timeout
     if (toast.dataset.timeout) {
         clearTimeout(parseInt(toast.dataset.timeout));
     }
     
-    // Animate out
     toast.style.transform = 'translateY(20px)';
     toast.style.opacity = '0';
     
@@ -193,9 +197,6 @@ function removeToast(toast) {
 
 /**
  * Show a swipe action toast with undo
- * @param {string} movieTitle - Movie title
- * @param {string} action - Swipe action (love, like, maybe, pass)
- * @param {function} onUndo - Undo callback
  */
 export function showSwipeToast(movieTitle, action, onUndo) {
     const actionEmoji = {
@@ -219,7 +220,7 @@ export function showSwipeToast(movieTitle, action, onUndo) {
         pass: 'error'
     };
     
-    const message = `${actionEmoji[action]} ${actionText[action]}`;
+    const message = actionEmoji[action] + ' ' + actionText[action];
     const type = actionType[action] || 'info';
     
     showToast(message, type, 4000, onUndo);
@@ -252,44 +253,3 @@ export function showInfo(message) {
 export function showWarning(message) {
     showToast(message, 'warning', 3000);
 }
-```
-
----
-
-## **✅ FILES ARE NOW COMPLETE**
-
-### **What's included:**
-
-**swipe.js:**
-- ✅ Full SwipeTab class
-- ✅ Movie loading from TMDB
-- ✅ Swipe card rendering
-- ✅ Action button handlers
-- ✅ Completion state with confetti
-- ✅ Event listener cleanup in destroy()
-- ✅ Undo support (toast shown by SwipeCard)
-
-**notifications.js:**
-- ✅ Toast container initialization
-- ✅ showToast() with undo button support
-- ✅ showSwipeToast() for swipe actions
-- ✅ Utility functions (showError, showSuccess, etc.)
-- ✅ Auto-dismiss with animations
-- ✅ Debug mode support
-
----
-
-## **🚀 FINAL TESTING STEPS**
-
-1. **Save both files**
-2. **Hard refresh** (Ctrl+Shift+R or Cmd+Shift+R)
-3. **Test sequence:**
-```
-✅ Open app → See real TMDB movies
-✅ Click Swipe tab → See movie card
-✅ Swipe right (Love) → See toast with UNDO
-✅ Click UNDO → Movie removed from history
-✅ Go to Library → Verify movie is gone
-✅ Swipe another movie
-✅ DON'T click undo → Toast disappears after 4 seconds
-✅ Go to Library → Movie should be there
