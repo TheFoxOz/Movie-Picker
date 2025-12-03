@@ -13,8 +13,8 @@ import { ENV } from '../config/env.js';
  * - Base score from TMDB rating (0-100 points)
  * - Popularity/vote count (0-50 points)
  * - Recency bonus (0-30 points)
- * - User preference match (0-30 points) - NEW!
- * - Platform availability (0-15 points) - NEW!
+ * - User preference match (0-30 points)
+ * - Platform availability (0-15 points)
  * 
  * @param {Object} movie - Movie object
  * @param {Object} userPreferences - User preferences (optional)
@@ -44,7 +44,7 @@ export function calculateIntelligentScore(movie, userPreferences = null, userSwi
     else if (yearDiff <= 3) score += 20; // Last 3 years
     else if (yearDiff <= 5) score += 10; // Last 5 years
     
-    // 4. User preference match (0-30 points) - NEW!
+    // 4. User preference match (0-30 points)
     if (userPreferences && userSwipeHistory) {
         const preferenceScore = calculateUserPreferenceMatch(movie, userPreferences, userSwipeHistory);
         score += preferenceScore;
@@ -54,7 +54,7 @@ export function calculateIntelligentScore(movie, userPreferences = null, userSwi
         }
     }
     
-    // 5. Platform availability (0-15 points) - NEW!
+    // 5. Platform availability (0-15 points)
     if (userPreferences?.platforms?.length > 0) {
         if (userPreferences.platforms.includes(movie.platform)) {
             score += 15;
@@ -245,4 +245,24 @@ export function getRecommendedMovies(allMovies, userSwipeHistory, userPreference
     }
     
     return recommendations;
+}
+
+/**
+ * Get platform icon and color
+ * Used by matches.js and other components
+ * 
+ * @param {string} platform - Platform name
+ * @returns {Object} Object with icon and color
+ */
+export function getPlatformStyle(platform) {
+    const styles = {
+        'Netflix': { icon: 'N', color: '#E50914' },
+        'Hulu': { icon: 'H', color: '#1CE783' },
+        'Prime Video': { icon: 'P', color: '#00A8E1' },
+        'Disney+': { icon: 'D', color: '#113CCF' },
+        'HBO Max': { icon: 'M', color: '#B200FF' },
+        'Apple TV+': { icon: 'A', color: '#000000' }
+    };
+    
+    return styles[platform] || { icon: '▶', color: '#6366f1' };
 }
