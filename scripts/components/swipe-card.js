@@ -1,6 +1,7 @@
 /**
- * SwipeCard Component – ENHANCED WITH SWIPE DIRECTION FEEDBACK
+ * SwipeCard Component – ENHANCED WITH SWIPE DIRECTION FEEDBACK + TRIGGER WARNINGS
  * Shows clear visual indicators when swiping in any direction
+ * Displays trigger warning badge from DoesTheDogDie.com
  */
 
 import { store } from '../state/store.js';
@@ -21,6 +22,44 @@ export class SwipeCard {
 
         this.render();
         this.attachEvents();
+        this.fetchTriggerWarnings();
+    }
+
+    async fetchTriggerWarnings() {
+        if (this.movie.warningsLoaded) return;
+
+        try {
+            const { getTMDBService } = await import('../services/tmdb.js');
+            const tmdbService = getTMDBService();
+            
+            if (tmdbService) {
+                await tmdbService.fetchTriggerWarnings(this.movie);
+                
+                if (this.movie.triggerWarnings && this.movie.triggerWarnings.length > 0) {
+                    this.updateWarningBadge();
+                }
+            }
+        } catch (error) {
+            console.error('[SwipeCard] Failed to fetch trigger warnings:', error);
+        }
+    }
+
+    updateWarningBadge() {
+        const posterDiv = this.element.querySelector('div[style*="height: 520px"]');
+        if (!posterDiv) return;
+
+        let badge = posterDiv.querySelector('.trigger-warning-badge');
+        
+        if (this.movie.triggerWarnings && this.movie.triggerWarnings.length > 0 && !badge) {
+            badge = document.createElement('div');
+            badge.className = 'trigger-warning-badge';
+            badge.style.cssText = 'position: absolute; top: 1rem; left: 1rem; padding: 0.5rem 0.75rem; background: rgba(239,68,68,0.95); backdrop-filter: blur(10px); border-radius: 1rem; border: 1px solid rgba(255,255,255,0.2); display: flex; align-items: center; gap: 0.375rem; z-index: 5;';
+            badge.innerHTML = `
+                <span style="font-size: 0.875rem;">⚠️</span>
+                <span style="color: white; font-weight: 700; font-size: 0.875rem;">${this.movie.triggerWarnings.length}</span>
+            `;
+            posterDiv.appendChild(badge);
+        }
     }
 
     render() {
@@ -68,6 +107,8 @@ export class SwipeCard {
                     <div style="position: absolute; top: 1rem; right: 1rem; padding: 0.5rem 1rem; background: rgba(0,0,0,0.7); backdrop-filter: blur(10px); border-radius: 1rem; border: 1px solid rgba(255,255,255,0.1);">
                         <span style="color: white; font-weight: 700; font-size: 0.875rem;">${this.movie.platform || 'Cinema'}</span>
                     </div>
+
+                    <!-- Trigger Warning Badge (will be added dynamically if warnings exist) -->
                 </div>
 
                 <!-- Movie Info -->
