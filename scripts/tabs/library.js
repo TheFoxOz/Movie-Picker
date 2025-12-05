@@ -311,10 +311,25 @@ export class LibraryTab {
 
     attachListeners() {
         const search = this.container.querySelector('#search-input');
-        if (search) search.addEventListener('input', e => {
-            this.searchQuery = e.target.value;
-            this.updateMoviesGrid();
-        });
+        if (search) {
+            let searchTimeout;
+            search.addEventListener('input', e => {
+                this.searchQuery = e.target.value.trim();
+                
+                // Clear previous timeout
+                if (searchTimeout) clearTimeout(searchTimeout);
+                
+                // If search query exists, search TMDB directly
+                if (this.searchQuery.length >= 2) {
+                    searchTimeout = setTimeout(() => {
+                        this.searchTMDB(this.searchQuery);
+                    }, 500); // Debounce 500ms
+                } else {
+                    // If cleared, show all loaded movies
+                    this.updateMoviesGrid();
+                }
+            });
+        }
 
         // Load More button
         const loadMoreBtn = this.container.querySelector('#load-more-btn');
@@ -354,6 +369,42 @@ export class LibraryTab {
                 if (movie) movieModal.show(movie);
             });
         });
+    }
+
+    async searchTMDB(query) {
+        console.log(`[Search] Searching TMDB for: "${query}"`);
+        
+        try {
+            const tmdbService = getTMDBService();
+            if (!tmdbService) return;
+
+            const response = await fetch(
+                `https://api.themoviedb.org/3/search/movie?api_key=${tmdbService.apiKey}&language=en-US&query=${encodeURIComponent(query)}&page=1&include_adult=false`
+            );
+
+            if (!response.ok) {
+                console.error('[Search] TMDB search failed');
+                return;
+            }
+
+            const data = await response.json();
+            const searchResults = data.results.map(m => tmdbService.transformMovie(m));
+            
+            console.log(`[Search] Found ${searchResults.length} results`);
+            
+            // Add search results to allMovies if not already there
+            const existingIds = new Set(this.allMovies.map(m => m.id));
+            const newMovies = searchResults.filter(m => !existingIds.has(m.id));
+            if (newMovies.length > 0) {
+                this.allMovies.push(...newMovies);
+            }
+            
+            // Update grid with search results
+            this.updateMoviesGrid();
+
+        } catch (error) {
+            console.error('[Search] Error:', error);
+        }
     }
 
     updateMoviesGrid() {
