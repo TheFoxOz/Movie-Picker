@@ -1,5 +1,6 @@
 /**
- * Swipe Tab Component – FIXED BUTTON DESIGN
+ * Swipe Tab Component – FIXED VERSION
+ * Fixed: Always renders HTML structure, even on subsequent renders
  */
 
 import { store } from "../state/store.js";
@@ -21,12 +22,7 @@ export class SwipeTab {
     async render(container) {
         this.container = container;
 
-        if (this.hasLoaded) {
-            this.showNextCard();
-            return;
-        }
-        this.hasLoaded = true;
-
+        // ✅ FIXED: Always render HTML structure (removed early return)
         container.innerHTML = `
             <div style="position: relative; width: 100%; height: calc(100vh - 5rem); display: flex; flex-direction: column; padding-bottom: 7rem;">
                 
@@ -94,7 +90,13 @@ export class SwipeTab {
         `;
 
         this.injectButtonStyles();
-        await this.loadMoviesWithRetry();
+        
+        // ✅ FIXED: Only load movies if first time
+        if (!this.hasLoaded) {
+            this.hasLoaded = true;
+            await this.loadMoviesWithRetry();
+        }
+        
         this.attachListeners();
         this.showNextCard();
     }
