@@ -1,6 +1,6 @@
 /**
- * SwipeCard Component – The actual swipeable movie card
- * FIXED: Now properly exports the class
+ * SwipeCard Component – ENHANCED WITH SWIPE DIRECTION FEEDBACK
+ * Shows clear visual indicators when swiping in any direction
  */
 
 import { store } from '../state/store.js';
@@ -31,15 +31,30 @@ export class SwipeCard {
         this.element.innerHTML = `
             <div style="position: relative; width: 100%; max-width: 380px; border-radius: 1.5rem; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.6); background: #111; transform: rotate(0deg); transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1); user-select: none;">
                 
-                <!-- Overlay badges -->
-                <div id="badge-nope" style="position: absolute; top: 20px; left: 20px; padding: 0.5rem 1.5rem; background: rgba(239,68,68,0.9); color: white; font-size: 2rem; font-weight: 800; border-radius: 1rem; transform: rotate(-25deg); opacity: 0; z-index: 10; box-shadow: 0 4px 20px rgba(239,68,68,0.5);">
-                    NOPE
+                <!-- SWIPE DIRECTION OVERLAYS - ALL FOUR DIRECTIONS -->
+                
+                <!-- PASS (Left) - Red X -->
+                <div id="badge-pass" class="swipe-badge" style="position: absolute; top: 50%; left: 20px; transform: translateY(-50%); padding: 1rem 2rem; background: linear-gradient(135deg, rgba(239, 68, 68, 0.95), rgba(220, 38, 38, 0.95)); color: white; font-size: 3rem; font-weight: 800; border-radius: 1.5rem; opacity: 0; z-index: 10; box-shadow: 0 8px 32px rgba(239, 68, 68, 0.6); backdrop-filter: blur(10px); border: 3px solid rgba(255, 255, 255, 0.3); display: flex; flex-direction: column; align-items: center; gap: 0.5rem;">
+                    <div style="font-size: 4rem;">✕</div>
+                    <div style="font-size: 1.5rem; font-weight: 700; letter-spacing: 0.1em;">NOPE</div>
                 </div>
-                <div id="badge-love" style="position: absolute; top: 20px; right: 20px; padding: 0.5rem 1.5rem; background: rgba(255,0,110,0.9); color: white; font-size: 2rem; font-weight: 800; border-radius: 1rem; transform: rotate(25deg); opacity: 0; z-index: 10; box-shadow: 0 4px 20px rgba(255,0,110,0.5);">
-                    LOVE
+                
+                <!-- MAYBE (Up) - Yellow Question -->
+                <div id="badge-maybe" class="swipe-badge" style="position: absolute; top: 20px; left: 50%; transform: translateX(-50%); padding: 1rem 2rem; background: linear-gradient(135deg, rgba(251, 191, 36, 0.95), rgba(245, 158, 11, 0.95)); color: white; font-size: 3rem; font-weight: 800; border-radius: 1.5rem; opacity: 0; z-index: 10; box-shadow: 0 8px 32px rgba(251, 191, 36, 0.6); backdrop-filter: blur(10px); border: 3px solid rgba(255, 255, 255, 0.3); display: flex; flex-direction: column; align-items: center; gap: 0.5rem;">
+                    <div style="font-size: 4rem;">❓</div>
+                    <div style="font-size: 1.5rem; font-weight: 700; letter-spacing: 0.1em;">MAYBE</div>
                 </div>
-                <div id="badge-like" style="position: absolute; top: 20px; right: 20px; padding: 0.5rem 1.5rem; background: rgba(16,185,129,0.9); color: white; font-size: 2rem; font-weight: 800; border-radius: 1rem; transform: rotate(25deg); opacity: 0; z-index: 10; box-shadow: 0 4px 20px rgba(16,185,129,0.5);">
-                    LIKE
+                
+                <!-- LIKE (Right) - Green Thumbs Up -->
+                <div id="badge-like" class="swipe-badge" style="position: absolute; top: 50%; right: 20px; transform: translateY(-50%); padding: 1rem 2rem; background: linear-gradient(135deg, rgba(16, 185, 129, 0.95), rgba(5, 150, 105, 0.95)); color: white; font-size: 3rem; font-weight: 800; border-radius: 1.5rem; opacity: 0; z-index: 10; box-shadow: 0 8px 32px rgba(16, 185, 129, 0.6); backdrop-filter: blur(10px); border: 3px solid rgba(255, 255, 255, 0.3); display: flex; flex-direction: column; align-items: center; gap: 0.5rem;">
+                    <div style="font-size: 4rem;">👍</div>
+                    <div style="font-size: 1.5rem; font-weight: 700; letter-spacing: 0.1em;">LIKE</div>
+                </div>
+                
+                <!-- LOVE (Right Far) - Pink Heart -->
+                <div id="badge-love" class="swipe-badge" style="position: absolute; top: 50%; right: 20px; transform: translateY(-50%); padding: 1rem 2rem; background: linear-gradient(135deg, rgba(255, 46, 99, 0.95), rgba(217, 0, 98, 0.95)); color: white; font-size: 3rem; font-weight: 800; border-radius: 1.5rem; opacity: 0; z-index: 10; box-shadow: 0 8px 32px rgba(255, 46, 99, 0.6); backdrop-filter: blur(10px); border: 3px solid rgba(255, 255, 255, 0.3); display: flex; flex-direction: column; align-items: center; gap: 0.5rem;">
+                    <div style="font-size: 4rem;">❤️</div>
+                    <div style="font-size: 1.5rem; font-weight: 700; letter-spacing: 0.1em;">LOVE</div>
                 </div>
 
                 <!-- Poster -->
@@ -92,30 +107,50 @@ export class SwipeCard {
             const diffX = this.currentX - this.startX;
             const diffY = this.currentY - this.startY;
             const absDiffX = Math.abs(diffX);
+            const absDiffY = Math.abs(diffY);
 
-            // Rotate card based on drag
+            // Rotate card based on horizontal drag
             const rotate = diffX / 10;
             card.style.transform = `translateX(${diffX}px) translateY(${diffY}px) rotate(${rotate}deg)`;
 
-            // Show badges
-            const nopeBadge = card.querySelector('#badge-nope');
-            const loveBadge = card.querySelector('#badge-love');
+            // Get badge elements
+            const passBadge = card.querySelector('#badge-pass');
+            const maybeBadge = card.querySelector('#badge-maybe');
             const likeBadge = card.querySelector('#badge-like');
+            const loveBadge = card.querySelector('#badge-love');
 
-            if (absDiffX > 80) {
-                if (diffX < 0) {
-                    nopeBadge.style.opacity = Math.min(absDiffX / 150, 1);
-                    loveBadge.style.opacity = 0;
-                    likeBadge.style.opacity = 0;
-                } else if (diffX > 0) {
-                    loveBadge.style.opacity = Math.min(absDiffX / 150, 1);
-                    nopeBadge.style.opacity = 0;
-                    likeBadge.style.opacity = 0;
+            // Reset all badges
+            passBadge.style.opacity = 0;
+            maybeBadge.style.opacity = 0;
+            likeBadge.style.opacity = 0;
+            loveBadge.style.opacity = 0;
+
+            // Determine primary direction (horizontal vs vertical)
+            if (absDiffX > absDiffY) {
+                // HORIZONTAL SWIPE (Left or Right)
+                if (diffX < -80) {
+                    // SWIPE LEFT → PASS (Nope)
+                    passBadge.style.opacity = Math.min(absDiffX / 150, 1);
+                    passBadge.style.transform = `translateY(-50%) scale(${1 + absDiffX / 300})`;
+                } else if (diffX > 80) {
+                    // SWIPE RIGHT → Check distance for LIKE vs LOVE
+                    if (diffX > 200) {
+                        // Far right → LOVE
+                        loveBadge.style.opacity = Math.min(absDiffX / 150, 1);
+                        loveBadge.style.transform = `translateY(-50%) scale(${1 + absDiffX / 300})`;
+                    } else {
+                        // Normal right → LIKE
+                        likeBadge.style.opacity = Math.min(absDiffX / 150, 1);
+                        likeBadge.style.transform = `translateY(-50%) scale(${1 + absDiffX / 300})`;
+                    }
                 }
             } else {
-                nopeBadge.style.opacity = 0;
-                loveBadge.style.opacity = 0;
-                likeBadge.style.opacity = 0;
+                // VERTICAL SWIPE (Up or Down)
+                if (diffY < -80) {
+                    // SWIPE UP → MAYBE
+                    maybeBadge.style.opacity = Math.min(absDiffY / 150, 1);
+                    maybeBadge.style.transform = `translateX(-50%) scale(${1 + absDiffY / 300})`;
+                }
             }
         };
 
@@ -124,20 +159,51 @@ export class SwipeCard {
             this.isDragging = false;
 
             const diffX = this.currentX - this.startX;
+            const diffY = this.currentY - this.startY;
             const absDiffX = Math.abs(diffX);
+            const absDiffY = Math.abs(diffY);
 
             card.style.transition = 'all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1)';
 
-            if (absDiffX > 120) {
-                // SWIPED OFF SCREEN
-                const action = diffX > 0 ? 'love' : 'pass';
-                this.swipeOff(action);
+            // Determine if swipe was strong enough
+            const threshold = 120;
+
+            if (absDiffX > absDiffY) {
+                // HORIZONTAL SWIPE
+                if (absDiffX > threshold) {
+                    if (diffX < 0) {
+                        // LEFT → PASS
+                        this.swipeOff('pass');
+                    } else {
+                        // RIGHT → LIKE or LOVE
+                        if (diffX > 200) {
+                            this.swipeOff('love');
+                        } else {
+                            this.swipeOff('like');
+                        }
+                    }
+                    return;
+                }
             } else {
-                // SNAP BACK
-                card.style.transform = 'translateX(0) translateY(0) rotate(0deg)';
-                card.querySelector('#badge-nope').style.opacity = 0;
-                card.querySelector('#badge-love').style.opacity = 0;
+                // VERTICAL SWIPE
+                if (absDiffY > threshold && diffY < 0) {
+                    // UP → MAYBE
+                    this.swipeOff('maybe');
+                    return;
+                }
             }
+
+            // SNAP BACK - Not strong enough
+            card.style.transform = 'translateX(0) translateY(0) rotate(0deg)';
+            
+            // Hide all badges
+            const badges = card.querySelectorAll('.swipe-badge');
+            badges.forEach(badge => {
+                badge.style.opacity = 0;
+                badge.style.transform = badge.id.includes('maybe') 
+                    ? 'translateX(-50%)' 
+                    : 'translateY(-50%)';
+            });
         };
 
         // Mouse events
@@ -167,9 +233,32 @@ export class SwipeCard {
 
     swipeOff(action) {
         const card = this.element;
-        const diffX = action === 'love' ? 500 : action === 'like' ? 300 : -500;
+        
+        // Determine swipe direction based on action
+        let translateX = 0;
+        let translateY = 0;
+        let rotate = 0;
 
-        card.style.transform = `translateX(${diffX}px) rotate(${diffX / 20}deg)`;
+        switch(action) {
+            case 'pass':
+                translateX = -500;
+                rotate = -25;
+                break;
+            case 'maybe':
+                translateY = -500;
+                rotate = 0;
+                break;
+            case 'like':
+                translateX = 400;
+                rotate = 20;
+                break;
+            case 'love':
+                translateX = 600;
+                rotate = 30;
+                break;
+        }
+
+        card.style.transform = `translateX(${translateX}px) translateY(${translateY}px) rotate(${rotate}deg)`;
         card.style.opacity = '0';
 
         // Save to history
@@ -196,6 +285,8 @@ export class SwipeCard {
             showSwipeToast(this.movie.title, 'like');
         } else if (action === 'pass') {
             showSwipeToast(this.movie.title, 'pass');
+        } else if (action === 'maybe') {
+            showSwipeToast(this.movie.title, 'maybe');
         }
 
         // Dispatch event
