@@ -186,12 +186,19 @@ class MoviePickerApp {
         }
 
         if (this.currentTab === tabName) {
-            console.log(`[App] Already on ${tabName} tab, skipping navigation`);
-            return;
+            console.log(`[App] Already on ${tabName} tab, re-rendering anyway`);
+            // Don't skip - re-render the current tab
+        } else {
+            console.log(`[App] Navigating from ${this.currentTab} to ${tabName} tab`);
         }
 
-        console.log(`[App] Navigating from ${this.currentTab} to ${tabName} tab`);
         this.currentTab = tabName;
+
+        // WORKAROUND: Force re-initialize SwipeTab every time
+        if (tabName === 'swipe') {
+            console.log('[App] Re-initializing SwipeTab');
+            this.tabs.swipe = new SwipeTab();
+        }
 
         // Update navigation UI
         this.updateNavigation();
@@ -211,16 +218,32 @@ class MoviePickerApp {
     }
 
     async renderCurrentTab() {
-        if (!this.container) return;
+        if (!this.container) {
+            console.error('[App] No container found!');
+            return;
+        }
 
-        // Clear container
+        console.log(`[App] Rendering ${this.currentTab} tab...`);
+
+        // Clear container completely
         this.container.innerHTML = '';
+        this.container.style.display = 'block';
 
-        // Show loading state briefly for better UX
-        this.container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:calc(100vh - 15rem);"><div style="color:rgba(255,255,255,0.6);">Loading...</div></div>';
+        // Show loading state
+        this.container.innerHTML = `
+            <div style="display:flex;align-items:center;justify-content:center;height:calc(100vh - 15rem);flex-direction:column;gap:1rem;">
+                <div style="width:48px;height:48px;border:4px solid rgba(255,46,99,0.3);border-top-color:#ff2e63;border-radius:50%;animation:spin 1s linear infinite;"></div>
+                <div style="color:rgba(255,255,255,0.6);">Loading ${this.currentTab}...</div>
+            </div>
+            <style>
+                @keyframes spin {
+                    to { transform: rotate(360deg); }
+                }
+            </style>
+        `;
 
-        // Small delay to ensure smooth transition
-        await new Promise(resolve => setTimeout(resolve, 50));
+        // Small delay to show loading state
+        await new Promise(resolve => setTimeout(resolve, 100));
 
         // Clear again before rendering
         this.container.innerHTML = '';
@@ -229,15 +252,35 @@ class MoviePickerApp {
         const tab = this.tabs[this.currentTab];
         if (tab && typeof tab.render === 'function') {
             try {
+                console.log(`[App] Calling ${this.currentTab}.render()`);
                 await tab.render(this.container);
-                console.log(`[App] Rendered ${this.currentTab} tab successfully`);
+                console.log(`[App] ✅ Rendered ${this.currentTab} tab successfully`);
+                
+                // Verify content was added
+                if (!this.container.innerHTML || this.container.innerHTML.trim() === '') {
+                    console.error(`[App] ⚠️ ${this.currentTab} tab rendered but container is empty!`);
+                    this.container.innerHTML = `
+                        <div style="display:flex;align-items:center;justify-content:center;height:calc(100vh - 15rem);flex-direction:column;gap:1rem;padding:2rem;text-align:center;">
+                            <div style="font-size:3rem;">⚠️</div>
+                            <div style="color:white;font-weight:700;font-size:1.25rem;">${this.currentTab} Tab Empty</div>
+                            <div style="color:rgba(255,255,255,0.6);font-size:0.875rem;">The tab rendered but didn't add any content</div>
+                            <button onclick="location.reload()" style="padding:0.75rem 1.5rem;background:linear-gradient(135deg,#ff2e63,#d90062);border:none;border-radius:0.75rem;color:white;font-weight:700;cursor:pointer;">
+                                Reload App
+                            </button>
+                        </div>
+                    `;
+                }
             } catch (error) {
-                console.error(`[App] Error rendering ${this.currentTab} tab:`, error);
+                console.error(`[App] ❌ Error rendering ${this.currentTab} tab:`, error);
+                console.error('[App] Error stack:', error.stack);
                 this.container.innerHTML = `
                     <div style="display:flex;align-items:center;justify-content:center;height:calc(100vh - 15rem);flex-direction:column;gap:1rem;padding:2rem;">
                         <div style="font-size:3rem;">⚠️</div>
                         <div style="color:white;font-weight:700;font-size:1.25rem;">Error Loading ${this.currentTab}</div>
-                        <div style="color:rgba(255,255,255,0.6);font-size:0.875rem;">Check console for details</div>
+                        <div style="color:rgba(255,255,255,0.6);font-size:0.875rem;max-width:400px;text-align:center;">${error.message}</div>
+                        <button onclick="console.log('Error details:', ${JSON.stringify({error: error.message, stack: error.stack})})" style="padding:0.5rem 1rem;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:0.5rem;color:white;font-weight:600;cursor:pointer;margin-top:0.5rem;">
+                            Show Details in Console
+                        </button>
                         <button onclick="location.reload()" style="padding:0.75rem 1.5rem;background:linear-gradient(135deg,#ff2e63,#d90062);border:none;border-radius:0.75rem;color:white;font-weight:700;cursor:pointer;">
                             Reload App
                         </button>
@@ -246,11 +289,14 @@ class MoviePickerApp {
             }
         } else {
             console.error(`[App] Tab not found or invalid: ${this.currentTab}`);
+            console.log('[App] Available tabs:', Object.keys(this.tabs));
+            console.log('[App] Tab object:', tab);
             this.container.innerHTML = `
                 <div style="display:flex;align-items:center;justify-content:center;height:calc(100vh - 15rem);flex-direction:column;gap:1rem;">
                     <div style="font-size:3rem;">❌</div>
                     <div style="color:white;font-weight:700;">Tab Not Found</div>
                     <div style="color:rgba(255,255,255,0.6);">${this.currentTab}</div>
+                    <div style="color:rgba(255,255,255,0.4);font-size:0.75rem;margin-top:1rem;">Available: ${Object.keys(this.tabs).join(', ')}</div>
                 </div>
             `;
         }
