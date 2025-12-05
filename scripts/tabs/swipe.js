@@ -1,5 +1,9 @@
 /**
- * Swipe Tab Component – CLEAN & FIXED VERSION
+ * Swipe Tab Component – PRODUCTION READY
+ * - Uses emoji-only action buttons
+ * - Filters movies by user.selectedPlatforms and user.blockedTriggers
+ * - Robust retry logic and single style injection
+ * - Works with SwipeCard (see components/swipe-card.js)
  */
 
 import { store } from "../state/store.js";
@@ -29,18 +33,15 @@ export class SwipeTab {
 
         container.innerHTML = `
             <div style="position: relative; width: 100%; height: calc(100vh - 5rem); display: flex; flex-direction: column; padding-bottom: 7rem;">
-                
-                <!-- Header -->
-                <div style="padding: 1.5rem 1rem; text-align: center;">
+                <div style="padding: 1.25rem 1rem; text-align: center;">
                     <h1 style="font-size: 1.5rem; font-weight: 800; color: white; margin: 0 0 0.5rem 0;">
                         Discover Movies
                     </h1>
                     <p style="font-size: 0.875rem; color: rgba(255, 255, 255, 0.6); margin: 0;">
-                        Swipe to find your next favorite film
+                        Swipe to find your next favourite film
                     </p>
                 </div>
-                
-                <!-- Card Container -->
+
                 <div id="swipe-container" style="flex: 1; position: relative; display: flex; align-items: center; justify-content: center; padding: 0 1rem;">
                     <div style="color: rgba(255,255,255,0.6); text-align: center;">
                         <div style="font-size: 3rem; margin-bottom: 1rem;">🎬</div>
@@ -48,17 +49,15 @@ export class SwipeTab {
                     </div>
                 </div>
 
-                <!-- PERFECT EMOJI BUTTONS -->
                 <div style="position: fixed; bottom: 6.8rem; left: 0; right: 0; z-index: 90; padding: 0 1.5rem; pointer-events: none;">
                     <div style="display: flex; align-items: center; justify-content: center; gap: 2rem; pointer-events: auto;">
-                        <button id="swipe-pass" class="swipe-action-btn">❌</button>
-                        <button id="swipe-maybe" class="swipe-action-btn">❓</button>
-                        <button id="swipe-like" class="swipe-action-btn">👍</button>
-                        <button id="swipe-love" class="swipe-action-btn">❤️</button>
+                        <button id="swipe-pass" class="swipe-action-btn" data-action="pass">❌</button>
+                        <button id="swipe-maybe" class="swipe-action-btn" data-action="maybe">❓</button>
+                        <button id="swipe-like" class="swipe-action-btn" data-action="like">👍</button>
+                        <button id="swipe-love" class="swipe-action-btn" data-action="love">❤️</button>
                     </div>
                 </div>
 
-                <!-- Completed State -->
                 <div id="swipe-completed" style="display: none; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; padding: 2rem; text-align: center; background: rgba(10, 10, 15, 0.95); z-index: 10;">
                     <div style="font-size: 5rem; margin-bottom: 1.5rem;">🎉</div>
                     <h2 style="font-size: 2rem; font-weight: 800; color: white; margin: 0 0 1rem 0;">
@@ -80,9 +79,6 @@ export class SwipeTab {
         this.showNextCard();
     }
 
-    /**
-     * FIXED: Style is added ONCE only
-     */
     injectButtonStyles() {
         if (document.getElementById("swipe-btn-style")) return;
 
@@ -97,7 +93,7 @@ export class SwipeTab {
                 font-size: 2.6rem;
                 line-height: 1 !important;
                 cursor: pointer;
-                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                transition: all 0.25s cubic-bezier(0.4,0,0.2,1);
                 box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
                 backdrop-filter: blur(12px);
                 display: flex;
@@ -109,15 +105,12 @@ export class SwipeTab {
             #swipe-like   { background: rgba(16, 185, 129, 0.25);  border: 4px solid rgba(16, 185, 129, 0.6);  color: #10b981; }
             #swipe-love   { background: rgba(255, 46, 99, 0.25);   border: 4px solid rgba(255, 46, 99, 0.6);   color: #ff2e63; }
 
-            .swipe-action-btn:hover   { transform: scale(1.18) !important; box-shadow: 0 20px 50px rgba(0,0,0,0.7); }
+            .swipe-action-btn:hover   { transform: scale(1.12) !important; box-shadow: 0 20px 50px rgba(0,0,0,0.7); }
             .swipe-action-btn:active  { transform: scale(0.95) !important; }
         `;
         document.head.appendChild(style);
     }
 
-    /**
-     * FIXED: Correct retry logic, no infinite loading, no blocked attempts
-     */
     async loadMoviesWithRetry(attempt = 1) {
         if (this.isLoading) return;
         this.isLoading = true;
@@ -126,40 +119,57 @@ export class SwipeTab {
             const tmdb = getTMDBService();
             if (!tmdb) throw new Error("TMDB not ready");
 
-            const lists = await Promise.all([
-                tmdb.fetchPopularMovies(5),
-                tmdb.fetchTrendingMovies(),
-                tmdb.fetchTopRatedMovies(5)
+            const sources = await Promise.all([
+                tmdb.fetchPopularMovies ? tmdb.fetchPopularMovies(10) : tmdb.discoverMovies ? tmdb.discoverMovies({ page: 1 }) : [],
+                tmdb.fetchTrendingMovies ? tmdb.fetchTrendingMovies() : [],
+                tmdb.fetchTopRatedMovies ? tmdb.fetchTopRatedMovies(10) : []
             ]);
 
-            // merge & dedupe
             const map = new Map();
-            lists.flat().forEach(m => map.set(m.id, m));
-
+            sources.flat().forEach(m => {
+                if (m && m.id) map.set(m.id, m);
+            });
             const movies = Array.from(map.values());
 
-            // remove swiped
             const state = store.getState();
-            const swiped = new Set((state.swipeHistory || []).map(s => String(s.movie.id)));
+            const swipedIds = new Set((state.swipeHistory || []).map(s => String(s.movie.id)));
+            const user = state.user || {};
+            const selectedPlatforms = Array.isArray(user.selectedPlatforms) ? user.selectedPlatforms.map(p => String(p).toLowerCase()) : [];
+            const blockedTriggers = Array.isArray(user.blockedTriggers) ? user.blockedTriggers : [];
 
-            this.movieQueue = movies.filter(m => !swiped.has(String(m.id)));
+            const matchesPlatform = (movie) => {
+                if (!selectedPlatforms || selectedPlatforms.length === 0) return true;
+                const moviePlatforms = movie.platforms || (movie.platform ? [movie.platform] : []);
+                if (!moviePlatforms || moviePlatforms.length === 0) return true;
+                return moviePlatforms.some(p => selectedPlatforms.includes(String(p).toLowerCase()) || selectedPlatforms.includes(p));
+            };
 
-            // Retry up to 3 times if list is too small
+            const hasBlockedTrigger = (movie) => {
+                if (!blockedTriggers || blockedTriggers.length === 0) return false;
+                const warnings = movie.triggerWarnings || movie.warnings || [];
+                return warnings.some(w => blockedTriggers.includes(String(w)));
+            };
+
+            this.movieQueue = movies
+                .filter(m => m && !swipedIds.has(String(m.id)))
+                .filter(m => matchesPlatform(m))
+                .filter(m => !hasBlockedTrigger(m));
+
+            // If we have too few movies, retry (but don't lock isLoading)
             if (this.movieQueue.length < 10 && attempt <= 3) {
-                this.isLoading = false;  // <-- FIXED
-                setTimeout(() => this.loadMoviesWithRetry(attempt + 1), 1000);
+                this.isLoading = false;
+                setTimeout(() => this.loadMoviesWithRetry(attempt + 1), 900);
                 return;
             }
 
             if (attempt > 3 && this.movieQueue.length === 0) {
-                showToast("No movies available at the moment.", "error");
+                showToast("No movies available for your preferences.", "error");
             }
         } catch (err) {
-            console.error("[SwipeTab] Load failed:", err);
+            console.error("[SwipeTab] load failed", err);
             showToast("Failed to load movies. Retrying...", "error");
-
             if (attempt <= 3) {
-                this.isLoading = false;  // <-- FIXED
+                this.isLoading = false;
                 setTimeout(() => this.loadMoviesWithRetry(attempt + 1), 1500);
             }
         } finally {
@@ -175,52 +185,61 @@ export class SwipeTab {
 
         if (this.movieQueue.length === 0) {
             container.innerHTML = "";
-            completed.style.display = "flex";
+            if (completed) completed.style.display = "flex";
             showConfetti();
             return;
         }
 
-        completed.style.display = "none";
+        if (completed) completed.style.display = "none";
 
         const movie = this.movieQueue.shift();
         container.innerHTML = "";
         this.currentCard = new SwipeCard(container, movie);
+        // wire up card finished event (optional, but safe)
+        // SwipeCard will dispatch 'card-swiped' with detail { action, movie }
+        // We keep a short delay before showing the next card inside swipeHandler below
     }
 
     attachListeners() {
-        const ACTION_MAP = {
+        const actions = {
             "swipe-pass": "pass",
             "swipe-maybe": "maybe",
             "swipe-like": "like",
             "swipe-love": "love"
         };
 
-        Object.entries(ACTION_MAP).forEach(([id, action]) => {
+        Object.entries(actions).forEach(([id, action]) => {
             const btn = this.container.querySelector(`#${id}`);
-            if (btn) btn.addEventListener("click", () => this.handleButtonAction(action));
+            if (btn) {
+                btn.addEventListener("click", () => this.handleButtonAction(action));
+            }
         });
 
-        this.swipeHandler = () => setTimeout(() => this.showNextCard(), 400);
-        document.addEventListener("swipe-action", this.swipeHandler);
+        // When the card dispatches 'card-swiped' we show next card
+        this.swipeHandler = (e) => {
+            // small delay to let animations finish
+            setTimeout(() => this.showNextCard(), 380);
+        };
+        document.addEventListener("card-swiped", this.swipeHandler);
 
         const gotoLibrary = this.container.querySelector("#goto-library");
         if (gotoLibrary) {
             gotoLibrary.addEventListener("click", () => {
-                document.dispatchEvent(
-                    new CustomEvent("navigate-tab", { detail: { tab: "library" } })
-                );
+                document.dispatchEvent(new CustomEvent("navigate-tab", { detail: { tab: "library" } }));
             });
         }
     }
 
     handleButtonAction(action) {
-        if (this.currentCard) this.currentCard.handleAction(action);
+        if (this.currentCard) {
+            this.currentCard.handleAction(action);
+        }
     }
 
     destroy() {
         if (this.currentCard) this.currentCard.destroy();
         if (this.swipeHandler) {
-            document.removeEventListener("swipe-action", this.swipeHandler);
+            document.removeEventListener("card-swiped", this.swipeHandler);
             this.swipeHandler = null;
         }
         this.hasLoaded = false;
