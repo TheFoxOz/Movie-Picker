@@ -29,6 +29,140 @@ export class OnboardingFlow {
         return true;
     }
 
+    showSignup() {
+        this.currentStep = 'signup';
+        
+        this.overlay.innerHTML = `
+            <div style="display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 2rem;">
+                <div style="background: linear-gradient(180deg, #1a1a2e 0%, #0a0a0f 100%); border-radius: 2rem; max-width: 450px; width: 100%; padding: 3rem 2rem; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 20px 60px rgba(0,0,0,0.6);">
+                    
+                    <!-- Back Button -->
+                    <button id="back-to-login-btn" style="padding: 0.5rem 1rem; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 0.5rem; color: rgba(255,255,255,0.8); font-weight: 600; cursor: pointer; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                        <span>←</span>
+                        <span>Back</span>
+                    </button>
+
+                    <!-- Logo/Icon -->
+                    <div style="text-align: center; margin-bottom: 2rem;">
+                        <div style="font-size: 4rem; margin-bottom: 1rem;">🎬</div>
+                        <h1 style="font-size: 2rem; font-weight: 800; color: white; margin: 0 0 0.5rem 0;">
+                            Create Account
+                        </h1>
+                        <p style="color: rgba(255,255,255,0.6); font-size: 0.875rem; margin: 0;">
+                            Join Movie Picker and start swiping!
+                        </p>
+                    </div>
+
+                    <!-- Signup Form -->
+                    <form id="signup-form" style="display: flex; flex-direction: column; gap: 1.25rem;">
+                        
+                        <div>
+                            <label style="display: block; color: rgba(255,255,255,0.8); font-size: 0.875rem; font-weight: 600; margin-bottom: 0.5rem;">
+                                Name
+                            </label>
+                            <input type="text" id="name-input" placeholder="Your name" required
+                                   style="width: 100%; padding: 1rem; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 0.75rem; color: white; font-size: 1rem;">
+                        </div>
+
+                        <div>
+                            <label style="display: block; color: rgba(255,255,255,0.8); font-size: 0.875rem; font-weight: 600; margin-bottom: 0.5rem;">
+                                Email
+                            </label>
+                            <input type="email" id="signup-email-input" placeholder="your@email.com" required
+                                   style="width: 100%; padding: 1rem; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 0.75rem; color: white; font-size: 1rem;">
+                        </div>
+
+                        <div>
+                            <label style="display: block; color: rgba(255,255,255,0.8); font-size: 0.875rem; font-weight: 600; margin-bottom: 0.5rem;">
+                                Password
+                            </label>
+                            <input type="password" id="signup-password-input" placeholder="••••••••" required minlength="6"
+                                   style="width: 100%; padding: 1rem; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 0.75rem; color: white; font-size: 1rem;">
+                            <p style="color: rgba(255,255,255,0.5); font-size: 0.75rem; margin: 0.5rem 0 0 0;">
+                                At least 6 characters
+                            </p>
+                        </div>
+
+                        <button type="submit" id="signup-btn" style="width: 100%; padding: 1.25rem; background: linear-gradient(135deg,#ff2e63,#d90062); border: none; border-radius: 0.75rem; color: white; font-weight: 700; font-size: 1.125rem; cursor: pointer; transition: transform 0.2s; margin-top: 0.5rem;">
+                            Create Account
+                        </button>
+
+                    </form>
+
+                    <!-- Already have account -->
+                    <div style="text-align: center; margin-top: 1.5rem;">
+                        <p style="color: rgba(255,255,255,0.6); font-size: 0.875rem; margin: 0;">
+                            Already have an account? 
+                            <a href="#" id="back-to-login-link" style="color: #ff2e63; font-weight: 600; text-decoration: none;">
+                                Sign In
+                            </a>
+                        </p>
+                    </div>
+
+                </div>
+            </div>
+        `;
+
+        this.attachSignupListeners();
+    }
+
+    attachSignupListeners() {
+        const form = this.overlay.querySelector('#signup-form');
+        const backBtn = this.overlay.querySelector('#back-to-login-btn');
+        const backLink = this.overlay.querySelector('#back-to-login-link');
+
+        // Signup form
+        form?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const name = this.overlay.querySelector('#name-input').value;
+            const email = this.overlay.querySelector('#signup-email-input').value;
+            const password = this.overlay.querySelector('#signup-password-input').value;
+            const signupBtn = this.overlay.querySelector('#signup-btn');
+
+            console.log('[Onboarding] Signup attempt:', email);
+            
+            signupBtn.textContent = 'Creating account...';
+            signupBtn.disabled = true;
+
+            try {
+                // Use Firebase createUserWithEmailAndPassword
+                const userCredential = await authService.createUserWithEmailAndPassword(email, password);
+                
+                // Update display name
+                await authService.updateProfile(userCredential.user, { displayName: name });
+                
+                console.log('[Onboarding] Signup successful:', userCredential.user);
+                this.showPlatformSelection();
+            } catch (error) {
+                console.error('[Onboarding] Signup error:', error);
+                signupBtn.textContent = 'Create Account';
+                signupBtn.disabled = false;
+                
+                let errorMessage = 'Signup failed. Please try again.';
+                if (error.code === 'auth/email-already-in-use') {
+                    errorMessage = 'This email is already registered. Please sign in instead.';
+                } else if (error.code === 'auth/invalid-email') {
+                    errorMessage = 'Invalid email address.';
+                } else if (error.code === 'auth/weak-password') {
+                    errorMessage = 'Password is too weak. Please use at least 6 characters.';
+                }
+                
+                alert(errorMessage);
+            }
+        });
+
+        // Back button
+        backBtn?.addEventListener('click', () => {
+            this.showLogin();
+        });
+
+        // Back link
+        backLink?.addEventListener('click', (e) => {
+            e.preventDefault();
+            this.showLogin();
+        });
+    }
+
     showLogin() {
         this.currentStep = 'login';
         this.createOverlay();
@@ -245,11 +379,34 @@ export class OnboardingFlow {
             e.preventDefault();
             const email = this.overlay.querySelector('#email-input').value;
             const password = this.overlay.querySelector('#password-input').value;
+            const loginBtn = this.overlay.querySelector('#login-btn');
 
             console.log('[Onboarding] Login attempt:', email);
             
-            // Simulate login (replace with real auth)
-            await this.mockLogin(email, password);
+            loginBtn.textContent = 'Signing in...';
+            loginBtn.disabled = true;
+
+            try {
+                // Use Firebase signInWithEmailAndPassword
+                const userCredential = await authService.signInWithEmailAndPassword(email, password);
+                console.log('[Onboarding] Login successful:', userCredential.user);
+                this.showPlatformSelection();
+            } catch (error) {
+                console.error('[Onboarding] Login error:', error);
+                loginBtn.textContent = 'Sign In';
+                loginBtn.disabled = false;
+                
+                let errorMessage = 'Login failed. Please try again.';
+                if (error.code === 'auth/user-not-found') {
+                    errorMessage = 'No account found with this email.';
+                } else if (error.code === 'auth/wrong-password') {
+                    errorMessage = 'Incorrect password.';
+                } else if (error.code === 'auth/invalid-email') {
+                    errorMessage = 'Invalid email address.';
+                }
+                
+                alert(errorMessage);
+            }
         });
 
         // Google login
@@ -261,7 +418,28 @@ export class OnboardingFlow {
         });
         googleBtn?.addEventListener('click', async () => {
             console.log('[Onboarding] Google login');
-            await this.mockLogin('google-user@gmail.com', '');
+            googleBtn.textContent = 'Signing in with Google...';
+            googleBtn.disabled = true;
+
+            try {
+                // Use Firebase signInWithGoogle
+                const userCredential = await authService.signInWithGoogle();
+                console.log('[Onboarding] Google login successful:', userCredential.user);
+                this.showPlatformSelection();
+            } catch (error) {
+                console.error('[Onboarding] Google login error:', error);
+                googleBtn.innerHTML = `
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                    </svg>
+                    Continue with Google
+                `;
+                googleBtn.disabled = false;
+                alert('Google sign-in failed. Please try again.');
+            }
         });
 
         // Guest login
@@ -273,39 +451,68 @@ export class OnboardingFlow {
         });
         guestBtn?.addEventListener('click', async () => {
             console.log('[Onboarding] Guest login');
-            await this.mockLogin('guest@moviepicker.com', '');
+            guestBtn.textContent = 'Signing in as Guest...';
+            guestBtn.disabled = true;
+
+            try {
+                // Use Firebase signInAnonymously
+                const userCredential = await authService.signInAnonymously();
+                console.log('[Onboarding] Guest login successful:', userCredential.user);
+                this.showPlatformSelection();
+            } catch (error) {
+                console.error('[Onboarding] Guest login error:', error);
+                guestBtn.textContent = 'Continue as Guest';
+                guestBtn.disabled = false;
+                alert('Guest sign-in failed. Please try again.');
+            }
         });
 
         // Sign up link
         signupLink?.addEventListener('click', (e) => {
             e.preventDefault();
-            alert('Sign up functionality coming soon!\n\nFor now, you can continue as guest or use the demo login.');
+            this.showSignup();
         });
     }
 
     async mockLogin(email, password) {
         const loginBtn = this.overlay.querySelector('#login-btn');
+        const googleBtn = this.overlay.querySelector('#google-login-btn');
+        const guestBtn = this.overlay.querySelector('#guest-login-btn');
+        
         if (loginBtn) {
             loginBtn.textContent = 'Signing in...';
             loginBtn.disabled = true;
         }
 
-        // Simulate API call
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        try {
+            let user;
+            
+            if (email === 'google') {
+                // Google login
+                user = await authService.loginWithGoogle();
+            } else if (email === 'guest') {
+                // Guest login
+                user = await authService.loginAsGuest();
+            } else {
+                // Regular login
+                user = await authService.login(email, password);
+            }
 
-        // Mock authentication
-        const user = {
-            id: 'user_' + Date.now(),
-            email: email,
-            name: email.split('@')[0],
-            avatar: '👤'
-        };
+            console.log('[Onboarding] Login successful:', user);
 
-        authService.setCurrentUser(user);
-        console.log('[Onboarding] Login successful:', user);
-
-        // Move to platform selection
-        this.showPlatformSelection();
+            // Move to platform selection
+            this.showPlatformSelection();
+            
+        } catch (error) {
+            console.error('[Onboarding] Login failed:', error);
+            
+            if (loginBtn) {
+                loginBtn.textContent = 'Sign In';
+                loginBtn.disabled = false;
+            }
+            
+            alert('Login failed. Please try again.');
+        }
     }
 
     attachPlatformListeners() {
