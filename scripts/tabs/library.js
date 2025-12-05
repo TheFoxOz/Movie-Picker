@@ -112,13 +112,30 @@ export class LibraryTab {
 
     setupInfiniteScroll() {
         if (this.scrollListener) window.removeEventListener('scroll', this.scrollListener);
+        
         this.scrollListener = () => {
             const { scrollTop, scrollHeight, clientHeight } = document.documentElement;
-            if (scrollHeight - scrollTop - clientHeight < 800 && !this.isLoading && this.hasMorePages) {
+            const scrolledToBottom = scrollHeight - scrollTop - clientHeight;
+            
+            console.log(`[Scroll] Distance from bottom: ${scrolledToBottom}px, Loading: ${this.isLoading}, HasMore: ${this.hasMorePages}`);
+            
+            // Trigger earlier (1500px from bottom instead of 800px)
+            if (scrolledToBottom < 1500 && !this.isLoading && this.hasMorePages) {
+                console.log(`[Scroll] Triggering load for page ${this.currentPage + 1}`);
                 this.loadMovies(this.currentPage + 1).then(() => this.updateMoviesGrid());
             }
         };
+        
         window.addEventListener('scroll', this.scrollListener);
+        
+        // Also trigger initial check in case content doesn't fill screen
+        setTimeout(() => {
+            const { scrollHeight, clientHeight } = document.documentElement;
+            if (scrollHeight <= clientHeight && this.hasMorePages && !this.isLoading) {
+                console.log('[Scroll] Content too short, loading more...');
+                this.loadMovies(this.currentPage + 1).then(() => this.updateMoviesGrid());
+            }
+        }, 500);
     }
 
     renderLoading() {
@@ -205,12 +222,25 @@ export class LibraryTab {
 
                 <div id="movies-grid">${this.renderMoviesGrid()}</div>
 
-                ${this.isLoading ? `
+                ${this.hasMorePages ? `
                     <div style="text-align:center;padding:2rem;">
-                        <div style="width:40px;height:40px;border:3px solid rgba(255,46,99,0.3);border-top-color:#ff2e63;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto;"></div>
-                        <p style="color:rgba(255,255,255,0.6);margin-top:1rem;">Loading more...</p>
+                        ${this.isLoading ? `
+                            <div style="width:40px;height:40px;border:3px solid rgba(255,46,99,0.3);border-top-color:#ff2e63;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto;"></div>
+                            <p style="color:rgba(255,255,255,0.6);margin-top:1rem;">Loading more... (Page ${this.currentPage})</p>
+                        ` : `
+                            <button id="load-more-btn" style="padding:1rem 2rem;background:linear-gradient(135deg,#ff2e63,#d90062);border:none;border-radius:0.75rem;color:white;font-size:1rem;font-weight:700;cursor:pointer;transition:transform 0.2s;">
+                                Load More Movies
+                            </button>
+                            <p style="color:rgba(255,255,255,0.6);margin-top:0.5rem;font-size:0.875rem;">
+                                Currently showing ${this.allMovies.length.toLocaleString()} movies
+                            </p>
+                        `}
                     </div>
-                ` : ''}
+                ` : `
+                    <div style="text-align:center;padding:2rem;">
+                        <p style="color:rgba(255,255,255,0.5);">You've reached the end! All ${this.allMovies.length.toLocaleString()} movies loaded.</p>
+                    </div>
+                `}
             </div>
         `;
 
@@ -285,6 +315,15 @@ export class LibraryTab {
             this.searchQuery = e.target.value;
             this.updateMoviesGrid();
         });
+
+        // Load More button
+        const loadMoreBtn = this.container.querySelector('#load-more-btn');
+        if (loadMoreBtn) {
+            loadMoreBtn.addEventListener('click', () => {
+                console.log('[LoadMore] Button clicked');
+                this.loadMovies(this.currentPage + 1).then(() => this.renderContent());
+            });
+        }
 
         this.container.querySelectorAll('.filter-btn').forEach(btn => {
             btn.addEventListener('click', () => {
