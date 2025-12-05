@@ -1,6 +1,6 @@
 /**
- * Movie Modal Component
- * Shows detailed movie information with TRAILER
+ * Movie Modal Component with Trigger Warnings
+ * Shows detailed movie information with TRAILER and DDD warnings
  */
 
 import { getTMDBService } from '../services/tmdb.js';
@@ -11,6 +11,17 @@ class MovieModal {
         this.modal = null;
         this.currentMovie = null;
         this.trailerKey = null;
+        this.attachGlobalListeners();
+    }
+
+    attachGlobalListeners() {
+        // Listen for trigger warnings being loaded
+        window.addEventListener('trigger-warnings-loaded', (e) => {
+            if (this.currentMovie && e.detail.movieId === this.currentMovie.id) {
+                console.log('[Modal] Trigger warnings loaded, updating display');
+                this.updateWarningsSection(e.detail.warnings);
+            }
+        });
     }
     
     async show(movie) {
@@ -29,6 +40,14 @@ class MovieModal {
                 }
             } catch (error) {
                 console.error('[MovieModal] Failed to fetch trailer:', error);
+            }
+        }
+
+        // Fetch trigger warnings if not loaded
+        if (!movie.warningsLoaded) {
+            const tmdbService = getTMDBService();
+            if (tmdbService) {
+                tmdbService.fetchTriggerWarnings(movie);
             }
         }
         
@@ -76,6 +95,46 @@ class MovieModal {
             this.currentMovie = null;
             this.trailerKey = null;
         }, 300);
+    }
+
+    renderTriggerWarnings(warnings) {
+        if (!warnings || warnings.length === 0) {
+            return `
+                <div style="padding:1rem;background:rgba(255,255,255,0.05);border-radius:0.75rem;text-align:center;">
+                    <p style="color:rgba(255,255,255,0.5);margin:0;font-size:0.875rem;">
+                        ${this.currentMovie?.warningsLoaded ? 'No trigger warnings found' : 'Loading trigger warnings...'}
+                    </p>
+                </div>
+            `;
+        }
+
+        return `
+            <div style="display:flex;flex-direction:column;gap:0.75rem;">
+                ${warnings.map(warning => `
+                    <div style="padding:1rem;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:0.75rem;">
+                        <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem;">
+                            <span style="color:#ef4444;font-size:1.25rem;">⚠️</span>
+                            <strong style="color:#ef4444;font-size:0.9375rem;">${warning.name}</strong>
+                        </div>
+                        ${warning.description ? `
+                            <p style="color:rgba(255,255,255,0.7);font-size:0.875rem;margin:0 0 0.5rem 0;line-height:1.5;">
+                                ${warning.description}
+                            </p>
+                        ` : ''}
+                        <p style="color:rgba(255,255,255,0.4);font-size:0.75rem;margin:0;">
+                            ${warning.yesVotes} people confirmed this content
+                        </p>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+
+    updateWarningsSection(warnings) {
+        const warningsContainer = this.modal?.querySelector('#trigger-warnings-container');
+        if (warningsContainer) {
+            warningsContainer.innerHTML = this.renderTriggerWarnings(warnings);
+        }
     }
     
     createModal() {
@@ -252,7 +311,7 @@ class MovieModal {
                     </div>
                 </div>
                 
-                <!-- Cast (FIXED: using 'cast' property) -->
+                <!-- Cast -->
                 ${movie.cast && movie.cast.length > 0 ? `
                     <div style="padding: 0 2rem 2rem;">
                         <div style="font-size: 0.75rem; color: rgba(255, 255, 255, 0.5); text-transform: uppercase; font-weight: 600; letter-spacing: 0.05em; margin-bottom: 1rem;">
@@ -268,22 +327,16 @@ class MovieModal {
                     </div>
                 ` : ''}
                 
-                <!-- Trigger Warnings -->
-                ${movie.triggerWarnings && movie.triggerWarnings.length > 0 ? `
-                    <div style="padding: 0 2rem 2rem;">
-                        <div style="padding: 1rem 1.25rem; background: rgba(220, 38, 38, 0.15); border: 1px solid rgba(220, 38, 38, 0.3); border-radius: 1rem;">
-                            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
-                                <span style="font-size: 1.25rem;">⚠️</span>
-                                <span style="font-size: 0.875rem; font-weight: 700; color: #fca5a5; text-transform: uppercase; letter-spacing: 0.05em;">
-                                    Trigger Warnings
-                                </span>
-                            </div>
-                            <p style="font-size: 0.875rem; color: rgba(255, 255, 255, 0.8); margin: 0;">
-                                ${movie.triggerWarnings.join(', ')}
-                            </p>
-                        </div>
+                <!-- Trigger Warnings from DDD -->
+                <div style="padding: 0 2rem 2rem;">
+                    <h3 style="font-size: 1rem; font-weight: 700; color: white; margin: 0 0 1rem 0; display: flex; align-items: center; gap: 0.5rem;">
+                        <span>⚠️</span>
+                        Content Warnings
+                    </h3>
+                    <div id="trigger-warnings-container">
+                        ${this.renderTriggerWarnings(movie.triggerWarnings)}
                     </div>
-                ` : ''}
+                </div>
             </div>
         `;
     }
