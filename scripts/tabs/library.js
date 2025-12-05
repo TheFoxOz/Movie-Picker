@@ -71,14 +71,14 @@ export class LibraryTab {
                 this.allMovies = Array.from(map.values());
             }
 
-            // TRUE UNLIMITED: Discover API from page 1 onward
+            // TRUE UNLIMITED: Discover API - continues loading until TMDB limit
             console.log(`[Library] Loading Discover page ${page}...`);
             const response = await fetch(
                 `https://api.themoviedb.org/3/discover/movie?api_key=${tmdbService.apiKey}&language=en-US&sort_by=popularity.desc&page=${page}&include_adult=false`
             );
 
             if (!response.ok) {
-                console.warn('[Library] TMDB limit reached');
+                console.warn('[Library] TMDB API error');
                 this.hasMorePages = false;
                 return;
             }
@@ -86,11 +86,13 @@ export class LibraryTab {
             const data = await response.json();
             newMovies = data.results.map(m => tmdbService.transformMovie(m));
 
-            if (newMovies.length === 0) {
+            // Check if we've reached the end
+            if (newMovies.length === 0 || page >= data.total_pages || page >= 500) {
+                console.log(`[Library] Reached end. Total pages: ${data.total_pages}, Current page: ${page}`);
                 this.hasMorePages = false;
-                return;
             }
 
+            // Add new unique movies
             const existingIds = new Set(this.allMovies.map(m => m.id));
             const filtered = newMovies.filter(m => !existingIds.has(m.id));
             this.allMovies.push(...filtered);
@@ -98,7 +100,7 @@ export class LibraryTab {
             this.filteredMovies = this.filterMoviesByPreferences(this.allMovies);
             this.currentPage = page;
 
-            console.log(`[Library] Total movies: ${this.allMovies.length.toLocaleString()}`);
+            console.log(`[Library] Total movies: ${this.allMovies.length.toLocaleString()}, Page ${page}/${data.total_pages || '?'}`);
 
         } catch (error) {
             console.error('[Library] Load error:', error);
