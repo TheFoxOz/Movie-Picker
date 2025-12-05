@@ -51,8 +51,8 @@ export class SwipeCard {
                     <div style="font-size: 1.5rem; font-weight: 700; letter-spacing: 0.1em;">LIKE</div>
                 </div>
                 
-                <!-- LOVE (Right Far) - Pink Heart -->
-                <div id="badge-love" class="swipe-badge" style="position: absolute; top: 50%; right: 20px; transform: translateY(-50%); padding: 1rem 2rem; background: linear-gradient(135deg, rgba(255, 46, 99, 0.95), rgba(217, 0, 98, 0.95)); color: white; font-size: 3rem; font-weight: 800; border-radius: 1.5rem; opacity: 0; z-index: 10; box-shadow: 0 8px 32px rgba(255, 46, 99, 0.6); backdrop-filter: blur(10px); border: 3px solid rgba(255, 255, 255, 0.3); display: flex; flex-direction: column; align-items: center; gap: 0.5rem;">
+                <!-- LOVE (Bottom) - Pink Heart -->
+                <div id="badge-love" class="swipe-badge" style="position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); padding: 1rem 2rem; background: linear-gradient(135deg, rgba(255, 46, 99, 0.95), rgba(217, 0, 98, 0.95)); color: white; font-size: 3rem; font-weight: 800; border-radius: 1.5rem; opacity: 0; z-index: 10; box-shadow: 0 8px 32px rgba(255, 46, 99, 0.6); backdrop-filter: blur(10px); border: 3px solid rgba(255, 255, 255, 0.3); display: flex; flex-direction: column; align-items: center; gap: 0.5rem;">
                     <div style="font-size: 4rem;">❤️</div>
                     <div style="font-size: 1.5rem; font-weight: 700; letter-spacing: 0.1em;">LOVE</div>
                 </div>
@@ -133,16 +133,9 @@ export class SwipeCard {
                     passBadge.style.opacity = Math.min(absDiffX / 150, 1);
                     passBadge.style.transform = `translateY(-50%) scale(${1 + absDiffX / 300})`;
                 } else if (diffX > 80) {
-                    // SWIPE RIGHT → Check distance for LIKE vs LOVE
-                    if (diffX > 200) {
-                        // Far right → LOVE
-                        loveBadge.style.opacity = Math.min(absDiffX / 150, 1);
-                        loveBadge.style.transform = `translateY(-50%) scale(${1 + absDiffX / 300})`;
-                    } else {
-                        // Normal right → LIKE
-                        likeBadge.style.opacity = Math.min(absDiffX / 150, 1);
-                        likeBadge.style.transform = `translateY(-50%) scale(${1 + absDiffX / 300})`;
-                    }
+                    // SWIPE RIGHT → LIKE
+                    likeBadge.style.opacity = Math.min(absDiffX / 150, 1);
+                    likeBadge.style.transform = `translateY(-50%) scale(${1 + absDiffX / 300})`;
                 }
             } else {
                 // VERTICAL SWIPE (Up or Down)
@@ -150,6 +143,10 @@ export class SwipeCard {
                     // SWIPE UP → MAYBE
                     maybeBadge.style.opacity = Math.min(absDiffY / 150, 1);
                     maybeBadge.style.transform = `translateX(-50%) scale(${1 + absDiffY / 300})`;
+                } else if (diffY > 80) {
+                    // SWIPE DOWN → LOVE
+                    loveBadge.style.opacity = Math.min(absDiffY / 150, 1);
+                    loveBadge.style.transform = `translateX(-50%) scale(${1 + absDiffY / 300})`;
                 }
             }
         };
@@ -175,20 +172,21 @@ export class SwipeCard {
                         // LEFT → PASS
                         this.swipeOff('pass');
                     } else {
-                        // RIGHT → LIKE or LOVE
-                        if (diffX > 200) {
-                            this.swipeOff('love');
-                        } else {
-                            this.swipeOff('like');
-                        }
+                        // RIGHT → LIKE
+                        this.swipeOff('like');
                     }
                     return;
                 }
             } else {
                 // VERTICAL SWIPE
-                if (absDiffY > threshold && diffY < 0) {
-                    // UP → MAYBE
-                    this.swipeOff('maybe');
+                if (absDiffY > threshold) {
+                    if (diffY < 0) {
+                        // UP → MAYBE
+                        this.swipeOff('maybe');
+                    } else {
+                        // DOWN → LOVE
+                        this.swipeOff('love');
+                    }
                     return;
                 }
             }
@@ -200,9 +198,12 @@ export class SwipeCard {
             const badges = card.querySelectorAll('.swipe-badge');
             badges.forEach(badge => {
                 badge.style.opacity = 0;
-                badge.style.transform = badge.id.includes('maybe') 
-                    ? 'translateX(-50%)' 
-                    : 'translateY(-50%)';
+                // Reset transform based on badge position
+                if (badge.id === 'badge-pass' || badge.id === 'badge-like') {
+                    badge.style.transform = 'translateY(-50%)'; // Left/Right badges
+                } else {
+                    badge.style.transform = 'translateX(-50%)'; // Top/Bottom badges
+                }
             });
         };
 
