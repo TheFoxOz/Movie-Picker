@@ -26,7 +26,8 @@ class MoviePickerApp {
         // Load preferences from localStorage
         this.loadPreferences();
 
-        // Initialize tabs
+        // Initialize tabs FIRST
+        console.log('[App] Initializing tabs...');
         this.tabs = {
             home: new HomeTab(),
             swipe: new SwipeTab(),
@@ -34,6 +35,7 @@ class MoviePickerApp {
             matches: new MatchesTab(),
             profile: new ProfileTab()
         };
+        console.log('[App] Tabs initialized:', Object.keys(this.tabs));
 
         // Setup DOM
         this.setupDOM();
@@ -178,9 +180,17 @@ class MoviePickerApp {
     }
 
     navigateToTab(tabName) {
-        if (this.currentTab === tabName) return;
+        if (!tabName) {
+            console.warn('[App] No tab name provided to navigateToTab');
+            return;
+        }
 
-        console.log(`[App] Navigating to ${tabName} tab`);
+        if (this.currentTab === tabName) {
+            console.log(`[App] Already on ${tabName} tab, skipping navigation`);
+            return;
+        }
+
+        console.log(`[App] Navigating from ${this.currentTab} to ${tabName} tab`);
         this.currentTab = tabName;
 
         // Update navigation UI
@@ -206,12 +216,43 @@ class MoviePickerApp {
         // Clear container
         this.container.innerHTML = '';
 
+        // Show loading state briefly for better UX
+        this.container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:calc(100vh - 15rem);"><div style="color:rgba(255,255,255,0.6);">Loading...</div></div>';
+
+        // Small delay to ensure smooth transition
+        await new Promise(resolve => setTimeout(resolve, 50));
+
+        // Clear again before rendering
+        this.container.innerHTML = '';
+
         // Render selected tab
         const tab = this.tabs[this.currentTab];
-        if (tab) {
-            await tab.render(this.container);
+        if (tab && typeof tab.render === 'function') {
+            try {
+                await tab.render(this.container);
+                console.log(`[App] Rendered ${this.currentTab} tab successfully`);
+            } catch (error) {
+                console.error(`[App] Error rendering ${this.currentTab} tab:`, error);
+                this.container.innerHTML = `
+                    <div style="display:flex;align-items:center;justify-content:center;height:calc(100vh - 15rem);flex-direction:column;gap:1rem;padding:2rem;">
+                        <div style="font-size:3rem;">⚠️</div>
+                        <div style="color:white;font-weight:700;font-size:1.25rem;">Error Loading ${this.currentTab}</div>
+                        <div style="color:rgba(255,255,255,0.6);font-size:0.875rem;">Check console for details</div>
+                        <button onclick="location.reload()" style="padding:0.75rem 1.5rem;background:linear-gradient(135deg,#ff2e63,#d90062);border:none;border-radius:0.75rem;color:white;font-weight:700;cursor:pointer;">
+                            Reload App
+                        </button>
+                    </div>
+                `;
+            }
         } else {
-            console.error(`[App] Tab not found: ${this.currentTab}`);
+            console.error(`[App] Tab not found or invalid: ${this.currentTab}`);
+            this.container.innerHTML = `
+                <div style="display:flex;align-items:center;justify-content:center;height:calc(100vh - 15rem);flex-direction:column;gap:1rem;">
+                    <div style="font-size:3rem;">❌</div>
+                    <div style="color:white;font-weight:700;">Tab Not Found</div>
+                    <div style="color:rgba(255,255,255,0.6);">${this.currentTab}</div>
+                </div>
+            `;
         }
     }
 
