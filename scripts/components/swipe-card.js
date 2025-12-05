@@ -29,7 +29,7 @@ export class SwipeCard {
         this.element = document.createElement('div');
         this.element.className = 'swipe-card';
         this.element.innerHTML = `
-            <div style="position: relative; width: 100%; max-width: 380px; border-radius: 1.5rem; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.6); background: #111; transform: rotate(0deg); transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1); user-select: none;">
+            <div style="position: relative; width: 100%; max-width: 380px; border-radius: 1.5rem; box-shadow: 0 20px 60px rgba(0,0,0,0.6); background: #111; transform: rotate(0deg); transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1); user-select: none;">
                 
                 <!-- SWIPE DIRECTION OVERLAYS - ALL FOUR DIRECTIONS -->
                 
@@ -57,8 +57,8 @@ export class SwipeCard {
                     <div style="font-size: 1.5rem; font-weight: 700; letter-spacing: 0.1em;">LOVE</div>
                 </div>
 
-                <!-- Poster -->
-                <div style="position: relative; height: 520px; background: #000;">
+                <!-- Poster (with overflow hidden for clean edges) -->
+                <div style="position: relative; height: 520px; background: #000; border-radius: 1.5rem; overflow: hidden;">
                     <img src="${poster}" alt="${this.movie.title}" style="width: 100%; height: 100%; object-fit: cover;">
                     
                     <!-- Gradient overlay -->
