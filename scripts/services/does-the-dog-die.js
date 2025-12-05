@@ -5,6 +5,8 @@
 
 const DDD_API_KEY = '8422ca0f3512e1d0cb973215099d0f20';
 const DDD_BASE_URL = 'https://www.doesthedogdie.com';
+// CORS proxy to bypass browser restrictions
+const CORS_PROXY = 'https://corsproxy.io/?';
 
 class DoesTheDogDieService {
     constructor() {
@@ -23,8 +25,9 @@ class DoesTheDogDieService {
 
         try {
             console.log(`[DDD] Searching for: ${title}`);
+            const url = `${DDD_BASE_URL}/dddsearch?q=${encodeURIComponent(title)}`;
             const response = await fetch(
-                `${DDD_BASE_URL}/dddsearch?q=${encodeURIComponent(title)}`,
+                `${CORS_PROXY}${encodeURIComponent(url)}`,
                 {
                     headers: {
                         'Accept': 'application/json',
@@ -64,8 +67,9 @@ class DoesTheDogDieService {
 
         try {
             console.log(`[DDD] Searching by IMDB: ${imdbId}`);
+            const url = `${DDD_BASE_URL}/dddsearch?imdb=${imdbId}`;
             const response = await fetch(
-                `${DDD_BASE_URL}/dddsearch?imdb=${imdbId}`,
+                `${CORS_PROXY}${encodeURIComponent(url)}`,
                 {
                     headers: {
                         'Accept': 'application/json',
@@ -105,8 +109,9 @@ class DoesTheDogDieService {
 
         try {
             console.log(`[DDD] Fetching warnings for ID: ${dddId}`);
+            const url = `${DDD_BASE_URL}/media/${dddId}`;
             const response = await fetch(
-                `${DDD_BASE_URL}/media/${dddId}`,
+                `${CORS_PROXY}${encodeURIComponent(url)}`,
                 {
                     headers: {
                         'Accept': 'application/json',
