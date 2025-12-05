@@ -50,10 +50,14 @@ class MoviePickerApp {
             console.log('[App] Starting onboarding flow');
             
             // Listen for onboarding completion
-            window.addEventListener('navigate-to-tab', (e) => {
+            const handleNavigation = (e) => {
+                console.log('[App] Onboarding complete, showing app');
                 this.showApp();
                 this.navigateToTab(e.detail);
-            }, { once: true });
+                window.removeEventListener('navigate-to-tab', handleNavigation);
+            };
+            
+            window.addEventListener('navigate-to-tab', handleNavigation);
         }
     }
 
@@ -217,7 +221,13 @@ class MoviePickerApp {
             this.container.style.display = 'block';
         }
         if (this.bottomNav) {
-            this.bottomNav.style.display = 'block';
+            this.bottomNav.style.display = 'flex'; // Changed from 'block' to 'flex'
+        }
+        
+        // Show header
+        const header = document.getElementById('app-header');
+        if (header) {
+            header.style.display = 'block';
         }
 
         // Render current tab
