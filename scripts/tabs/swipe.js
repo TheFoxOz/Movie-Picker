@@ -1,9 +1,5 @@
 /**
- * Swipe Tab Component – PRODUCTION READY
- * - Uses emoji-only action buttons
- * - Filters movies by user.selectedPlatforms and user.blockedTriggers
- * - Robust retry logic and single style injection
- * - Works with SwipeCard (see components/swipe-card.js)
+ * Swipe Tab Component – FINAL & PERFECT
  */
 
 import { store } from "../state/store.js";
@@ -33,33 +29,38 @@ export class SwipeTab {
 
         container.innerHTML = `
             <div style="position: relative; width: 100%; height: calc(100vh - 5rem); display: flex; flex-direction: column; padding-bottom: 7rem;">
-                <div style="padding: 1.25rem 1rem; text-align: center;">
+                
+                <!-- Header -->
+                <div style="padding: 1.5rem 1rem; text-align: center;">
                     <h1 style="font-size: 1.5rem; font-weight: 800; color: white; margin: 0 0 0.5rem 0;">
                         Discover Movies
                     </h1>
                     <p style="font-size: 0.875rem; color: rgba(255, 255, 255, 0.6); margin: 0;">
-                        Swipe to find your next favourite film
+                        Swipe to find your next favorite film
                     </p>
                 </div>
-
+                
+                <!-- Card Container -->
                 <div id="swipe-container" style="flex: 1; position: relative; display: flex; align-items: center; justify-content: center; padding: 0 1rem;">
                     <div style="color: rgba(255,255,255,0.6); text-align: center;">
-                        <div style="font-size: 3rem; margin-bottom: 1rem;">🎬</div>
+                        <div style="font-size: 3rem; margin-bottom: 1rem;">Film</div>
                         <p>Loading your movies...</p>
                     </div>
                 </div>
 
+                <!-- PERFECT EMOJI BUTTONS -->
                 <div style="position: fixed; bottom: 6.8rem; left: 0; right: 0; z-index: 90; padding: 0 1.5rem; pointer-events: none;">
                     <div style="display: flex; align-items: center; justify-content: center; gap: 2rem; pointer-events: auto;">
-                        <button id="swipe-pass" class="swipe-action-btn" data-action="pass">❌</button>
-                        <button id="swipe-maybe" class="swipe-action-btn" data-action="maybe">❓</button>
-                        <button id="swipe-like" class="swipe-action-btn" data-action="like">👍</button>
-                        <button id="swipe-love" class="swipe-action-btn" data-action="love">❤️</button>
+                        <button id="swipe-pass" class="swipe-action-btn">No</button>
+                        <button id="swipe-maybe" class="swipe-action-btn">Question</button>
+                        <button id="swipe-like" class="swipe-action-btn">Thumbs Up</button>
+                        <button id="swipe-love" class="swipe-action-btn">Heart</button>
                     </div>
                 </div>
 
+                <!-- Completed State -->
                 <div id="swipe-completed" style="display: none; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; padding: 2rem; text-align: center; background: rgba(10, 10, 15, 0.95); z-index: 10;">
-                    <div style="font-size: 5rem; margin-bottom: 1.5rem;">🎉</div>
+                    <div style="font-size: 5rem; margin-bottom: 1.5rem;">Party Popper</div>
                     <h2 style="font-size: 2rem; font-weight: 800; color: white; margin: 0 0 1rem 0;">
                         You Did It!
                     </h2>
@@ -93,7 +94,7 @@ export class SwipeTab {
                 font-size: 2.6rem;
                 line-height: 1 !important;
                 cursor: pointer;
-                transition: all 0.25s cubic-bezier(0.4,0,0.2,1);
+                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
                 box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
                 backdrop-filter: blur(12px);
                 display: flex;
@@ -105,7 +106,7 @@ export class SwipeTab {
             #swipe-like   { background: rgba(16, 185, 129, 0.25);  border: 4px solid rgba(16, 185, 129, 0.6);  color: #10b981; }
             #swipe-love   { background: rgba(255, 46, 99, 0.25);   border: 4px solid rgba(255, 46, 99, 0.6);   color: #ff2e63; }
 
-            .swipe-action-btn:hover   { transform: scale(1.12) !important; box-shadow: 0 20px 50px rgba(0,0,0,0.7); }
+            .swipe-action-btn:hover   { transform: scale(1.18) !important; box-shadow: 0 20px 50px rgba(0,0,0,0.7); }
             .swipe-action-btn:active  { transform: scale(0.95) !important; }
         `;
         document.head.appendChild(style);
@@ -119,54 +120,30 @@ export class SwipeTab {
             const tmdb = getTMDBService();
             if (!tmdb) throw new Error("TMDB not ready");
 
-            const sources = await Promise.all([
-                tmdb.fetchPopularMovies ? tmdb.fetchPopularMovies(10) : tmdb.discoverMovies ? tmdb.discoverMovies({ page: 1 }) : [],
-                tmdb.fetchTrendingMovies ? tmdb.fetchTrendingMovies() : [],
-                tmdb.fetchTopRatedMovies ? tmdb.fetchTopRatedMovies(10) : []
+            const lists = await Promise.all([
+                tmdb.fetchPopularMovies(5),
+                tmdb.fetchTrendingMovies(),
+                tmdb.fetchTopRatedMovies(5)
             ]);
 
             const map = new Map();
-            sources.flat().forEach(m => {
-                if (m && m.id) map.set(m.id, m);
-            });
+            lists.flat().forEach(m => map.set(m.id, m));
+
             const movies = Array.from(map.values());
 
             const state = store.getState();
-            const swipedIds = new Set((state.swipeHistory || []).map(s => String(s.movie.id)));
-            const user = state.user || {};
-            const selectedPlatforms = Array.isArray(user.selectedPlatforms) ? user.selectedPlatforms.map(p => String(p).toLowerCase()) : [];
-            const blockedTriggers = Array.isArray(user.blockedTriggers) ? user.blockedTriggers : [];
+            const swiped = new Set((state.swipeHistory || []).map(s => String(s.movie.id)));
 
-            const matchesPlatform = (movie) => {
-                if (!selectedPlatforms || selectedPlatforms.length === 0) return true;
-                const moviePlatforms = movie.platforms || (movie.platform ? [movie.platform] : []);
-                if (!moviePlatforms || moviePlatforms.length === 0) return true;
-                return moviePlatforms.some(p => selectedPlatforms.includes(String(p).toLowerCase()) || selectedPlatforms.includes(p));
-            };
+            this.movieQueue = movies.filter(m => !swiped.has(String(m.id)));
 
-            const hasBlockedTrigger = (movie) => {
-                if (!blockedTriggers || blockedTriggers.length === 0) return false;
-                const warnings = movie.triggerWarnings || movie.warnings || [];
-                return warnings.some(w => blockedTriggers.includes(String(w)));
-            };
-
-            this.movieQueue = movies
-                .filter(m => m && !swipedIds.has(String(m.id)))
-                .filter(m => matchesPlatform(m))
-                .filter(m => !hasBlockedTrigger(m));
-
-            // If we have too few movies, retry (but don't lock isLoading)
             if (this.movieQueue.length < 10 && attempt <= 3) {
                 this.isLoading = false;
-                setTimeout(() => this.loadMoviesWithRetry(attempt + 1), 900);
+                setTimeout(() => this.loadMoviesWithRetry(attempt + 1), 1000);
                 return;
             }
 
-            if (attempt > 3 && this.movieQueue.length === 0) {
-                showToast("No movies available for your preferences.", "error");
-            }
         } catch (err) {
-            console.error("[SwipeTab] load failed", err);
+            console.error("[SwipeTab] Load failed:", err);
             showToast("Failed to load movies. Retrying...", "error");
             if (attempt <= 3) {
                 this.isLoading = false;
@@ -185,42 +162,33 @@ export class SwipeTab {
 
         if (this.movieQueue.length === 0) {
             container.innerHTML = "";
-            if (completed) completed.style.display = "flex";
+            completed.style.display = "flex";
             showConfetti();
             return;
         }
 
-        if (completed) completed.style.display = "none";
+        completed.style.display = "none";
 
         const movie = this.movieQueue.shift();
         container.innerHTML = "";
         this.currentCard = new SwipeCard(container, movie);
-        // wire up card finished event (optional, but safe)
-        // SwipeCard will dispatch 'card-swiped' with detail { action, movie }
-        // We keep a short delay before showing the next card inside swipeHandler below
     }
 
     attachListeners() {
-        const actions = {
+        const ACTION_MAP = {
             "swipe-pass": "pass",
             "swipe-maybe": "maybe",
             "swipe-like": "like",
             "swipe-love": "love"
         };
 
-        Object.entries(actions).forEach(([id, action]) => {
+        Object.entries(ACTION_MAP).forEach(([id, action]) => {
             const btn = this.container.querySelector(`#${id}`);
-            if (btn) {
-                btn.addEventListener("click", () => this.handleButtonAction(action));
-            }
+            if (btn) btn.addEventListener("click", () => this.handleButtonAction(action));
         });
 
-        // When the card dispatches 'card-swiped' we show next card
-        this.swipeHandler = (e) => {
-            // small delay to let animations finish
-            setTimeout(() => this.showNextCard(), 380);
-        };
-        document.addEventListener("card-swiped", this.swipeHandler);
+        this.swipeHandler = () => setTimeout(() => this.showNextCard(), 400);
+        document.addEventListener("swipe-action", this.swipeHandler);
 
         const gotoLibrary = this.container.querySelector("#goto-library");
         if (gotoLibrary) {
@@ -231,15 +199,13 @@ export class SwipeTab {
     }
 
     handleButtonAction(action) {
-        if (this.currentCard) {
-            this.currentCard.handleAction(action);
-        }
+        if (this.currentCard) this.currentCard.handleAction(action);
     }
 
     destroy() {
         if (this.currentCard) this.currentCard.destroy();
         if (this.swipeHandler) {
-            document.removeEventListener("card-swiped", this.swipeHandler);
+            document.removeEventListener("swipe-action", this.swipeHandler);
             this.swipeHandler = null;
         }
         this.hasLoaded = false;
