@@ -1,297 +1,228 @@
 /**
- * SwipeCard component
- * - Renders a single movie card
- * - Pointer/mouse/touch drag support
- * - Visual overlays for PASS / MAYBE / LIKE / LOVE
- * - handleAction(action) programmatic swipe
- * - dispatches 'card-swiped' custom event with detail { action, movie }
+ * Swipe Tab Component – CLEAN & FIXED VERSION
  */
 
-export class SwipeCard {
-    constructor(container, movie) {
+import { store } from "../state/store.js";
+import { SwipeCard } from "../components/swipe-card.js";
+import { getTMDBService } from "../services/tmdb.js";
+import { showToast } from "../utils/notifications.js";
+import { showConfetti } from "../utils/confetti.js";
+
+export class SwipeTab {
+    constructor() {
+        this.container = null;
+        this.currentCard = null;
+        this.movieQueue = [];
+        this.isLoading = false;
+        this.swipeHandler = null;
+        this.hasLoaded = false;
+    }
+
+    async render(container) {
         this.container = container;
-        this.movie = movie;
-        this.root = null;
-        this.pointerId = null;
-        this.startX = 0;
-        this.startY = 0;
-        this.currentX = 0;
-        this.currentY = 0;
-        this.dragging = false;
-        this.threshold = 120; // px to trigger swipe
-        this._onPointerDown = this.onPointerDown.bind(this);
-        this._onPointerMove = this.onPointerMove.bind(this);
-        this._onPointerUp = this.onPointerUp.bind(this);
 
-        this.render();
-        // attach pointer listeners on the card element
-        this.root.addEventListener("pointerdown", this._onPointerDown, { passive: true });
-        // support mouse events fallback if pointer not available
-        // (pointer events are widely supported; this is safety)
-    }
+        if (this.hasLoaded) {
+            this.showNextCard();
+            return;
+        }
+        this.hasLoaded = true;
 
-    render() {
-        const movie = this.movie || {};
-        const title = movie.title || movie.name || "Untitled";
-        const year = (movie.release_date || movie.first_air_date || "").slice(0, 4) || "";
-        const poster = movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : (movie.poster || "");
-        const overview = movie.overview || movie.synopsis || "";
+        container.innerHTML = `
+            <div style="position: relative; width: 100%; height: calc(100vh - 5rem); display: flex; flex-direction: column; padding-bottom: 7rem;">
+                
+                <!-- Header -->
+                <div style="padding: 1.5rem 1rem; text-align: center;">
+                    <h1 style="font-size: 1.5rem; font-weight: 800; color: white; margin: 0 0 0.5rem 0;">
+                        Discover Movies
+                    </h1>
+                    <p style="font-size: 0.875rem; color: rgba(255, 255, 255, 0.6); margin: 0;">
+                        Swipe to find your next favorite film
+                    </p>
+                </div>
+                
+                <!-- Card Container -->
+                <div id="swipe-container" style="flex: 1; position: relative; display: flex; align-items: center; justify-content: center; padding: 0 1rem;">
+                    <div style="color: rgba(255,255,255,0.6); text-align: center;">
+                        <div style="font-size: 3rem; margin-bottom: 1rem;">🎬</div>
+                        <p>Loading your movies...</p>
+                    </div>
+                </div>
 
-        const root = document.createElement("div");
-        root.className = "sw-card";
-        root.style.cssText = `
-            width: min(420px, 92%);
-            max-width: 92%;
-            height: min(78vh, 720px);
-            background: linear-gradient(180deg, rgba(10,10,12,0.95), rgba(6,6,8,0.98));
-            border-radius: 16px;
-            box-shadow: 0 30px 80px rgba(0,0,0,0.6);
-            overflow: hidden;
-            position: relative;
-            touch-action: pan-y;
-            user-select: none;
-            -webkit-user-select: none;
-            will-change: transform;
-        `;
+                <!-- PERFECT EMOJI BUTTONS -->
+                <div style="position: fixed; bottom: 6.8rem; left: 0; right: 0; z-index: 90; padding: 0 1.5rem; pointer-events: none;">
+                    <div style="display: flex; align-items: center; justify-content: center; gap: 2rem; pointer-events: auto;">
+                        <button id="swipe-pass" class="swipe-action-btn">❌</button>
+                        <button id="swipe-maybe" class="swipe-action-btn">❓</button>
+                        <button id="swipe-like" class="swipe-action-btn">👍</button>
+                        <button id="swipe-love" class="swipe-action-btn">❤️</button>
+                    </div>
+                </div>
 
-        // poster container
-        const posterWrap = document.createElement("div");
-        posterWrap.style.cssText = "height:65%; width:100%; background:#0b0b0d; display:flex; align-items:center; justify-content:center; overflow:hidden;";
-        const img = document.createElement("img");
-        img.src = poster;
-        img.alt = title;
-        img.style.cssText = "width:100%; height:100%; object-fit:cover; display:block;";
-        posterWrap.appendChild(img);
-
-        // meta area
-        const meta = document.createElement("div");
-        meta.style.cssText = "padding:12px 14px; color:white; height:35%; display:flex; flex-direction:column; justify-content:space-between;";
-        meta.innerHTML = `
-            <div style="display:flex;justify-content:space-between;align-items:start;gap:12px;">
-                <div style="font-weight:800;font-size:1.05rem;">${this._escapeHtml(title)}</div>
-                <div style="color:rgba(255,255,255,0.6);font-weight:700;">${year}</div>
+                <!-- Completed State -->
+                <div id="swipe-completed" style="display: none; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; padding: 2rem; text-align: center; background: rgba(10, 10, 15, 0.95); z-index: 10;">
+                    <div style="font-size: 5rem; margin-bottom: 1.5rem;">🎉</div>
+                    <h2 style="font-size: 2rem; font-weight: 800; color: white; margin: 0 0 1rem 0;">
+                        You Did It!
+                    </h2>
+                    <p style="font-size: 1.125rem; color: rgba(255, 255, 255, 0.8); margin: 0 0 2rem 0; max-width: 400px;">
+                        You've swiped through all available movies. Check your Library to see your picks!
+                    </p>
+                    <button id="goto-library" style="padding: 1rem 2rem; background: linear-gradient(135deg, #ff2e63, #d90062); border: none; border-radius: 1rem; color: white; font-size: 1rem; font-weight: 700; cursor: pointer;">
+                        View My Library
+                    </button>
+                </div>
             </div>
-            <div style="margin-top:8px;color:rgba(255,255,255,0.8);font-size:0.9rem;line-height:1.25;max-height:4.2rem;overflow:hidden;">${this._escapeHtml(overview)}</div>
         `;
 
-        // overlay badges for feedback
-        const overlay = document.createElement("div");
-        overlay.className = "sw-overlays";
-        overlay.style.cssText = "position:absolute;inset:0;pointer-events:none;";
-
-        const badge = (text, color, pos) => {
-            const el = document.createElement("div");
-            el.className = "sw-badge";
-            el.dataset.type = text;
-            el.style.cssText = `
-                position:absolute;
-                top:18px;
-                ${pos}:18px;
-                padding:8px 12px;
-                border-radius:12px;
-                font-weight:800;
-                font-size:1.05rem;
-                color:${color.text};
-                background:${color.bg};
-                transform: translateY(-8px) scale(0.98);
-                opacity:0;
-                transition: all 160ms ease;
-                box-shadow: 0 8px 30px rgba(0,0,0,0.35);
-            `;
-            el.innerHTML = text;
-            return el;
-        };
-
-        this._badgeLeft = badge("❌", { text: "#fff", bg: "rgba(239,68,68,0.12)" }, "left");
-        this._badgeRightLike = badge("👍", { text: "#fff", bg: "rgba(16,185,129,0.12)" }, "right");
-        this._badgeRightLove = badge("❤️", { text: "#fff", bg: "rgba(255,46,99,0.12)" }, "right");
-        this._badgeMaybe = badge("❓", { text: "#fff", bg: "rgba(249,115,22,0.12)" }, "left");
-        // adjust positions so left/right don't overlap visually
-        this._badgeRightLike.style.right = "18px";
-        this._badgeRightLove.style.right = "78px";
-        this._badgeMaybe.style.left = "18px";
-
-        overlay.appendChild(this._badgeLeft);
-        overlay.appendChild(this._badgeMaybe);
-        overlay.appendChild(this._badgeRightLike);
-        overlay.appendChild(this._badgeRightLove);
-
-        root.appendChild(posterWrap);
-        root.appendChild(meta);
-        root.appendChild(overlay);
-
-        // add to container
-        this.root = root;
-        this.container.appendChild(this.root);
-
-        // small entrance animation
-        requestAnimationFrame(() => {
-            this.root.style.transition = "transform 360ms cubic-bezier(0.2,0.8,0.2,1), opacity 260ms ease";
-            this.root.style.transform = "translateY(0) rotate(0deg) scale(1)";
-        });
-    }
-
-    // simple HTML escape for inserted strings
-    _escapeHtml(str) {
-        if (!str) return "";
-        return String(str).replace(/[&<>"']/g, (s) => {
-            const map = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
-            return map[s];
-        });
-    }
-
-    onPointerDown(e) {
-        // ignore right-clicks
-        if (e.button && e.button !== 0) return;
-        this.pointerId = e.pointerId || "mouse";
-        this.startX = e.clientX;
-        this.startY = e.clientY;
-        this.currentX = 0;
-        this.currentY = 0;
-        this.dragging = true;
-        this.root.setPointerCapture && this.root.setPointerCapture(this.pointerId);
-        this.root.style.transition = "none";
-        window.addEventListener("pointermove", this._onPointerMove, { passive: false });
-        window.addEventListener("pointerup", this._onPointerUp, { passive: true });
-        window.addEventListener("pointercancel", this._onPointerUp, { passive: true });
-    }
-
-    onPointerMove(e) {
-        if (!this.dragging) return;
-        const dx = e.clientX - this.startX;
-        const dy = e.clientY - this.startY;
-        this.currentX = dx;
-        this.currentY = dy;
-        // translate + small rotation
-        const rot = Math.max(-18, Math.min(18, dx / 12));
-        this.root.style.transform = `translate(${dx}px, ${dy}px) rotate(${rot}deg)`;
-        this._updateOverlays(dx, dy);
-        e.preventDefault && e.preventDefault();
-    }
-
-    onPointerUp(e) {
-        if (!this.dragging) return;
-        this.dragging = false;
-        const dx = this.currentX;
-        const absX = Math.abs(dx);
-
-        // remove listeners
-        window.removeEventListener("pointermove", this._onPointerMove);
-        window.removeEventListener("pointerup", this._onPointerUp);
-        window.removeEventListener("pointercancel", this._onPointerUp);
-
-        // decide action
-        if (absX >= this.threshold) {
-            const action = dx > 0 ? (Math.abs(dx) > (this.threshold * 1.8) ? "love" : "like") : "pass";
-            this._animateSwipeOut(dx, action);
-        } else {
-            // small vertical fling -> maybe
-            const dy = this.currentY || 0;
-            if (Math.abs(dy) > this.threshold && dy < 0) {
-                // upward flick => maybe
-                this._animateSwipeOut(0, "maybe");
-            } else {
-                // reset
-                this.root.style.transition = "transform 260ms cubic-bezier(0.2,0.8,0.2,1)";
-                this.root.style.transform = "translate(0px,0px) rotate(0deg)";
-                this._setOverlayOpacity(0);
-            }
-        }
-    }
-
-    _updateOverlays(dx) {
-        const absX = Math.abs(dx);
-        // left = pass, small left shows maybe
-        if (dx < 0) {
-            const progress = Math.min(1, absX / this.threshold);
-            this._badgeLeft.style.opacity = String(progress);
-            this._badgeLeft.style.transform = `translateY(${(1 - progress) * -8}px) scale(${0.95 + progress * 0.12})`;
-            // hide right overlays
-            this._badgeRightLike.style.opacity = "0";
-            this._badgeRightLove.style.opacity = "0";
-            this._badgeMaybe.style.opacity = "0";
-        } else if (dx > 0) {
-            const progress = Math.min(1, absX / this.threshold);
-            // small right -> like, bigger -> love
-            if (absX < this.threshold * 1.4) {
-                this._badgeRightLike.style.opacity = String(progress);
-                this._badgeRightLove.style.opacity = "0";
-            } else {
-                const p2 = Math.min(1, (absX - this.threshold * 1.4) / (this.threshold));
-                this._badgeRightLove.style.opacity = String(Math.min(1, progress + p2));
-            }
-            this._badgeLeft.style.opacity = "0";
-            this._badgeMaybe.style.opacity = "0";
-        }
-    }
-
-    _setOverlayOpacity(v = 0) {
-        [this._badgeLeft, this._badgeMaybe, this._badgeRightLike, this._badgeRightLove].forEach(b => {
-            if (b) b.style.opacity = String(v);
-        });
-    }
-
-    _animateSwipeOut(dx, action) {
-        const sign = dx >= 0 ? 1 : -1;
-        const offX = (sign * Math.max(800, Math.abs(dx) + 600));
-        const rotate = sign * 25;
-        this.root.style.transition = "transform 420ms cubic-bezier(0.2,0.8,0.2,1), opacity 420ms ease";
-        this.root.style.transform = `translate(${offX}px, ${this.currentY}px) rotate(${rotate}deg)`;
-        this._setOverlayOpacity(1);
-
-        // small delay to allow animation
-        setTimeout(() => {
-            // dispatch global event to tell SwipeTab to proceed
-            document.dispatchEvent(new CustomEvent("card-swiped", { detail: { action, movie: this.movie } }));
-            // remove element from DOM
-            this.destroy(true);
-        }, 360);
+        this.injectButtonStyles();
+        await this.loadMoviesWithRetry();
+        this.attachListeners();
+        this.showNextCard();
     }
 
     /**
-     * Programmatic swipe via buttons
-     * action = 'pass' | 'maybe' | 'like' | 'love'
+     * FIXED: Style is added ONCE only
      */
-    handleAction(action) {
-        if (!this.root) return;
-        if (action === "pass") {
-            // swipe left
-            this._animateSwipeOut(-250, "pass");
-        } else if (action === "maybe") {
-            // upward small animation then dispatch
-            this.root.style.transition = "transform 260ms cubic-bezier(0.2,0.8,0.2,1)";
-            this.root.style.transform = `translate(0px, -220px) rotate(0deg)`;
-            // show maybe badge
-            this._badgeMaybe.style.opacity = "1";
-            setTimeout(() => {
-                document.dispatchEvent(new CustomEvent("card-swiped", { detail: { action: "maybe", movie: this.movie } }));
-                this.destroy(true);
-            }, 380);
-        } else if (action === "like") {
-            this._animateSwipeOut(240, "like");
-        } else if (action === "love") {
-            this._animateSwipeOut(520, "love");
-        } else {
-            // unknown action => reset
-            this.root.style.transition = "transform 260ms cubic-bezier(0.2,0.8,0.2,1)";
-            this.root.style.transform = "translate(0px,0px) rotate(0deg)";
-            this._setOverlayOpacity(0);
+    injectButtonStyles() {
+        if (document.getElementById("swipe-btn-style")) return;
+
+        const style = document.createElement("style");
+        style.id = "swipe-btn-style";
+        style.textContent = `
+            .swipe-action-btn {
+                width: 72px;
+                height: 72px;
+                border-radius: 50%;
+                border: none;
+                font-size: 2.6rem;
+                line-height: 1 !important;
+                cursor: pointer;
+                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+                backdrop-filter: blur(12px);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+            #swipe-pass   { background: rgba(239, 68, 68, 0.25);   border: 4px solid rgba(239, 68, 68, 0.6);   color: #ef4444; }
+            #swipe-maybe  { background: rgba(251, 191, 36, 0.25);  border: 4px solid rgba(251, 191, 36, 0.6);  color: #fbbf24; }
+            #swipe-like   { background: rgba(16, 185, 129, 0.25);  border: 4px solid rgba(16, 185, 129, 0.6);  color: #10b981; }
+            #swipe-love   { background: rgba(255, 46, 99, 0.25);   border: 4px solid rgba(255, 46, 99, 0.6);   color: #ff2e63; }
+
+            .swipe-action-btn:hover   { transform: scale(1.18) !important; box-shadow: 0 20px 50px rgba(0,0,0,0.7); }
+            .swipe-action-btn:active  { transform: scale(0.95) !important; }
+        `;
+        document.head.appendChild(style);
+    }
+
+    /**
+     * FIXED: Correct retry logic, no infinite loading, no blocked attempts
+     */
+    async loadMoviesWithRetry(attempt = 1) {
+        if (this.isLoading) return;
+        this.isLoading = true;
+
+        try {
+            const tmdb = getTMDBService();
+            if (!tmdb) throw new Error("TMDB not ready");
+
+            const lists = await Promise.all([
+                tmdb.fetchPopularMovies(5),
+                tmdb.fetchTrendingMovies(),
+                tmdb.fetchTopRatedMovies(5)
+            ]);
+
+            // merge & dedupe
+            const map = new Map();
+            lists.flat().forEach(m => map.set(m.id, m));
+
+            const movies = Array.from(map.values());
+
+            // remove swiped
+            const state = store.getState();
+            const swiped = new Set((state.swipeHistory || []).map(s => String(s.movie.id)));
+
+            this.movieQueue = movies.filter(m => !swiped.has(String(m.id)));
+
+            // Retry up to 3 times if list is too small
+            if (this.movieQueue.length < 10 && attempt <= 3) {
+                this.isLoading = false;  // <-- FIXED
+                setTimeout(() => this.loadMoviesWithRetry(attempt + 1), 1000);
+                return;
+            }
+
+            if (attempt > 3 && this.movieQueue.length === 0) {
+                showToast("No movies available at the moment.", "error");
+            }
+        } catch (err) {
+            console.error("[SwipeTab] Load failed:", err);
+            showToast("Failed to load movies. Retrying...", "error");
+
+            if (attempt <= 3) {
+                this.isLoading = false;  // <-- FIXED
+                setTimeout(() => this.loadMoviesWithRetry(attempt + 1), 1500);
+            }
+        } finally {
+            this.isLoading = false;
         }
     }
 
-    destroy(removeOnly = false) {
-        // remove listeners
-        try {
-            this.root && this.root.removeEventListener("pointerdown", this._onPointerDown);
-            window.removeEventListener("pointermove", this._onPointerMove);
-            window.removeEventListener("pointerup", this._onPointerUp);
-            window.removeEventListener("pointercancel", this._onPointerUp);
-        } catch (e) { /* ignore */ }
+    showNextCard() {
+        const container = this.container.querySelector("#swipe-container");
+        const completed = this.container.querySelector("#swipe-completed");
 
-        // remove element from DOM
-        if (this.root && this.root.parentNode) {
-            this.root.parentNode.removeChild(this.root);
+        if (!container) return;
+
+        if (this.movieQueue.length === 0) {
+            container.innerHTML = "";
+            completed.style.display = "flex";
+            showConfetti();
+            return;
         }
-        this.root = null;
+
+        completed.style.display = "none";
+
+        const movie = this.movieQueue.shift();
+        container.innerHTML = "";
+        this.currentCard = new SwipeCard(container, movie);
+    }
+
+    attachListeners() {
+        const ACTION_MAP = {
+            "swipe-pass": "pass",
+            "swipe-maybe": "maybe",
+            "swipe-like": "like",
+            "swipe-love": "love"
+        };
+
+        Object.entries(ACTION_MAP).forEach(([id, action]) => {
+            const btn = this.container.querySelector(`#${id}`);
+            if (btn) btn.addEventListener("click", () => this.handleButtonAction(action));
+        });
+
+        this.swipeHandler = () => setTimeout(() => this.showNextCard(), 400);
+        document.addEventListener("swipe-action", this.swipeHandler);
+
+        const gotoLibrary = this.container.querySelector("#goto-library");
+        if (gotoLibrary) {
+            gotoLibrary.addEventListener("click", () => {
+                document.dispatchEvent(
+                    new CustomEvent("navigate-tab", { detail: { tab: "library" } })
+                );
+            });
+        }
+    }
+
+    handleButtonAction(action) {
+        if (this.currentCard) this.currentCard.handleAction(action);
+    }
+
+    destroy() {
+        if (this.currentCard) this.currentCard.destroy();
+        if (this.swipeHandler) {
+            document.removeEventListener("swipe-action", this.swipeHandler);
+            this.swipeHandler = null;
+        }
+        this.hasLoaded = false;
     }
 }
