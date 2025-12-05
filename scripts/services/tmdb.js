@@ -1,9 +1,10 @@
 /**
- * TMDB Service
+ * TMDB Service with DoesTheDogDie Integration
  * Handles all interactions with The Movie Database API
  */
 
 import { ENV } from '../config/env.js';
+import { doesTheDogDieService } from './does-the-dog-die.js';
 
 // Genre IDs from TMDB
 export const GENRE_IDS = {
@@ -81,19 +82,43 @@ class TMDBService {
                 : null,
             platform: platform,
             cast: tmdbMovie.credits?.cast?.slice(0, 6).map(p => p.name) || [],
-            runtime: tmdbMovie.runtime ? `${tmdbMovie.runtime} min` : null, // FIXED: Runtime
-            triggerWarnings: this.inferTriggerWarnings(tmdbMovie),
+            runtime: tmdbMovie.runtime ? `${tmdbMovie.runtime} min` : null,
+            imdb_id: tmdbMovie.imdb_id || null,
+            triggerWarnings: [], // Will be populated by DDD
+            warningsLoaded: false,
             popularity: tmdbMovie.popularity
         };
     }
 
-    inferTriggerWarnings(movie) {
-        const warnings = [];
-        const genreId = movie.genre_ids?.[0];
-        if (genreId === 27) warnings.push('Violence', 'Gore', 'Jump Scares');
-        if ([28, 53].includes(genreId)) warnings.push('Violence', 'Intense Scenes');
-        if (genreId === 10752) warnings.push('War Violence', 'Death');
-        return warnings;
+    /**
+     * Fetch trigger warnings from DoesTheDogDie (async)
+     */
+    async fetchTriggerWarnings(movie) {
+        if (movie.warningsLoaded) {
+            return movie.triggerWarnings;
+        }
+
+        try {
+            const warnings = await doesTheDogDieService.getWarningsForMovie(
+                movie.title,
+                movie.imdb_id
+            );
+            
+            movie.triggerWarnings = warnings || [];
+            movie.warningsLoaded = true;
+            
+            // Dispatch event for UI updates
+            window.dispatchEvent(new CustomEvent('trigger-warnings-loaded', {
+                detail: { movieId: movie.id, warnings: movie.triggerWarnings }
+            }));
+            
+            return movie.triggerWarnings;
+            
+        } catch (error) {
+            console.error(`[TMDB] Failed to fetch warnings for ${movie.title}:`, error);
+            movie.warningsLoaded = true;
+            return [];
+        }
     }
 
     /**
@@ -358,6 +383,9 @@ class TMDBService {
                     movie.trailer = `https://www.youtube.com/watch?v=${trailer.key}`;
                 }
             }
+
+            // Fetch trigger warnings in background
+            this.fetchTriggerWarnings(movie);
             
             return movie;
             
