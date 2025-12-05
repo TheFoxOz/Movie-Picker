@@ -1,5 +1,5 @@
 /**
- * Swipe Tab Component – FINAL & PERFECT
+ * Swipe Tab Component – FIXED BUTTON DESIGN
  */
 
 import { store } from "../state/store.js";
@@ -43,24 +43,43 @@ export class SwipeTab {
                 <!-- Card Container -->
                 <div id="swipe-container" style="flex: 1; position: relative; display: flex; align-items: center; justify-content: center; padding: 0 1rem;">
                     <div style="color: rgba(255,255,255,0.6); text-align: center;">
-                        <div style="font-size: 3rem; margin-bottom: 1rem;">Film</div>
+                        <div style="font-size: 3rem; margin-bottom: 1rem;">🎬</div>
                         <p>Loading your movies...</p>
                     </div>
                 </div>
 
-                <!-- PERFECT EMOJI BUTTONS -->
-                <div style="position: fixed; bottom: 6.8rem; left: 0; right: 0; z-index: 90; padding: 0 1.5rem; pointer-events: none;">
-                    <div style="display: flex; align-items: center; justify-content: center; gap: 2rem; pointer-events: auto;">
-                        <button id="swipe-pass" class="swipe-action-btn">No</button>
-                        <button id="swipe-maybe" class="swipe-action-btn">Question</button>
-                        <button id="swipe-like" class="swipe-action-btn">Thumbs Up</button>
-                        <button id="swipe-love" class="swipe-action-btn">Heart</button>
+                <!-- FIXED ACTION BUTTONS - Better spacing and positioning -->
+                <div style="position: fixed; bottom: 7rem; left: 0; right: 0; z-index: 90; padding: 0 1.5rem; pointer-events: none;">
+                    <div style="max-width: 420px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 1rem; pointer-events: auto;">
+                        <button id="swipe-pass" class="swipe-action-btn pass-btn">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="3" stroke="currentColor" style="width:28px;height:28px;">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                        
+                        <button id="swipe-maybe" class="swipe-action-btn maybe-btn">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width:26px;height:26px;">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
+                            </svg>
+                        </button>
+                        
+                        <button id="swipe-like" class="swipe-action-btn like-btn">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width:28px;height:28px;">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6.633 10.5c.806 0 1.533-.446 2.031-1.08a9.041 9.041 0 012.861-2.4c.723-.384 1.35-.956 1.653-1.715a4.498 4.498 0 00.322-1.672V3a.75.75 0 01.75-.75A2.25 2.25 0 0116.5 4.5c0 1.152-.26 2.243-.723 3.218-.266.558.107 1.282.725 1.282h3.126c1.026 0 1.945.694 2.054 1.715.045.422.068.85.068 1.285a11.95 11.95 0 01-2.649 7.521c-.388.482-.987.729-1.605.729H13.48c-.483 0-.964-.078-1.423-.23l-3.114-1.04a4.501 4.501 0 00-1.423-.23H5.904M14.25 9h2.25M5.904 18.75c.083.205.173.405.27.602.197.4-.078.898-.523.898h-.908c-.889 0-1.713-.518-1.972-1.368a12 12 0 01-.521-3.507c0-1.553.295-3.036.831-4.398C3.387 10.203 4.167 9.75 5 9.75h1.053c.472 0 .745.556.5.96a8.958 8.958 0 00-1.302 4.665c0 1.194.232 2.333.654 3.375z" />
+                            </svg>
+                        </button>
+                        
+                        <button id="swipe-love" class="swipe-action-btn love-btn">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24" style="width:30px;height:30px;">
+                                <path d="M11.645 20.91l-.007-.003-.022-.012a15.247 15.247 0 01-.383-.218 25.18 25.18 0 01-4.244-3.17C4.688 15.36 2.25 12.174 2.25 8.25 2.25 5.322 4.714 3 7.688 3A5.5 5.5 0 0112 5.052 5.5 5.5 0 0116.313 3c2.973 0 5.437 2.322 5.437 5.25 0 3.925-2.438 7.111-4.739 9.256a25.175 25.175 0 01-4.244 3.17 15.247 15.247 0 01-.383.219l-.022.012-.007.004-.003.001a.752.752 0 01-.704 0l-.003-.001z" />
+                            </svg>
+                        </button>
                     </div>
                 </div>
 
                 <!-- Completed State -->
                 <div id="swipe-completed" style="display: none; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; padding: 2rem; text-align: center; background: rgba(10, 10, 15, 0.95); z-index: 10;">
-                    <div style="font-size: 5rem; margin-bottom: 1.5rem;">Party Popper</div>
+                    <div style="font-size: 5rem; margin-bottom: 1.5rem;">🎉</div>
                     <h2 style="font-size: 2rem; font-weight: 800; color: white; margin: 0 0 1rem 0;">
                         You Did It!
                     </h2>
@@ -87,27 +106,76 @@ export class SwipeTab {
         style.id = "swipe-btn-style";
         style.textContent = `
             .swipe-action-btn {
-                width: 72px;
-                height: 72px;
+                width: 64px;
+                height: 64px;
                 border-radius: 50%;
                 border: none;
-                font-size: 2.6rem;
-                line-height: 1 !important;
                 cursor: pointer;
                 transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-                box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+                box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
                 backdrop-filter: blur(12px);
                 display: flex;
                 align-items: center;
                 justify-content: center;
+                position: relative;
             }
-            #swipe-pass   { background: rgba(239, 68, 68, 0.25);   border: 4px solid rgba(239, 68, 68, 0.6);   color: #ef4444; }
-            #swipe-maybe  { background: rgba(251, 191, 36, 0.25);  border: 4px solid rgba(251, 191, 36, 0.6);  color: #fbbf24; }
-            #swipe-like   { background: rgba(16, 185, 129, 0.25);  border: 4px solid rgba(16, 185, 129, 0.6);  color: #10b981; }
-            #swipe-love   { background: rgba(255, 46, 99, 0.25);   border: 4px solid rgba(255, 46, 99, 0.6);   color: #ff2e63; }
+            
+            .pass-btn {
+                background: linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(220, 38, 38, 0.2));
+                border: 3px solid rgba(239, 68, 68, 0.6);
+                color: #ef4444;
+            }
+            
+            .maybe-btn {
+                background: linear-gradient(135deg, rgba(251, 191, 36, 0.2), rgba(245, 158, 11, 0.2));
+                border: 3px solid rgba(251, 191, 36, 0.6);
+                color: #fbbf24;
+            }
+            
+            .like-btn {
+                background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(5, 150, 105, 0.2));
+                border: 3px solid rgba(16, 185, 129, 0.6);
+                color: #10b981;
+            }
+            
+            .love-btn {
+                background: linear-gradient(135deg, rgba(255, 46, 99, 0.3), rgba(217, 0, 98, 0.3));
+                border: 3px solid rgba(255, 46, 99, 0.6);
+                color: #ff2e63;
+            }
 
-            .swipe-action-btn:hover   { transform: scale(1.18) !important; box-shadow: 0 20px 50px rgba(0,0,0,0.7); }
-            .swipe-action-btn:active  { transform: scale(0.95) !important; }
+            .swipe-action-btn:hover {
+                transform: scale(1.15);
+                box-shadow: 0 12px 32px rgba(0,0,0,0.6);
+            }
+            
+            .pass-btn:hover {
+                background: linear-gradient(135deg, rgba(239, 68, 68, 0.3), rgba(220, 38, 38, 0.3));
+                border-color: rgba(239, 68, 68, 0.8);
+                box-shadow: 0 12px 32px rgba(239, 68, 68, 0.4);
+            }
+            
+            .maybe-btn:hover {
+                background: linear-gradient(135deg, rgba(251, 191, 36, 0.3), rgba(245, 158, 11, 0.3));
+                border-color: rgba(251, 191, 36, 0.8);
+                box-shadow: 0 12px 32px rgba(251, 191, 36, 0.4);
+            }
+            
+            .like-btn:hover {
+                background: linear-gradient(135deg, rgba(16, 185, 129, 0.3), rgba(5, 150, 105, 0.3));
+                border-color: rgba(16, 185, 129, 0.8);
+                box-shadow: 0 12px 32px rgba(16, 185, 129, 0.4);
+            }
+            
+            .love-btn:hover {
+                background: linear-gradient(135deg, rgba(255, 46, 99, 0.4), rgba(217, 0, 98, 0.4));
+                border-color: rgba(255, 46, 99, 0.8);
+                box-shadow: 0 12px 32px rgba(255, 46, 99, 0.5);
+            }
+            
+            .swipe-action-btn:active {
+                transform: scale(0.95);
+            }
         `;
         document.head.appendChild(style);
     }
