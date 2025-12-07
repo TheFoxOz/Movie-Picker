@@ -1,6 +1,7 @@
 /**
  * Authentication Service
  * Firebase v8 Compatible - FULLY WORKING Google Sign-In
+ * FIXED: All ENV.APP.debug → ENV.DEBUG_MODE
  */
 
 import { firebase, auth, db } from './firebase-config.js';
@@ -20,7 +21,8 @@ class AuthService {
             if (user) {
                 this.currentUser = user;
                 
-                if (ENV.APP.debug) {
+                // FIXED: ENV.APP.debug → ENV.DEBUG_MODE
+                if (ENV && ENV.DEBUG_MODE) {
                     console.log('[Auth] User signed in:', user.email);
                 }
                 
@@ -47,7 +49,8 @@ class AuthService {
                     groups: []
                 });
                 
-                if (ENV.APP.debug) {
+                // FIXED: ENV.APP.debug → ENV.DEBUG_MODE
+                if (ENV && ENV.DEBUG_MODE) {
                     console.log('[Auth] User signed out');
                 }
             }
@@ -74,7 +77,8 @@ class AuthService {
             
             showSuccess('Account created successfully!');
             
-            if (ENV.APP.debug) {
+            // FIXED: ENV.APP.debug → ENV.DEBUG_MODE
+            if (ENV && ENV.DEBUG_MODE) {
                 console.log('[Auth] User signed up:', email);
             }
             
@@ -99,7 +103,8 @@ class AuthService {
             const userCredential = await auth.signInWithEmailAndPassword(email, password);
             showSuccess('Welcome back!');
             
-            if (ENV.APP.debug) {
+            // FIXED: ENV.APP.debug → ENV.DEBUG_MODE
+            if (ENV && ENV.DEBUG_MODE) {
                 console.log('[Auth] User signed in:', email);
             }
             
@@ -156,7 +161,8 @@ class AuthService {
 
             showSuccess('Signed in with Google!');
             
-            if (ENV.APP.debug) {
+            // FIXED: ENV.APP.debug → ENV.DEBUG_MODE
+            if (ENV && ENV.DEBUG_MODE) {
                 console.log('[Auth] Google sign in successful:', user.email);
             }
             
@@ -203,7 +209,8 @@ class AuthService {
                     groups: userData.groups || []
                 });
                 
-                if (ENV.APP.debug) {
+                // FIXED: ENV.APP.debug → ENV.DEBUG_MODE
+                if (ENV && ENV.DEBUG_MODE) {
                     console.log('[Auth] User data loaded');
                 }
             }
@@ -224,7 +231,8 @@ class AuthService {
                     groups: userData.groups || []
                 });
                 
-                if (ENV.APP.debug) {
+                // FIXED: ENV.APP.debug → ENV.DEBUG_MODE
+                if (ENV && ENV.DEBUG_MODE) {
                     console.log('[Auth] User data updated');
                 }
             }
@@ -241,7 +249,8 @@ class AuthService {
                 swipeHistory: swipeHistory
             });
             
-            if (ENV.APP.debug) {
+            // FIXED: ENV.APP.debug → ENV.DEBUG_MODE
+            if (ENV && ENV.DEBUG_MODE) {
                 console.log('[Auth] Swipe history synced');
             }
             
@@ -298,7 +307,8 @@ class AuthService {
             
             showSuccess(`Added ${friendData.displayName} as a friend!`);
             
-            if (ENV.APP.debug) {
+            // FIXED: ENV.APP.debug → ENV.DEBUG_MODE
+            if (ENV && ENV.DEBUG_MODE) {
                 console.log('[Auth] Friend added:', friendEmail);
             }
             
@@ -339,7 +349,8 @@ class AuthService {
             
             showSuccess(`Group "${groupName}" created!`);
             
-            if (ENV.APP.debug) {
+            // FIXED: ENV.APP.debug → ENV.DEBUG_MODE
+            if (ENV && ENV.DEBUG_MODE) {
                 console.log('[Auth] Group created:', groupName);
             }
             
