@@ -232,11 +232,6 @@ class AuthService {
             throw error;
         }
     }
-            
-            showError(errorMessages[error.code] || 'Failed to sign in with Google');
-            throw error;
-        }
-    }
     
     async signOut() {
         try {
