@@ -2,6 +2,7 @@
  * SwipeCard Component – ENHANCED WITH SWIPE DIRECTION FEEDBACK + TRIGGER WARNINGS
  * Shows clear visual indicators when swiping in any direction
  * Displays trigger warning badge from DoesTheDogDie.com
+ * FIXED: Proper event dispatching for card advancing
  */
 
 import { store } from '../state/store.js';
@@ -19,6 +20,7 @@ export class SwipeCard {
         this.currentX = 0;
         this.startY = 0;
         this.currentY = 0;
+        this.actionInProgress = false;  // ADDED: Prevent multiple actions
 
         this.render();
         this.attachEvents();
@@ -239,7 +241,7 @@ export class SwipeCard {
             const badges = card.querySelectorAll('.swipe-badge');
             badges.forEach(badge => {
                 badge.style.opacity = 0;
-                badge.style.transform = 'translate(-50%, -50%)'; // All badges centered
+                badge.style.transform = 'translate(-50%, -50%)';
             });
         };
 
@@ -269,6 +271,15 @@ export class SwipeCard {
     }
 
     swipeOff(action) {
+        // FIXED: Prevent multiple actions
+        if (this.actionInProgress) {
+            console.log('[SwipeCard] Action already in progress, ignoring');
+            return;
+        }
+        this.actionInProgress = true;
+
+        console.log(`[SwipeCard] Swiping off: ${action} for movie: ${this.movie.title}`);
+        
         const card = this.element;
         
         // Determine swipe direction based on action
@@ -326,15 +337,30 @@ export class SwipeCard {
             showSwipeToast(this.movie.title, 'maybe');
         }
 
-        // Dispatch event
-        document.dispatchEvent(new CustomEvent('swipe-action'));
-
-        // Remove after animation
+        // FIXED: Dispatch event AFTER animation with proper logging
         setTimeout(() => {
+            console.log('[SwipeCard] Animation complete, dispatching swipe-action event');
+            
+            const event = new CustomEvent('swipe-action', {
+                bubbles: true,
+                detail: { 
+                    action: action,
+                    movieId: this.movie.id,
+                    movieTitle: this.movie.title
+                }
+            });
+            
+            document.dispatchEvent(event);
+            console.log('[SwipeCard] Event dispatched successfully');
+            
+            // Remove card from DOM
             if (card && card.parentNode) {
                 card.remove();
+                console.log('[SwipeCard] Card removed from DOM');
             }
-        }, 400);
+            
+            this.actionInProgress = false;
+        }, 400);  // Match animation duration
     }
 
     destroy() {
