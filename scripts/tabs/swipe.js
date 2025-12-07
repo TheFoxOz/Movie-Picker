@@ -20,6 +20,7 @@ export class SwipeTab {
     }
 
     async render(container) {
+        console.log('[SwipeTab] Rendering...');
         this.container = container;
 
         // ✅ FIXED: Always render HTML structure (removed early return)
@@ -89,16 +90,21 @@ export class SwipeTab {
             </div>
         `;
 
+        console.log('[SwipeTab] HTML structure injected');
         this.injectButtonStyles();
         
         // ✅ FIXED: Only load movies if first time
         if (!this.hasLoaded) {
+            console.log('[SwipeTab] First load - fetching movies...');
             this.hasLoaded = true;
             await this.loadMoviesWithRetry();
+        } else {
+            console.log('[SwipeTab] Already loaded - using existing queue');
         }
         
         this.attachListeners();
         this.showNextCard();
+        console.log('[SwipeTab] ✅ Render complete');
     }
 
     injectButtonStyles() {
@@ -187,37 +193,84 @@ export class SwipeTab {
         this.isLoading = true;
 
         try {
-            const tmdb = getTMDBService();
-            if (!tmdb) throw new Error("TMDB not ready");
+            console.log(`[SwipeTab] Loading movies (attempt ${attempt})...`);
+            
+            // Safe TMDB service retrieval
+            let tmdb;
+            try {
+                tmdb = getTMDBService();
+            } catch (error) {
+                console.error("[SwipeTab] Failed to get TMDB service:", error);
+                throw new Error("TMDB service unavailable");
+            }
+            
+            if (!tmdb) {
+                throw new Error("TMDB service not initialized");
+            }
 
+            // Fetch movies with error handling
             const lists = await Promise.all([
-                tmdb.fetchPopularMovies(5),
-                tmdb.fetchTrendingMovies(),
-                tmdb.fetchTopRatedMovies(5)
+                tmdb.fetchPopularMovies(5).catch(err => {
+                    console.warn("[SwipeTab] Popular movies failed:", err.message);
+                    return [];
+                }),
+                tmdb.fetchTrendingMovies().catch(err => {
+                    console.warn("[SwipeTab] Trending movies failed:", err.message);
+                    return [];
+                }),
+                tmdb.fetchTopRatedMovies(5).catch(err => {
+                    console.warn("[SwipeTab] Top rated movies failed:", err.message);
+                    return [];
+                })
             ]);
 
             const map = new Map();
             lists.flat().forEach(m => map.set(m.id, m));
 
             const movies = Array.from(map.values());
+            console.log(`[SwipeTab] Loaded ${movies.length} unique movies`);
 
             const state = store.getState();
             const swiped = new Set((state.swipeHistory || []).map(s => String(s.movie.id)));
 
             this.movieQueue = movies.filter(m => !swiped.has(String(m.id)));
+            console.log(`[SwipeTab] ${this.movieQueue.length} movies after filtering swiped`);
 
             if (this.movieQueue.length < 10 && attempt <= 3) {
+                console.log(`[SwipeTab] Need more movies, retrying (${this.movieQueue.length} < 10)...`);
                 this.isLoading = false;
                 setTimeout(() => this.loadMoviesWithRetry(attempt + 1), 1000);
                 return;
             }
+            
+            console.log(`[SwipeTab] ✅ Movie queue ready with ${this.movieQueue.length} movies`);
 
         } catch (err) {
             console.error("[SwipeTab] Load failed:", err);
-            showToast("Failed to load movies. Retrying...", "error");
+            
             if (attempt <= 3) {
+                showToast(`Loading movies... (attempt ${attempt}/3)`, "info");
                 this.isLoading = false;
                 setTimeout(() => this.loadMoviesWithRetry(attempt + 1), 1500);
+            } else {
+                showToast("Failed to load movies. Please refresh the page.", "error");
+                
+                // Show error state in UI
+                const container = this.container?.querySelector("#swipe-container");
+                if (container) {
+                    container.innerHTML = `
+                        <div style="color: rgba(255,255,255,0.8); text-align: center; padding: 2rem;">
+                            <div style="font-size: 3rem; margin-bottom: 1rem;">⚠️</div>
+                            <h3 style="color: white; margin-bottom: 1rem;">Unable to Load Movies</h3>
+                            <p style="color: rgba(255,255,255,0.6); margin-bottom: 1.5rem;">
+                                ${err.message || 'Unknown error'}
+                            </p>
+                            <button onclick="location.reload()" style="padding: 0.75rem 1.5rem; background: linear-gradient(135deg, #ff2e63, #d90062); border: none; border-radius: 0.75rem; color: white; font-weight: 700; cursor: pointer;">
+                                Reload App
+                            </button>
+                        </div>
+                    `;
+                }
             }
         } finally {
             this.isLoading = false;
