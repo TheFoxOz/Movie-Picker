@@ -1,60 +1,59 @@
 /**
  * Environment Configuration
- * Reads API keys from window globals (set in index.html)
- * 
- * SECURITY: API keys should be set in index.html using window.__ variables
+ * API keys and configuration settings
  */
 
 export const ENV = {
-  // TMDB API Configuration
-  TMDB_API_KEY: window.__tmdb_api_key || null,
-  
-  // Firebase Configuration (for future use)
-  FIREBASE: {
-    apiKey: window.__firebase_api_key || null,
-    authDomain: window.__firebase_auth_domain || null,
-    projectId: window.__firebase_project_id || null,
-    storageBucket: window.__firebase_storage_bucket || null,
-    messagingSenderId: window.__firebase_messaging_sender_id || null,
-    appId: window.__firebase_app_id || null,
-    measurementId: window.__firebase_measurement_id || null
-  },
-  
-  // App Configuration
-  APP: {
-    name: 'Movie Picker',
-    version: '2.0.0',
-    environment: 'production',
-    debug: window.__debug || false
-  }
+    // TMDB API (you should already have these)
+    TMDB_API_KEY: 'YOUR_TMDB_API_KEY',  // Replace with your actual TMDB key
+    TMDB_API_TOKEN: 'YOUR_TMDB_TOKEN',  // Replace with your actual TMDB token
+    
+    // DoesTheDogDie API
+    DTD_API_KEY: '8422ca0f3512e1d0cb973215099d0f20',
+    
+    // Streaming Availability API (optional - for Phase 2 upgrade)
+    SA_API_KEY: null,  // Leave null to use free TMDB provider
+    
+    // Feature flags
+    ENABLE_AVAILABILITY: true,
+    ENABLE_TRIGGER_WARNINGS: true,
+    
+    // Cache settings
+    AVAILABILITY_CACHE_DURATION: 3600000,    // 1 hour
+    TRIGGER_WARNING_CACHE_DURATION: 86400000, // 24 hours
+    
+    // Debug mode
+    DEBUG_MODE: true
 };
 
-// Validation
-const validateEnv = () => {
-  const errors = [];
-  
-  // Check TMDB API Key
-  if (!ENV.TMDB_API_KEY) {
-    errors.push('TMDB API key not found. Set window.__tmdb_api_key in index.html');
-  }
-  
-  // Log results
-  if (errors.length > 0) {
-    console.warn('[ENV] ⚠️  Missing environment variables:');
-    errors.forEach(error => console.warn(`  - ${error}`));
-  } else {
-    console.log('[ENV] ✅ Environment configured successfully');
-    if (ENV.APP.debug) {
-      console.log('[ENV] TMDB API Key:', ENV.TMDB_API_KEY ? '✅ Present' : '❌ Missing');
-      console.log('[ENV] Debug mode:', ENV.APP.debug ? 'ENABLED' : 'DISABLED');
+/**
+ * Get availability provider type
+ * Returns 'tmdb' (free) or 'streaming-availability' (premium)
+ */
+export function getAvailabilityProvider() {
+    return ENV.SA_API_KEY ? 'streaming-availability' : 'tmdb';
+}
+
+/**
+ * Validate environment configuration
+ */
+export function validateEnv() {
+    const errors = [];
+    
+    if (!ENV.TMDB_API_KEY || ENV.TMDB_API_KEY === 'YOUR_TMDB_API_KEY') {
+        errors.push('TMDB_API_KEY not configured');
     }
-  }
-  
-  return errors.length === 0;
-};
-
-// Run validation
-validateEnv();
-
-// Export for use in other modules
-export default ENV;
+    
+    if (!ENV.DTD_API_KEY) {
+        errors.push('DTD_API_KEY not configured');
+    }
+    
+    if (errors.length > 0) {
+        console.error('[ENV] Configuration errors:', errors);
+        return false;
+    }
+    
+    console.log('[ENV] Configuration valid ✓');
+    console.log('[ENV] Availability provider:', getAvailabilityProvider());
+    return true;
+}
