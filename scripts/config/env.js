@@ -1,60 +1,38 @@
 /**
  * Environment Configuration
- * 
- * SETUP INSTRUCTIONS:
- * 1. This file is gitignored for security
- * 2. Add your API keys below
- * 3. NEVER commit this file to Git!
+ * 🔒 SECURITY: This file contains your actual API keys
+ * This is a TEMPLATE - copy and replace with your real keys
  */
 
 export const ENV = {
-    // TMDB API
-    // Get from: https://www.themoviedb.org/settings/api
-    TMDB_API_KEY: 'YOUR_TMDB_API_KEY_HERE',
-    TMDB_API_TOKEN: 'YOUR_TMDB_TOKEN_HERE',
+    // TMDB API Key
+    TMDB_API_KEY: 'fb172ed62b2cd58897d484ad8ba0cf60',  // Replace with your key
     
-    // DoesTheDogDie API
-    // IMPORTANT: Get a NEW key (revoke the old exposed one!)
-    // Get from: https://www.doesthedogdie.com/api/
-    DTD_API_KEY: 'YOUR_NEW_DTD_API_KEY_HERE',
+    // DoesTheDogDie API Key  
+    DTD_API_KEY: '8422ca0f3512e1d0cb973215099d0f20',  // Replace with your NEW key (old one exposed)
     
-    // Streaming Availability API (optional - for future)
-    SA_API_KEY: null,
+    // Firebase Configuration
+    FIREBASE: {
+        apiKey: "AIzaSyDTCfzxBvYDRCB5LmLaTm5NrBZMkEb52yE",
+        authDomain: "movie-picker-19390.firebaseapp.com",
+        projectId: "movie-picker-19390",
+        storageBucket: "movie-picker-19390.firebasestorage.app",
+        messagingSenderId: "688022829806",
+        appId: "1:688022829806:web:e09ca9dd27fd1b5ddb8d21",
+        measurementId: "G-K6HV5HFNF0"
+    },
     
-    // Feature flags
+    // Feature Flags
     ENABLE_AVAILABILITY: true,
     ENABLE_TRIGGER_WARNINGS: true,
+    DEBUG_MODE: false,  // Production mode
     
-    // Cache settings
-    AVAILABILITY_CACHE_DURATION: 3600000,    // 1 hour
-    TRIGGER_WARNING_CACHE_DURATION: 86400000, // 24 hours
+    // API Configuration
+    DDD_PROXY_URL: '/api/ddd-proxy',
     
-    // Debug mode
-    DEBUG_MODE: true
+    // App Metadata
+    APP_VERSION: '1.0.0',
+    APP_NAME: 'Movie Picker'
 };
 
-export function getAvailabilityProvider() {
-    return ENV.SA_API_KEY ? 'streaming-availability' : 'tmdb';
-}
-
-export function validateEnv() {
-    const errors = [];
-    
-    if (!ENV.TMDB_API_KEY || ENV.TMDB_API_KEY === 'fb172ed62b2cd58897d484ad8ba0cf60') {
-        errors.push('TMDB_API_KEY not configured');
-    }
-    
-    if (!ENV.DTD_API_KEY || ENV.DTD_API_KEY === '8422ca0f3512e1d0cb973215099d0f20') {
-        errors.push('DTD_API_KEY not configured - Please get a NEW key!');
-    }
-    
-    if (errors.length > 0) {
-        console.error('[ENV] ❌ Configuration errors:', errors);
-        console.error('[ENV] Please update scripts/config/env.js with your API keys');
-        return false;
-    }
-    
-    console.log('[ENV] ✅ Configuration valid');
-    console.log('[ENV] Availability provider:', getAvailabilityProvider());
-    return true;
-}
+export default ENV;
