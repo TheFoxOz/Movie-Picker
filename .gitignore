@@ -11,13 +11,8 @@ build/
 .env.local
 .env.production
 .env.*
-
-# ⚠️ CRITICAL: API Key Files - NEVER COMMIT!
-scripts/config/env.js
-config/env.js
-**/env.js
-secrets.json
-api-keys.json
+# BUT allow the example file (template for developers)
+!.env.example
 
 # Firebase Admin SDK private keys (NEVER commit these!)
 *-firebase-adminsdk-*.json
