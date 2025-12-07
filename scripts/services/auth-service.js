@@ -72,7 +72,8 @@ class AuthService {
                 createdAt: firebase.firestore.FieldValue.serverTimestamp(),
                 swipeHistory: [],
                 friends: [],
-                groups: []
+                groups: [],
+                onboardingCompleted: false  // New users need onboarding
             });
             
             showSuccess('Account created successfully!');
@@ -82,7 +83,7 @@ class AuthService {
                 console.log('[Auth] User signed up:', email);
             }
             
-            return user;
+            return { user, isNewUser: true };  // Always new user for signUp
             
         } catch (error) {
             console.error('[Auth] Sign up error:', error);
@@ -108,7 +109,7 @@ class AuthService {
                 console.log('[Auth] User signed in:', email);
             }
             
-            return userCredential.user;
+            return { user: userCredential.user, isNewUser: false };  // Existing user
             
         } catch (error) {
             console.error('[Auth] Sign in error:', error);
@@ -145,7 +146,9 @@ class AuthService {
             // Check if user exists in Firestore
             const userDoc = await db.collection('users').doc(user.uid).get();
             
-            if (!userDoc.exists) {
+            const isNewUser = !userDoc.exists;
+            
+            if (isNewUser) {
                 await db.collection('users').doc(user.uid).set({
                     uid: user.uid,
                     email: user.email,
@@ -154,7 +157,8 @@ class AuthService {
                     createdAt: firebase.firestore.FieldValue.serverTimestamp(),
                     swipeHistory: [],
                     friends: [],
-                    groups: []
+                    groups: [],
+                    onboardingCompleted: false  // New users need onboarding
                 });
                 console.log('[Auth] New Google user created in Firestore');
             }
@@ -166,7 +170,8 @@ class AuthService {
                 console.log('[Auth] Google sign in successful:', user.email);
             }
             
-            return user;
+            // Return user with new user flag
+            return { user, isNewUser };
             
         } catch (error) {
             console.error('[Auth] Google sign in error:', error);
@@ -176,8 +181,57 @@ class AuthService {
                 'auth/unauthorized-domain': 'Domain not authorized. Add your domain in Firebase Console → Authentication → Settings.',
                 'auth/network-request-failed': 'No internet connection. Please check your network.',
                 'auth/cancelled-popup-request': 'Sign-in was cancelled.',
-                'auth/operation-not-allowed': 'Google sign-in is disabled in Firebase Console.'
+                'auth/operation-not-allowed': 'Google sign-in is disabled in Firebase Console.',
+                'auth/popup-closed-by-user': 'Sign-in popup was closed.'
             };
+            
+            showError(errorMessages[error.code] || 'Failed to sign in with Google');
+            throw error;
+        }
+    }
+    
+    // Anonymous/Guest Sign-In
+    async signInAnonymously() {
+        try {
+            const result = await auth.signInAnonymously();
+            const user = result.user;
+            
+            if (!user) throw new Error('Anonymous sign-in failed');
+            
+            // Create guest user profile
+            const userDoc = await db.collection('users').doc(user.uid).get();
+            const isNewUser = !userDoc.exists;
+            
+            if (isNewUser) {
+                await db.collection('users').doc(user.uid).set({
+                    uid: user.uid,
+                    email: null,
+                    displayName: 'Guest',
+                    avatar: '😊',
+                    isAnonymous: true,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    swipeHistory: [],
+                    friends: [],
+                    groups: [],
+                    onboardingCompleted: false  // New guests need onboarding
+                });
+                console.log('[Auth] Guest user created');
+            }
+            
+            showSuccess('Welcome, Guest!');
+            
+            if (ENV && ENV.DEBUG_MODE) {
+                console.log('[Auth] Anonymous sign in successful');
+            }
+            
+            return { user, isNewUser };
+            
+        } catch (error) {
+            console.error('[Auth] Anonymous sign in error:', error);
+            showError('Failed to continue as guest. Please try again.');
+            throw error;
+        }
+    }
             
             showError(errorMessages[error.code] || 'Failed to sign in with Google');
             throw error;
@@ -193,6 +247,37 @@ class AuthService {
             console.error('[Auth] Sign out error:', error);
             showError('Failed to sign out');
             throw error;
+        }
+    }
+    
+    /**
+     * Check if user has completed onboarding
+     */
+    async hasCompletedOnboarding(uid) {
+        try {
+            const userDoc = await db.collection('users').doc(uid).get();
+            if (userDoc.exists) {
+                return userDoc.data().onboardingCompleted === true;
+            }
+            return false;
+        } catch (error) {
+            console.error('[Auth] Check onboarding error:', error);
+            return false;  // Default to false if error
+        }
+    }
+    
+    /**
+     * Mark onboarding as complete
+     */
+    async completeOnboarding(uid) {
+        try {
+            await db.collection('users').doc(uid).update({
+                onboardingCompleted: true,
+                onboardingCompletedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            console.log('[Auth] Onboarding marked as complete');
+        } catch (error) {
+            console.error('[Auth] Complete onboarding error:', error);
         }
     }
     
