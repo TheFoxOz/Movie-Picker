@@ -1,255 +1,297 @@
 /**
- * Toast Notification System
- * Shows temporary success/error/info messages
+ * Notification System
+ * Toast notifications with animations
+ * FIXED: All ENV.APP.debug → ENV && ENV.DEBUG_MODE
  */
 
 import { ENV } from '../config/env.js';
 
-let toastContainer = null;
-let activeToast = null;
-let undoCallback = null;
-
-/**
- * Initialize toast container
- */
-function initToastContainer() {
-    if (toastContainer) return;
-    
-    toastContainer = document.createElement('div');
-    toastContainer.id = 'toast-container';
-    toastContainer.style.cssText = `
-        position: fixed;
-        bottom: 6rem;
-        left: 50%;
-        transform: translateX(-50%);
-        z-index: 9999;
-        display: flex;
-        flex-direction: column;
-        gap: 0.75rem;
-        pointer-events: none;
-        width: calc(100% - 2rem);
-        max-width: 400px;
-    `;
-    document.body.appendChild(toastContainer);
-}
-
 /**
  * Show a toast notification
  */
-export function showToast(message, type = 'info', duration = 3000, onUndo = null) {
-    initToastContainer();
+export function showToast(message, type = 'info', duration = 3000) {
+    // Remove existing toasts
+    const existing = document.querySelectorAll('.toast-notification');
+    existing.forEach(toast => toast.remove());
     
-    if (activeToast) {
-        removeToast(activeToast);
-    }
-    
-    undoCallback = onUndo;
-    
+    // Create toast
     const toast = document.createElement('div');
-    toast.className = 'toast';
-    
-    const styles = {
-        success: {
-            bg: 'rgba(16, 185, 129, 0.15)',
-            border: 'rgba(16, 185, 129, 0.4)',
-            color: '#10b981',
-            icon: '✓'
-        },
-        error: {
-            bg: 'rgba(239, 68, 68, 0.15)',
-            border: 'rgba(239, 68, 68, 0.4)',
-            color: '#ef4444',
-            icon: '✕'
-        },
-        warning: {
-            bg: 'rgba(251, 191, 36, 0.15)',
-            border: 'rgba(251, 191, 36, 0.4)',
-            color: '#fbbf24',
-            icon: '⚠'
-        },
-        info: {
-            bg: 'rgba(99, 102, 241, 0.15)',
-            border: 'rgba(99, 102, 241, 0.4)',
-            color: '#6366f1',
-            icon: 'ℹ'
-        }
-    };
-    
-    const style = styles[type] || styles.info;
-    
+    toast.className = 'toast-notification';
     toast.style.cssText = `
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 0.75rem;
-        padding: 1rem 1.25rem;
-        background: ${style.bg};
-        backdrop-filter: blur(10px);
-        border: 1px solid ${style.border};
+        position: fixed;
+        top: 6rem;
+        left: 50%;
+        transform: translateX(-50%) translateY(-100px);
+        padding: 1rem 1.5rem;
         border-radius: 1rem;
-        color: white;
-        font-size: 0.9375rem;
         font-weight: 600;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-        pointer-events: auto;
-        transform: translateY(20px);
+        font-size: 0.875rem;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+        backdrop-filter: blur(20px);
+        z-index: 9999;
         opacity: 0;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        pointer-events: none;
+        max-width: 90%;
+        text-align: center;
+        border: 1px solid rgba(255,255,255,0.1);
     `;
     
-    const iconSpan = document.createElement('span');
-    iconSpan.style.cssText = 'font-size: 1.25rem; flex-shrink: 0;';
-    iconSpan.textContent = style.icon;
+    // Set color based on type
+    const colors = {
+        success: 'background: linear-gradient(135deg, rgba(16,185,129,0.95), rgba(5,150,105,0.95)); color: white;',
+        error: 'background: linear-gradient(135deg, rgba(239,68,68,0.95), rgba(220,38,38,0.95)); color: white;',
+        warning: 'background: linear-gradient(135deg, rgba(251,191,36,0.95), rgba(245,158,11,0.95)); color: white;',
+        info: 'background: linear-gradient(135deg, rgba(59,130,246,0.95), rgba(37,99,235,0.95)); color: white;'
+    };
     
-    const messageSpan = document.createElement('span');
-    messageSpan.style.cssText = 'flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;';
-    messageSpan.textContent = message;
+    toast.style.cssText += colors[type] || colors.info;
+    toast.textContent = message;
     
-    const contentDiv = document.createElement('div');
-    contentDiv.style.cssText = 'display: flex; align-items: center; gap: 0.75rem; flex: 1; min-width: 0;';
-    contentDiv.appendChild(iconSpan);
-    contentDiv.appendChild(messageSpan);
+    document.body.appendChild(toast);
     
-    toast.appendChild(contentDiv);
-    
-    if (onUndo) {
-        const undoBtn = document.createElement('button');
-        undoBtn.className = 'toast-undo-btn';
-        undoBtn.textContent = 'Undo';
-        undoBtn.style.cssText = `
-            padding: 0.375rem 0.875rem;
-            background: rgba(255, 255, 255, 0.15);
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            border-radius: 0.5rem;
-            color: white;
-            font-size: 0.8125rem;
-            font-weight: 700;
-            cursor: pointer;
-            transition: all 0.2s;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            flex-shrink: 0;
-        `;
-        
-        undoBtn.addEventListener('mouseover', () => {
-            undoBtn.style.background = 'rgba(255, 255, 255, 0.25)';
-        });
-        
-        undoBtn.addEventListener('mouseout', () => {
-            undoBtn.style.background = 'rgba(255, 255, 255, 0.15)';
-        });
-        
-        undoBtn.addEventListener('click', () => {
-            onUndo();
-            removeToast(toast);
-            showToast('↩️ Action undone', 'info', 2000);
-            
-            if (ENV.APP.debug) {
-                console.log('[Notifications] Undo action triggered');
-            }
-        });
-        
-        toast.appendChild(undoBtn);
-    }
-    
-    toastContainer.appendChild(toast);
-    activeToast = toast;
-    
+    // Animate in
     requestAnimationFrame(() => {
-        toast.style.transform = 'translateY(0)';
+        toast.style.transform = 'translateX(-50%) translateY(0)';
         toast.style.opacity = '1';
     });
     
-    const timeout = setTimeout(() => {
-        removeToast(toast);
-    }, duration);
-    
-    toast.dataset.timeout = timeout;
-    
-    if (ENV.APP.debug) {
-        console.log('[Notifications] Toast shown:', message, type);
-    }
-}
-
-/**
- * Remove a toast
- */
-function removeToast(toast) {
-    if (!toast || !toast.parentNode) return;
-    
-    if (toast.dataset.timeout) {
-        clearTimeout(parseInt(toast.dataset.timeout));
-    }
-    
-    toast.style.transform = 'translateY(20px)';
-    toast.style.opacity = '0';
-    
+    // Animate out
     setTimeout(() => {
-        if (toast.parentNode) {
-            toast.remove();
-        }
-        if (activeToast === toast) {
-            activeToast = null;
-            undoCallback = null;
-        }
-    }, 300);
-}
-
-/**
- * Show a swipe action toast with undo
- */
-export function showSwipeToast(movieTitle, action, onUndo) {
-    const actionEmoji = {
-        love: '❤️',
-        like: '👍',
-        maybe: '🤔',
-        pass: '✕'
-    };
-    
-    const actionText = {
-        love: 'Loved',
-        like: 'Liked',
-        maybe: 'Maybe later',
-        pass: 'Passed'
-    };
-    
-    const actionType = {
-        love: 'success',
-        like: 'success',
-        maybe: 'warning',
-        pass: 'error'
-    };
-    
-    const message = actionEmoji[action] + ' ' + actionText[action];
-    const type = actionType[action] || 'info';
-    
-    showToast(message, type, 4000, onUndo);
-}
-
-/**
- * Show error toast
- */
-export function showError(message) {
-    showToast(message, 'error', 4000);
+        toast.style.transform = 'translateX(-50%) translateY(-100px)';
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 400);
+    }, duration);
 }
 
 /**
  * Show success toast
  */
-export function showSuccess(message) {
-    showToast(message, 'success', 3000);
+export function showSuccess(message, duration = 3000) {
+    showToast(message, 'success', duration);
 }
 
 /**
- * Show info toast
+ * Show error toast
  */
-export function showInfo(message) {
-    showToast(message, 'info', 3000);
+export function showError(message, duration = 4000) {
+    showToast(message, 'error', duration);
 }
 
 /**
  * Show warning toast
  */
-export function showWarning(message) {
-    showToast(message, 'warning', 3000);
+export function showWarning(message, duration = 3500) {
+    showToast(message, 'warning', duration);
+}
+
+/**
+ * Show info toast
+ */
+export function showInfo(message, duration = 3000) {
+    showToast(message, 'info', duration);
+}
+
+/**
+ * Show swipe action toast with movie title
+ */
+export function showSwipeToast(movieTitle, action) {
+    const messages = {
+        pass: `Passed on ${movieTitle}`,
+        maybe: `${movieTitle} added to Maybe list`,
+        like: `Liked ${movieTitle}!`,
+        love: `❤️ Loved ${movieTitle}!`
+    };
+    
+    const types = {
+        pass: 'info',
+        maybe: 'warning',
+        like: 'success',
+        love: 'success'
+    };
+    
+    const message = messages[action] || `Swiped on ${movieTitle}`;
+    const type = types[action] || 'info';
+    
+    showToast(message, type, 2000);
+    
+    // FIXED: Safe debug logging
+    if (ENV && ENV.DEBUG_MODE) {
+        console.log(`[Toast] ${message}`);
+    }
+}
+
+/**
+ * Show loading toast (stays until dismissed)
+ */
+export function showLoading(message = 'Loading...') {
+    const existing = document.querySelectorAll('.toast-loading');
+    existing.forEach(toast => toast.remove());
+    
+    const toast = document.createElement('div');
+    toast.className = 'toast-loading toast-notification';
+    toast.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        padding: 1.5rem 2rem;
+        border-radius: 1rem;
+        font-weight: 600;
+        font-size: 0.875rem;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.7);
+        backdrop-filter: blur(20px);
+        z-index: 10000;
+        background: linear-gradient(135deg, rgba(59,130,246,0.95), rgba(37,99,235,0.95));
+        color: white;
+        border: 1px solid rgba(255,255,255,0.1);
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    `;
+    
+    // Add spinner
+    const spinner = document.createElement('div');
+    spinner.style.cssText = `
+        width: 20px;
+        height: 20px;
+        border: 3px solid rgba(255,255,255,0.3);
+        border-top-color: white;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+    `;
+    
+    // Add spinner animation if not exists
+    if (!document.getElementById('spinner-animation')) {
+        const style = document.createElement('style');
+        style.id = 'spinner-animation';
+        style.textContent = `
+            @keyframes spin {
+                to { transform: rotate(360deg); }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+    
+    toast.appendChild(spinner);
+    toast.appendChild(document.createTextNode(message));
+    
+    document.body.appendChild(toast);
+    
+    return toast; // Return reference to dismiss later
+}
+
+/**
+ * Hide loading toast
+ */
+export function hideLoading() {
+    const toasts = document.querySelectorAll('.toast-loading');
+    toasts.forEach(toast => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translate(-50%, -50%) scale(0.8)';
+        setTimeout(() => toast.remove(), 300);
+    });
+}
+
+/**
+ * Show confirmation dialog
+ */
+export function showConfirm(message, onConfirm, onCancel) {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = `
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.7);
+        backdrop-filter: blur(10px);
+        z-index: 10000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem;
+        opacity: 0;
+        transition: opacity 0.3s;
+    `;
+    
+    const dialog = document.createElement('div');
+    dialog.style.cssText = `
+        background: linear-gradient(135deg, rgba(20,20,30,0.98), rgba(10,10,15,0.98));
+        border-radius: 1.5rem;
+        padding: 2rem;
+        max-width: 400px;
+        width: 100%;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.8);
+        border: 1px solid rgba(255,255,255,0.1);
+        transform: scale(0.9);
+        transition: transform 0.3s;
+    `;
+    
+    const messageEl = document.createElement('p');
+    messageEl.style.cssText = `
+        color: white;
+        font-size: 1rem;
+        line-height: 1.6;
+        margin: 0 0 1.5rem 0;
+        text-align: center;
+    `;
+    messageEl.textContent = message;
+    
+    const buttons = document.createElement('div');
+    buttons.style.cssText = `
+        display: flex;
+        gap: 1rem;
+    `;
+    
+    const cancelBtn = document.createElement('button');
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.style.cssText = `
+        flex: 1;
+        padding: 0.875rem;
+        border-radius: 0.75rem;
+        border: 1px solid rgba(255,255,255,0.2);
+        background: transparent;
+        color: white;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+    `;
+    
+    const confirmBtn = document.createElement('button');
+    confirmBtn.textContent = 'Confirm';
+    confirmBtn.style.cssText = `
+        flex: 1;
+        padding: 0.875rem;
+        border-radius: 0.75rem;
+        border: none;
+        background: linear-gradient(135deg, #ff2e63, #d90062);
+        color: white;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+    `;
+    
+    cancelBtn.addEventListener('click', () => {
+        overlay.style.opacity = '0';
+        setTimeout(() => overlay.remove(), 300);
+        if (onCancel) onCancel();
+    });
+    
+    confirmBtn.addEventListener('click', () => {
+        overlay.style.opacity = '0';
+        setTimeout(() => overlay.remove(), 300);
+        if (onConfirm) onConfirm();
+    });
+    
+    buttons.appendChild(cancelBtn);
+    buttons.appendChild(confirmBtn);
+    
+    dialog.appendChild(messageEl);
+    dialog.appendChild(buttons);
+    overlay.appendChild(dialog);
+    
+    document.body.appendChild(overlay);
+    
+    requestAnimationFrame(() => {
+        overlay.style.opacity = '1';
+        dialog.style.transform = 'scale(1)';
+    });
 }
