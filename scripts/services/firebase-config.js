@@ -18,16 +18,21 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase (use global firebase from CDN)
-if (!window.firebase) {
-    console.error('[Firebase] Firebase SDK not loaded! Check index.html');
+// Check if Firebase is loaded from CDN
+if (typeof window.firebase === 'undefined') {
+    throw new Error('[Firebase] Firebase SDK not loaded! Make sure Firebase is loaded in index.html before this script.');
 }
 
-const app = window.firebase.initializeApp(firebaseConfig);
+// Use the global Firebase from CDN
+const firebaseInstance = window.firebase;
+
+// Initialize Firebase app
+const app = firebaseInstance.initializeApp(firebaseConfig);
 
 // Get services from global firebase
-export const auth = window.firebase.auth();
-export const db = window.firebase.firestore();
-export const firebase = window.firebase;
+export const auth = firebaseInstance.auth();
+export const db = firebaseInstance.firestore();
+export const firebase = firebaseInstance;
 
 // ✨ ENABLE OFFLINE PERSISTENCE
 // This allows the app to work offline and sync when back online
@@ -53,7 +58,7 @@ try {
 
 // Settings for better offline experience
 db.settings({
-    cacheSizeBytes: window.firebase.firestore.CACHE_SIZE_UNLIMITED
+    cacheSizeBytes: firebaseInstance.firestore.CACHE_SIZE_UNLIMITED
 });
 
 console.log('[Firebase] Initialized successfully with v8 SDK');
