@@ -1,6 +1,7 @@
 /**
  * Confetti Animation Utility
  * Creates celebration confetti effects
+ * FIXED: All ENV.APP.debug → ENV && ENV.DEBUG_MODE
  */
 
 import { ENV } from '../config/env.js';
@@ -11,7 +12,8 @@ import { ENV } from '../config/env.js';
  * @param {number} particleCount - Number of confetti pieces (default: 100)
  */
 export function showConfetti(duration = 3000, particleCount = 100) {
-    if (ENV.APP.debug) {
+    // FIXED: ENV.APP.debug → ENV && ENV.DEBUG_MODE
+    if (ENV && ENV.DEBUG_MODE) {
         console.log('[Confetti] Starting celebration animation');
     }
     
@@ -90,7 +92,8 @@ export function showConfetti(duration = 3000, particleCount = 100) {
             container.remove();
         }
         
-        if (ENV.APP.debug) {
+        // FIXED: ENV.APP.debug → ENV && ENV.DEBUG_MODE
+        if (ENV && ENV.DEBUG_MODE) {
             console.log('[Confetti] Animation complete');
         }
     }, duration + 3000); // Extra time for animation to finish
@@ -100,7 +103,8 @@ export function showConfetti(duration = 3000, particleCount = 100) {
  * Show heart confetti (for love swipes)
  */
 export function showHeartConfetti(duration = 2500) {
-    if (ENV.APP.debug) {
+    // FIXED: ENV.APP.debug → ENV && ENV.DEBUG_MODE
+    if (ENV && ENV.DEBUG_MODE) {
         console.log('[Confetti] Starting heart celebration');
     }
     
@@ -175,7 +179,8 @@ export function showHeartConfetti(duration = 2500) {
  * Show fireworks effect (for perfect matches)
  */
 export function showFireworks(duration = 2000) {
-    if (ENV.APP.debug) {
+    // FIXED: ENV.APP.debug → ENV && ENV.DEBUG_MODE
+    if (ENV && ENV.DEBUG_MODE) {
         console.log('[Confetti] Starting fireworks celebration');
     }
     
@@ -261,7 +266,8 @@ export function showCelebration() {
     showConfetti(3000, 80);
     setTimeout(() => showHeartConfetti(2500), 500);
     
-    if (ENV.APP.debug) {
+    // FIXED: ENV.APP.debug → ENV && ENV.DEBUG_MODE
+    if (ENV && ENV.DEBUG_MODE) {
         console.log('[Confetti] Full celebration started');
     }
 }
