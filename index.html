@@ -27,6 +27,21 @@
         window.__tmdb_api_key = 'fb172ed62b2cd58897d484ad8ba0cf60';
         window.__debug = true;
     </script>
+    
+    <!-- ✅ CRITICAL: Firebase v8 SDK - MUST BE LOADED BEFORE APP -->
+    <!-- These scripts create the global window.firebase object -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    
+    <!-- Verify Firebase loaded (for debugging) -->
+    <script>
+        if (typeof firebase === 'undefined') {
+            console.error('❌ Firebase SDK failed to load from CDN');
+        } else {
+            console.log('✅ Firebase SDK loaded successfully');
+        }
+    </script>
 </head>
 <body>
     <!-- FIXED HEADER - Hidden initially, shown after onboarding -->
@@ -161,7 +176,7 @@
         }
     </style>
 
-    <!-- App Entry - UPDATED to use app-init.js which handles onboarding -->
+    <!-- ✅ App Entry - Loads AFTER Firebase is ready -->
     <script type="module" src="/scripts/app-init.js"></script>
 
 </body>
