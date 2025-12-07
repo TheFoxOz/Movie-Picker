@@ -1,44 +1,52 @@
 /**
- * Firebase Configuration and Initialization
- * Using Firebase v8 (Namespaced SDK) - Works with CDN
+ * Firebase Configuration
+ * v8 SDK with Offline Persistence
  */
 
-// Import Firebase v8 from CDN
-import 'https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js';
-import 'https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js';
-import 'https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js';
-
-// Your Firebase configuration
+// Firebase v8 from CDN (already loaded in index.html)
 const firebaseConfig = {
-  apiKey: "AIzaSyAGcGmVODn3UF4wuBzEKJlkst8J1Ul8Onw",
-  authDomain: "movie-picker-19390.firebaseapp.com",
-  projectId: "movie-picker-19390",
-  storageBucket: "movie-picker-19390.firebasestorage.app",
-  messagingSenderId: "123870382386",
-  appId: "1:123870382386:web:a4189b35dd1da0a95bef2b",
-  measurementId: "G-5TEXFJFSNR"
+    apiKey: "AIzaSyDTCfzxBvYDRCB5LmLaTm5NrBZMkEb52yE",
+    authDomain: "movie-picker-19390.firebaseapp.com",
+    projectId: "movie-picker-19390",
+    storageBucket: "movie-picker-19390.firebasestorage.app",
+    messagingSenderId: "688022829806",
+    appId: "1:688022829806:web:e09ca9dd27fd1b5ddb8d21",
+    measurementId: "G-K6HV5HFNF0"
 };
 
-// Initialize Firebase (v8 attaches to window.firebase)
-if (!window.firebase.apps.length) {
-  window.firebase.initializeApp(firebaseConfig);
-}
+// Initialize Firebase
+firebase.initializeApp(firebaseConfig);
 
-// Export Firebase services
-export const firebase = window.firebase;
+// Get services
 export const auth = firebase.auth();
 export const db = firebase.firestore();
+export { firebase };
 
-// Optional: Analytics
-let analytics = null;
+// ✨ ENABLE OFFLINE PERSISTENCE (New!)
+// This allows the app to work offline and sync when back online
 try {
-  if (typeof firebase.analytics === 'function') {
-    analytics = firebase.analytics();
-  }
-} catch (e) {
-  console.log('[Firebase] Analytics not available');
+    db.enablePersistence({ synchronizeTabs: true })
+        .then(() => {
+            console.log('[Firebase] ✅ Offline persistence enabled');
+        })
+        .catch((err) => {
+            if (err.code === 'failed-precondition') {
+                // Multiple tabs open, persistence can only be enabled in one tab at a time
+                console.warn('[Firebase] ⚠️ Multiple tabs open - persistence disabled');
+            } else if (err.code === 'unimplemented') {
+                // Browser doesn't support persistence
+                console.warn('[Firebase] ⚠️ Browser doesn\'t support offline persistence');
+            } else {
+                console.error('[Firebase] Persistence error:', err);
+            }
+        });
+} catch (err) {
+    console.error('[Firebase] Error setting up persistence:', err);
 }
 
-export { analytics };
+// Settings for better offline experience
+db.settings({
+    cacheSizeBytes: firebase.firestore.CACHE_SIZE_UNLIMITED
+});
 
 console.log('[Firebase] Initialized successfully with v8 SDK');
