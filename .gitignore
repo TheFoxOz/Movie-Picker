@@ -6,22 +6,31 @@ dist/
 build/
 .cache/
 
-# Environment files (if you add backend later)
+# Environment files & API Keys - NEVER COMMIT THESE!
 .env
 .env.local
 .env.production
+.env.*
 
-# ⚠️ IMPORTANT: Only ignore these if you add them
+# ⚠️ CRITICAL: API Key Files - NEVER COMMIT!
+scripts/config/env.js
+config/env.js
+**/env.js
+secrets.json
+api-keys.json
+
 # Firebase Admin SDK private keys (NEVER commit these!)
 *-firebase-adminsdk-*.json
 service-account.json
+firebase-debug.log
+.firebase/
 
 # OS files
 .DS_Store
+.DS_Store?
 Thumbs.db
 *.swp
 *.swo
-.DS_Store?
 
 # IDE files
 .vscode/
@@ -40,33 +49,17 @@ lerna-debug.log*
 # Testing
 coverage/
 .nyc_output
+.nyc_output/
 
 # Misc
 .sass-cache/
 *.css.map
 *.sass.map
 *.scss.map
-```
 
----
+# Local config
+local.config.js
+config.local.js
 
-## **🔐 WHAT YOU SHOULD NEVER COMMIT**
-
-### **❌ NEVER commit these (if you create them):**
-
-1. **Firebase Admin SDK keys** (server-side only)
-   - Files ending in `-firebase-adminsdk-*.json`
-   - These have **full database access**
-   - Used for backend/server operations
-
-2. **Private API keys** that cost money:
-   - Stripe secret keys: `sk_live_...`
-   - OpenAI API keys: `sk-...`
-   - AWS secret access keys
-   - SendGrid API keys
-   - Payment processor keys
-
-3. **.env files with secrets:**
-```
-   DATABASE_PASSWORD=secret123
-   ADMIN_API_KEY=xyz789
+# Vercel
+.vercel
