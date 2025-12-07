@@ -1,9 +1,12 @@
 /**
  * Firebase Configuration
  * v8 SDK with Offline Persistence
+ * Compatible with CDN-loaded Firebase
  */
 
-// Firebase v8 from CDN (already loaded in index.html)
+// Firebase v8 is loaded from CDN in index.html
+// It's available as a global: window.firebase
+
 const firebaseConfig = {
     apiKey: "AIzaSyDTCfzxBvYDRCB5LmLaTm5NrBZMkEb52yE",
     authDomain: "movie-picker-19390.firebaseapp.com",
@@ -14,15 +17,19 @@ const firebaseConfig = {
     measurementId: "G-K6HV5HFNF0"
 };
 
-// Initialize Firebase
-firebase.initializeApp(firebaseConfig);
+// Initialize Firebase (use global firebase from CDN)
+if (!window.firebase) {
+    console.error('[Firebase] Firebase SDK not loaded! Check index.html');
+}
 
-// Get services
-export const auth = firebase.auth();
-export const db = firebase.firestore();
-export { firebase };
+const app = window.firebase.initializeApp(firebaseConfig);
 
-// ✨ ENABLE OFFLINE PERSISTENCE (New!)
+// Get services from global firebase
+export const auth = window.firebase.auth();
+export const db = window.firebase.firestore();
+export const firebase = window.firebase;
+
+// ✨ ENABLE OFFLINE PERSISTENCE
 // This allows the app to work offline and sync when back online
 try {
     db.enablePersistence({ synchronizeTabs: true })
@@ -46,7 +53,7 @@ try {
 
 // Settings for better offline experience
 db.settings({
-    cacheSizeBytes: firebase.firestore.CACHE_SIZE_UNLIMITED
+    cacheSizeBytes: window.firebase.firestore.CACHE_SIZE_UNLIMITED
 });
 
 console.log('[Firebase] Initialized successfully with v8 SDK');
