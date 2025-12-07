@@ -142,7 +142,7 @@ class TMDBService {
                 const movies = data.results.map(movie => this.transformMovie(movie));
                 allMovies.push(...movies);
                 
-                if (ENV.APP.debug) {
+                if (ENV && ENV.DEBUG_MODE) {
                     console.log(`[TMDB] Loaded popular page ${page}, ${movies.length} movies`);
                 }
             }
@@ -198,7 +198,7 @@ class TMDBService {
                 const movies = data.results.map(movie => this.transformMovie(movie));
                 allMovies.push(...movies);
                 
-                if (ENV.APP.debug) {
+                if (ENV && ENV.DEBUG_MODE) {
                     console.log(`[TMDB] Loaded top-rated page ${page}, ${movies.length} movies`);
                 }
             }
@@ -232,7 +232,7 @@ class TMDBService {
                 const movies = data.results.map(movie => this.transformMovie(movie));
                 allMovies.push(...movies);
                 
-                if (ENV.APP.debug) {
+                if (ENV && ENV.DEBUG_MODE) {
                     console.log(`[TMDB] Loaded upcoming page ${page}, ${movies.length} movies`);
                 }
             }
@@ -266,7 +266,7 @@ class TMDBService {
                 const movies = data.results.map(movie => this.transformMovie(movie));
                 allMovies.push(...movies);
                 
-                if (ENV.APP.debug) {
+                if (ENV && ENV.DEBUG_MODE) {
                     console.log(`[TMDB] Loaded now playing page ${page}, ${movies.length} movies`);
                 }
             }
@@ -300,7 +300,7 @@ class TMDBService {
                 const movies = data.results.map(movie => this.transformMovie(movie));
                 allMovies.push(...movies);
                 
-                if (ENV.APP.debug) {
+                if (ENV && ENV.DEBUG_MODE) {
                     console.log(`[TMDB] Loaded genre ${genreId} page ${page}, ${movies.length} movies`);
                 }
             }
@@ -420,7 +420,9 @@ let tmdbServiceInstance = null;
 export function getTMDBService() {
     if (!tmdbServiceInstance && window.__tmdb_api_key) {
         tmdbServiceInstance = new TMDBService(window.__tmdb_api_key);
-        if (ENV.APP.debug) console.log('[TMDB] Service initialized (lazy)');
+        if (ENV && ENV.DEBUG_MODE) {
+            console.log('[TMDB] Service initialized (lazy)');
+        }
     }
     return tmdbServiceInstance;
 }
