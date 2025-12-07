@@ -29,13 +29,16 @@ const firebaseInstance = window.firebase;
 // Initialize Firebase app
 const app = firebaseInstance.initializeApp(firebaseConfig);
 
-// Get services from global firebase
-export const auth = firebaseInstance.auth();
-export const db = firebaseInstance.firestore();
-export const firebase = firebaseInstance;
+// ✅ Get Firestore FIRST but don't use it yet
+const db = firebaseInstance.firestore();
+const auth = firebaseInstance.auth();
 
-// ✨ ENABLE OFFLINE PERSISTENCE
-// This allows the app to work offline and sync when back online
+// ✅ Configure settings BEFORE using Firestore
+db.settings({
+    cacheSizeBytes: firebaseInstance.firestore.CACHE_SIZE_UNLIMITED
+});
+
+// ✅ Enable offline persistence AFTER settings but BEFORE any operations
 try {
     db.enablePersistence({ synchronizeTabs: true })
         .then(() => {
@@ -56,9 +59,8 @@ try {
     console.error('[Firebase] Error setting up persistence:', err);
 }
 
-// Settings for better offline experience
-db.settings({
-    cacheSizeBytes: firebaseInstance.firestore.CACHE_SIZE_UNLIMITED
-});
+// Export services
+export { auth, db, firebase as firebaseInstance };
+export const firebase = firebaseInstance;
 
 console.log('[Firebase] Initialized successfully with v8 SDK');
