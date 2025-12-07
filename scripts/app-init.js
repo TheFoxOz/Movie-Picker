@@ -18,6 +18,11 @@ class MoviePickerApp {
         this.tabs = {};
         this.container = null;
         this.bottomNav = null;
+        this.services = {
+            availability: null,
+            triggerWarnings: null,
+            userProfile: null
+        };
     }
 
     async init() {
@@ -25,6 +30,9 @@ class MoviePickerApp {
 
         // Load preferences from localStorage
         this.loadPreferences();
+        
+        // Initialize enhanced services (availability + trigger warnings)
+        await this.initializeEnhancedServices();
 
         // Initialize tabs FIRST
         console.log('[App] Initializing tabs...');
@@ -85,6 +93,71 @@ class MoviePickerApp {
             }
         } catch (error) {
             console.error('[App] Failed to load swipe history:', error);
+        }
+    }
+
+    async initializeEnhancedServices() {
+        console.log('[App] Initializing enhanced services...');
+        
+        // Load availability service
+        try {
+            const { availabilityService } = await import('./services/availability-service.js');
+            const { ENV } = await import('./config/env.js');
+            
+            if (availabilityService && ENV && ENV.TMDB_API_KEY) {
+                await availabilityService.initialize('tmdb', ENV.TMDB_API_KEY);
+                this.services.availability = availabilityService;
+                console.log('[App] ✅ Availability service ready (TMDB)');
+            } else {
+                console.warn('[App] ⚠️ Availability service: Missing TMDB key');
+            }
+        } catch (error) {
+            console.warn('[App] ⚠️ Availability service not loaded:', error.message);
+        }
+        
+        // Load trigger warning service
+        try {
+            const { triggerWarningService } = await import('./services/trigger-warning-service.js');
+            const { ENV } = await import('./config/env.js');
+            
+            if (triggerWarningService && ENV && ENV.DTD_API_KEY) {
+                await triggerWarningService.initialize(ENV.DTD_API_KEY);
+                this.services.triggerWarnings = triggerWarningService;
+                console.log('[App] ✅ Trigger warning service ready');
+            } else {
+                console.warn('[App] ⚠️ Trigger warning service: Missing DTD key');
+            }
+        } catch (error) {
+            console.warn('[App] ⚠️ Trigger warning service not loaded:', error.message);
+        }
+        
+        // Load user profile service
+        try {
+            const { userProfileService } = await import('./services/user-profile-revised.js');
+            
+            if (userProfileService) {
+                this.services.userProfile = userProfileService;
+                console.log('[App] ✅ User profile service ready');
+                console.log('[App] User region:', userProfileService.getRegion());
+            }
+        } catch (error) {
+            console.warn('[App] ⚠️ User profile service not loaded:', error.message);
+        }
+        
+        // Summary
+        const loadedServices = Object.entries(this.services)
+            .filter(([_, service]) => service !== null)
+            .map(([name]) => name);
+        
+        if (loadedServices.length > 0) {
+            console.log(`[App] ✅ Loaded ${loadedServices.length}/3 enhanced services:`, loadedServices);
+        } else {
+            console.log('[App] ℹ️ No enhanced services loaded (continuing with basic features)');
+        }
+        
+        // Make services available globally for debugging
+        if (typeof window !== 'undefined') {
+            window.moviePickerServices = this.services;
         }
     }
 
