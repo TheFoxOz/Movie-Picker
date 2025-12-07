@@ -1,44 +1,30 @@
 /**
  * Firebase Configuration
- * v8 SDK with Offline Persistence
- * Compatible with CDN-loaded Firebase
+ * Loads config from env.js (secure, gitignored)
  */
 
-// Firebase v8 is loaded from CDN in index.html
-// It's available as a global: window.firebase
+import { ENV } from '../config/env.js';
 
-const firebaseConfig = {
-    apiKey: "AIzaSyDTCfzxBvYDRCB5LmLaTm5NrBZMkEb52yE",
-    authDomain: "movie-picker-19390.firebaseapp.com",
-    projectId: "movie-picker-19390",
-    storageBucket: "movie-picker-19390.firebasestorage.app",
-    messagingSenderId: "688022829806",
-    appId: "1:688022829806:web:e09ca9dd27fd1b5ddb8d21",
-    measurementId: "G-K6HV5HFNF0"
-};
-
-// Initialize Firebase (use global firebase from CDN)
-// Check if Firebase is loaded from CDN
+// Validate Firebase is loaded from CDN
 if (typeof window.firebase === 'undefined') {
-    throw new Error('[Firebase] Firebase SDK not loaded! Make sure Firebase is loaded in index.html before this script.');
+    throw new Error('[Firebase] Firebase SDK not loaded! Check index.html');
 }
 
-// Use the global Firebase from CDN
 const firebaseInstance = window.firebase;
 
-// Initialize Firebase app
-const app = firebaseInstance.initializeApp(firebaseConfig);
+// Initialize Firebase with config from env.js
+const app = firebaseInstance.initializeApp(ENV.FIREBASE);
 
-// ✅ Get Firestore FIRST but don't use it yet
+// Get services
 const db = firebaseInstance.firestore();
 const auth = firebaseInstance.auth();
 
-// ✅ Configure settings BEFORE using Firestore
+// Configure Firestore settings
 db.settings({
     cacheSizeBytes: firebaseInstance.firestore.CACHE_SIZE_UNLIMITED
 });
 
-// ✅ Enable offline persistence AFTER settings but BEFORE any operations
+// Enable offline persistence
 try {
     db.enablePersistence({ synchronizeTabs: true })
         .then(() => {
@@ -46,11 +32,9 @@ try {
         })
         .catch((err) => {
             if (err.code === 'failed-precondition') {
-                // Multiple tabs open, persistence can only be enabled in one tab at a time
-                console.warn('[Firebase] ⚠️ Multiple tabs open - persistence disabled');
+                console.warn('[Firebase] ⚠️ Multiple tabs - persistence disabled');
             } else if (err.code === 'unimplemented') {
-                // Browser doesn't support persistence
-                console.warn('[Firebase] ⚠️ Browser doesn\'t support offline persistence');
+                console.warn('[Firebase] ⚠️ Browser doesn\'t support persistence');
             } else {
                 console.error('[Firebase] Persistence error:', err);
             }
@@ -63,4 +47,4 @@ try {
 export { auth, db, firebase as firebaseInstance };
 export const firebase = firebaseInstance;
 
-console.log('[Firebase] Initialized successfully with v8 SDK');
+console.log('[Firebase] Initialized successfully');
