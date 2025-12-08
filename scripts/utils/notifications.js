@@ -1,297 +1,369 @@
 /**
  * Notification System
- * Toast notifications with animations
- * FIXED: All ENV.APP.debug → ENV && ENV.DEBUG_MODE
+ * Toast-style notifications for user feedback
+ * ✅ FIX #4: Fixed ENV reference from ENV.APP.debug to ENV.DEBUG_MODE
  */
 
 import { ENV } from '../config/env.js';
 
-/**
- * Show a toast notification
- */
-export function showToast(message, type = 'info', duration = 3000) {
-    // Remove existing toasts
-    const existing = document.querySelectorAll('.toast-notification');
-    existing.forEach(toast => toast.remove());
-    
-    // Create toast
-    const toast = document.createElement('div');
-    toast.className = 'toast-notification';
-    toast.style.cssText = `
-        position: fixed;
-        top: 6rem;
-        left: 50%;
-        transform: translateX(-50%) translateY(-100px);
-        padding: 1rem 1.5rem;
-        border-radius: 1rem;
-        font-weight: 600;
-        font-size: 0.875rem;
-        box-shadow: 0 10px 40px rgba(0,0,0,0.5);
-        backdrop-filter: blur(20px);
-        z-index: 9999;
-        opacity: 0;
-        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-        pointer-events: none;
-        max-width: 90%;
-        text-align: center;
-        border: 1px solid rgba(255,255,255,0.1);
-    `;
-    
-    // Set color based on type
-    const colors = {
-        success: 'background: linear-gradient(135deg, rgba(16,185,129,0.95), rgba(5,150,105,0.95)); color: white;',
-        error: 'background: linear-gradient(135deg, rgba(239,68,68,0.95), rgba(220,38,38,0.95)); color: white;',
-        warning: 'background: linear-gradient(135deg, rgba(251,191,36,0.95), rgba(245,158,11,0.95)); color: white;',
-        info: 'background: linear-gradient(135deg, rgba(59,130,246,0.95), rgba(37,99,235,0.95)); color: white;'
-    };
-    
-    toast.style.cssText += colors[type] || colors.info;
-    toast.textContent = message;
-    
-    document.body.appendChild(toast);
-    
-    // Animate in
-    requestAnimationFrame(() => {
-        toast.style.transform = 'translateX(-50%) translateY(0)';
-        toast.style.opacity = '1';
-    });
-    
-    // Animate out
-    setTimeout(() => {
-        toast.style.transform = 'translateX(-50%) translateY(-100px)';
-        toast.style.opacity = '0';
-        setTimeout(() => toast.remove(), 400);
-    }, duration);
-}
-
-/**
- * Show success toast
- */
-export function showSuccess(message, duration = 3000) {
-    showToast(message, 'success', duration);
-}
-
-/**
- * Show error toast
- */
-export function showError(message, duration = 4000) {
-    showToast(message, 'error', duration);
-}
-
-/**
- * Show warning toast
- */
-export function showWarning(message, duration = 3500) {
-    showToast(message, 'warning', duration);
-}
-
-/**
- * Show info toast
- */
-export function showInfo(message, duration = 3000) {
-    showToast(message, 'info', duration);
-}
-
-/**
- * Show swipe action toast with movie title
- */
-export function showSwipeToast(movieTitle, action) {
-    const messages = {
-        pass: `Passed on ${movieTitle}`,
-        maybe: `${movieTitle} added to Maybe list`,
-        like: `Liked ${movieTitle}!`,
-        love: `❤️ Loved ${movieTitle}!`
-    };
-    
-    const types = {
-        pass: 'info',
-        maybe: 'warning',
-        like: 'success',
-        love: 'success'
-    };
-    
-    const message = messages[action] || `Swiped on ${movieTitle}`;
-    const type = types[action] || 'info';
-    
-    showToast(message, type, 2000);
-    
-    // FIXED: Safe debug logging
-    if (ENV && ENV.DEBUG_MODE) {
-        console.log(`[Toast] ${message}`);
+class NotificationManager {
+    constructor() {
+        this.container = null;
+        this.notifications = [];
+        this.nextId = 1;
+        this.init();
     }
-}
 
-/**
- * Show loading toast (stays until dismissed)
- */
-export function showLoading(message = 'Loading...') {
-    const existing = document.querySelectorAll('.toast-loading');
-    existing.forEach(toast => toast.remove());
-    
-    const toast = document.createElement('div');
-    toast.className = 'toast-loading toast-notification';
-    toast.style.cssText = `
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        padding: 1.5rem 2rem;
-        border-radius: 1rem;
-        font-weight: 600;
-        font-size: 0.875rem;
-        box-shadow: 0 10px 40px rgba(0,0,0,0.7);
-        backdrop-filter: blur(20px);
-        z-index: 10000;
-        background: linear-gradient(135deg, rgba(59,130,246,0.95), rgba(37,99,235,0.95));
-        color: white;
-        border: 1px solid rgba(255,255,255,0.1);
-        display: flex;
-        align-items: center;
-        gap: 1rem;
-    `;
-    
-    // Add spinner
-    const spinner = document.createElement('div');
-    spinner.style.cssText = `
-        width: 20px;
-        height: 20px;
-        border: 3px solid rgba(255,255,255,0.3);
-        border-top-color: white;
-        border-radius: 50%;
-        animation: spin 0.8s linear infinite;
-    `;
-    
-    // Add spinner animation if not exists
-    if (!document.getElementById('spinner-animation')) {
-        const style = document.createElement('style');
-        style.id = 'spinner-animation';
-        style.textContent = `
-            @keyframes spin {
-                to { transform: rotate(360deg); }
-            }
+    init() {
+        // Create notification container
+        this.container = document.createElement('div');
+        this.container.id = 'notification-container';
+        this.container.style.cssText = `
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            pointer-events: none;
+            max-width: 400px;
         `;
-        document.head.appendChild(style);
+        document.body.appendChild(this.container);
+
+        // ✅ FIX #4: Changed from ENV.APP.debug to ENV.DEBUG_MODE
+        if (ENV && ENV.DEBUG_MODE) {
+            console.log('[Notifications] Manager initialized');
+        }
     }
-    
-    toast.appendChild(spinner);
-    toast.appendChild(document.createTextNode(message));
-    
-    document.body.appendChild(toast);
-    
-    return toast; // Return reference to dismiss later
+
+    /**
+     * Show a notification
+     * @param {string} message - The message to display
+     * @param {string} type - Type of notification: 'success', 'error', 'warning', 'info'
+     * @param {number} duration - How long to show (ms), 0 for persistent
+     * @param {object} options - Additional options
+     */
+    show(message, type = 'info', duration = 4000, options = {}) {
+        const id = this.nextId++;
+        
+        const notification = {
+            id,
+            message,
+            type,
+            duration,
+            options
+        };
+
+        // ✅ FIX #4: Changed from ENV.APP.debug to ENV.DEBUG_MODE
+        if (ENV && ENV.DEBUG_MODE) {
+            console.log('[Notifications] Showing:', notification);
+        }
+
+        this.notifications.push(notification);
+        this.renderNotification(notification);
+
+        // Auto-dismiss if duration is set
+        if (duration > 0) {
+            setTimeout(() => this.dismiss(id), duration);
+        }
+
+        return id;
+    }
+
+    /**
+     * Show success notification
+     */
+    success(message, duration = 4000, options = {}) {
+        return this.show(message, 'success', duration, options);
+    }
+
+    /**
+     * Show error notification
+     */
+    error(message, duration = 6000, options = {}) {
+        return this.show(message, 'error', duration, options);
+    }
+
+    /**
+     * Show warning notification
+     */
+    warning(message, duration = 5000, options = {}) {
+        return this.show(message, 'warning', duration, options);
+    }
+
+    /**
+     * Show info notification
+     */
+    info(message, duration = 4000, options = {}) {
+        return this.show(message, 'info', duration, options);
+    }
+
+    /**
+     * Render a notification element
+     */
+    renderNotification(notification) {
+        const element = document.createElement('div');
+        element.id = `notification-${notification.id}`;
+        element.className = `notification notification-${notification.type}`;
+        
+        // Style based on type
+        const styles = this.getStyles(notification.type);
+        
+        element.style.cssText = `
+            background: ${styles.background};
+            border: 1px solid ${styles.border};
+            border-radius: 0.75rem;
+            padding: 1rem 1.25rem;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            pointer-events: auto;
+            cursor: pointer;
+            animation: slideIn 0.3s ease-out;
+            transition: all 0.3s ease;
+            min-width: 280px;
+            max-width: 400px;
+        `;
+
+        // Icon
+        const icon = this.getIcon(notification.type);
+        element.innerHTML = `
+            <div style="flex-shrink: 0; font-size: 1.25rem;">
+                ${icon}
+            </div>
+            <div style="flex: 1; color: white; font-size: 0.9375rem; line-height: 1.4;">
+                ${notification.message}
+            </div>
+            <button class="notification-close" style="
+                flex-shrink: 0;
+                background: rgba(255, 255, 255, 0.1);
+                border: none;
+                border-radius: 0.375rem;
+                color: white;
+                cursor: pointer;
+                padding: 0.25rem 0.5rem;
+                font-size: 0.875rem;
+                transition: background 0.2s;
+            " onmouseover="this.style.background='rgba(255,255,255,0.2)'" 
+               onmouseout="this.style.background='rgba(255,255,255,0.1)'">
+                ✕
+            </button>
+        `;
+
+        // Close button handler
+        const closeBtn = element.querySelector('.notification-close');
+        closeBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.dismiss(notification.id);
+        });
+
+        // Click to dismiss
+        element.addEventListener('click', () => {
+            if (notification.options.onClick) {
+                notification.options.onClick();
+            }
+            this.dismiss(notification.id);
+        });
+
+        this.container.appendChild(element);
+    }
+
+    /**
+     * Get styles for notification type
+     */
+    getStyles(type) {
+        const styles = {
+            success: {
+                background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.95), rgba(5, 150, 105, 0.95))',
+                border: 'rgba(16, 185, 129, 0.5)'
+            },
+            error: {
+                background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.95), rgba(220, 38, 38, 0.95))',
+                border: 'rgba(239, 68, 68, 0.5)'
+            },
+            warning: {
+                background: 'linear-gradient(135deg, rgba(251, 191, 36, 0.95), rgba(245, 158, 11, 0.95))',
+                border: 'rgba(251, 191, 36, 0.5)'
+            },
+            info: {
+                background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.95), rgba(37, 99, 235, 0.95))',
+                border: 'rgba(59, 130, 246, 0.5)'
+            }
+        };
+
+        return styles[type] || styles.info;
+    }
+
+    /**
+     * Get icon for notification type
+     */
+    getIcon(type) {
+        const icons = {
+            success: '✓',
+            error: '✕',
+            warning: '⚠',
+            info: 'ℹ'
+        };
+
+        return icons[type] || icons.info;
+    }
+
+    /**
+     * Dismiss a notification
+     */
+    dismiss(id) {
+        const element = document.getElementById(`notification-${id}`);
+        if (!element) return;
+
+        // ✅ FIX #4: Changed from ENV.APP.debug to ENV.DEBUG_MODE
+        if (ENV && ENV.DEBUG_MODE) {
+            console.log('[Notifications] Dismissing:', id);
+        }
+
+        // Slide out animation
+        element.style.animation = 'slideOut 0.3s ease-out';
+        
+        setTimeout(() => {
+            element.remove();
+            this.notifications = this.notifications.filter(n => n.id !== id);
+        }, 300);
+    }
+
+    /**
+     * Dismiss all notifications
+     */
+    dismissAll() {
+        // ✅ FIX #4: Changed from ENV.APP.debug to ENV.DEBUG_MODE
+        if (ENV && ENV.DEBUG_MODE) {
+            console.log('[Notifications] Dismissing all');
+        }
+
+        this.notifications.forEach(n => this.dismiss(n.id));
+    }
+
+    /**
+     * Show a loading notification (persistent until dismissed)
+     */
+    showLoading(message = 'Loading...') {
+        const id = this.show(
+            `<div style="display: flex; align-items: center; gap: 0.75rem;">
+                <div style="width: 16px; height: 16px; border: 2px solid rgba(255, 255, 255, 0.3); border-top-color: white; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                <span>${message}</span>
+            </div>`,
+            'info',
+            0
+        );
+
+        return id;
+    }
+
+    /**
+     * Update an existing notification
+     */
+    update(id, message, type) {
+        const element = document.getElementById(`notification-${id}`);
+        if (!element) return;
+
+        const notification = this.notifications.find(n => n.id === id);
+        if (!notification) return;
+
+        notification.message = message;
+        notification.type = type || notification.type;
+
+        // Re-render
+        const parent = element.parentNode;
+        element.remove();
+        this.renderNotification(notification);
+
+        // ✅ FIX #4: Changed from ENV.APP.debug to ENV.DEBUG_MODE
+        if (ENV && ENV.DEBUG_MODE) {
+            console.log('[Notifications] Updated:', id);
+        }
+    }
+
+    /**
+     * Clean up
+     */
+    destroy() {
+        this.dismissAll();
+        if (this.container) {
+            this.container.remove();
+        }
+
+        // ✅ FIX #4: Changed from ENV.APP.debug to ENV.DEBUG_MODE
+        if (ENV && ENV.DEBUG_MODE) {
+            console.log('[Notifications] Manager destroyed');
+        }
+    }
 }
 
-/**
- * Hide loading toast
- */
-export function hideLoading() {
-    const toasts = document.querySelectorAll('.toast-loading');
-    toasts.forEach(toast => {
-        toast.style.opacity = '0';
-        toast.style.transform = 'translate(-50%, -50%) scale(0.8)';
-        setTimeout(() => toast.remove(), 300);
-    });
-}
+// Add CSS animations
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes slideIn {
+        from {
+            transform: translateX(400px);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
 
-/**
- * Show confirmation dialog
- */
-export function showConfirm(message, onConfirm, onCancel) {
-    const overlay = document.createElement('div');
-    overlay.style.cssText = `
-        position: fixed;
-        inset: 0;
-        background: rgba(0,0,0,0.7);
-        backdrop-filter: blur(10px);
-        z-index: 10000;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 2rem;
-        opacity: 0;
-        transition: opacity 0.3s;
-    `;
-    
-    const dialog = document.createElement('div');
-    dialog.style.cssText = `
-        background: linear-gradient(135deg, rgba(20,20,30,0.98), rgba(10,10,15,0.98));
-        border-radius: 1.5rem;
-        padding: 2rem;
-        max-width: 400px;
-        width: 100%;
-        box-shadow: 0 20px 60px rgba(0,0,0,0.8);
-        border: 1px solid rgba(255,255,255,0.1);
-        transform: scale(0.9);
-        transition: transform 0.3s;
-    `;
-    
-    const messageEl = document.createElement('p');
-    messageEl.style.cssText = `
-        color: white;
-        font-size: 1rem;
-        line-height: 1.6;
-        margin: 0 0 1.5rem 0;
-        text-align: center;
-    `;
-    messageEl.textContent = message;
-    
-    const buttons = document.createElement('div');
-    buttons.style.cssText = `
-        display: flex;
-        gap: 1rem;
-    `;
-    
-    const cancelBtn = document.createElement('button');
-    cancelBtn.textContent = 'Cancel';
-    cancelBtn.style.cssText = `
-        flex: 1;
-        padding: 0.875rem;
-        border-radius: 0.75rem;
-        border: 1px solid rgba(255,255,255,0.2);
-        background: transparent;
-        color: white;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.2s;
-    `;
-    
-    const confirmBtn = document.createElement('button');
-    confirmBtn.textContent = 'Confirm';
-    confirmBtn.style.cssText = `
-        flex: 1;
-        padding: 0.875rem;
-        border-radius: 0.75rem;
-        border: none;
-        background: linear-gradient(135deg, #ff2e63, #d90062);
-        color: white;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.2s;
-    `;
-    
-    cancelBtn.addEventListener('click', () => {
-        overlay.style.opacity = '0';
-        setTimeout(() => overlay.remove(), 300);
-        if (onCancel) onCancel();
-    });
-    
-    confirmBtn.addEventListener('click', () => {
-        overlay.style.opacity = '0';
-        setTimeout(() => overlay.remove(), 300);
-        if (onConfirm) onConfirm();
-    });
-    
-    buttons.appendChild(cancelBtn);
-    buttons.appendChild(confirmBtn);
-    
-    dialog.appendChild(messageEl);
-    dialog.appendChild(buttons);
-    overlay.appendChild(dialog);
-    
-    document.body.appendChild(overlay);
-    
-    requestAnimationFrame(() => {
-        overlay.style.opacity = '1';
-        dialog.style.transform = 'scale(1)';
-    });
-}
+    @keyframes slideOut {
+        from {
+            transform: translateX(0);
+            opacity: 1;
+        }
+        to {
+            transform: translateX(400px);
+            opacity: 0;
+        }
+    }
+
+    @keyframes spin {
+        from {
+            transform: rotate(0deg);
+        }
+        to {
+            transform: rotate(360deg);
+        }
+    }
+
+    .notification:hover {
+        transform: translateX(-4px);
+        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+    }
+
+    @media (max-width: 640px) {
+        #notification-container {
+            top: 0.5rem;
+            right: 0.5rem;
+            left: 0.5rem;
+            max-width: none;
+        }
+
+        .notification {
+            min-width: auto !important;
+        }
+    }
+`;
+document.head.appendChild(style);
+
+// Export singleton instance
+export const notificationManager = new NotificationManager();
+
+// Convenience exports
+export const notify = {
+    success: (msg, duration, options) => notificationManager.success(msg, duration, options),
+    error: (msg, duration, options) => notificationManager.error(msg, duration, options),
+    warning: (msg, duration, options) => notificationManager.warning(msg, duration, options),
+    info: (msg, duration, options) => notificationManager.info(msg, duration, options),
+    loading: (msg) => notificationManager.showLoading(msg),
+    dismiss: (id) => notificationManager.dismiss(id),
+    dismissAll: () => notificationManager.dismissAll(),
+    update: (id, msg, type) => notificationManager.update(id, msg, type)
+};
