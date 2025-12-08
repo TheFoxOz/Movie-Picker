@@ -1,38 +1,65 @@
 /**
  * Environment Configuration
- * 🔒 SECURITY: This file contains your actual API keys
- * This is a TEMPLATE - copy and replace with your real keys
+ * Loads from Vite environment variables (.env.local)
+ * 
+ * SECURITY: Never hardcode API keys here!
+ * All keys are loaded from import.meta.env (populated by Vite from .env.local)
  */
 
+// Validate required environment variables
+const requiredVars = [
+    'VITE_TMDB_API_KEY',
+    'VITE_DTD_API_KEY',
+    'VITE_FIREBASE_API_KEY',
+    'VITE_FIREBASE_AUTH_DOMAIN',
+    'VITE_FIREBASE_PROJECT_ID'
+];
+
+const missingVars = requiredVars.filter(varName => !import.meta.env[varName]);
+
+if (missingVars.length > 0) {
+    console.error('❌ Missing required environment variables:', missingVars);
+    console.error('📝 Copy .env.example to .env.local and fill in your keys');
+    throw new Error(`Missing environment variables: ${missingVars.join(', ')}`);
+}
+
 export const ENV = {
-    // TMDB API Key
-    TMDB_API_KEY: 'fb172ed62b2cd58897d484ad8ba0cf60',  // Replace with your key
+    // TMDB API Configuration
+    TMDB_API_KEY: import.meta.env.VITE_TMDB_API_KEY,
     
-    // DoesTheDogDie API Key  
-    DTD_API_KEY: '8422ca0f3512e1d0cb973215099d0f20',  // Replace with your NEW key (old one exposed)
+    // DoesTheDogDie API Configuration
+    DTD_API_KEY: import.meta.env.VITE_DTD_API_KEY,
     
     // Firebase Configuration
     FIREBASE: {
-        apiKey: "AIzaSyDTCfzxBvYDRCB5LmLaTm5NrBZMkEb52yE",
-        authDomain: "movie-picker-19390.firebaseapp.com",
-        projectId: "movie-picker-19390",
-        storageBucket: "movie-picker-19390.firebasestorage.app",
-        messagingSenderId: "688022829806",
-        appId: "1:688022829806:web:e09ca9dd27fd1b5ddb8d21",
-        measurementId: "G-K6HV5HFNF0"
+        apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+        authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+        projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+        storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+        messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+        appId: import.meta.env.VITE_FIREBASE_APP_ID,
+        measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
     },
     
     // Feature Flags
-    ENABLE_AVAILABILITY: true,
-    ENABLE_TRIGGER_WARNINGS: true,
-    DEBUG_MODE: false,  // Production mode
+    ENABLE_AVAILABILITY: import.meta.env.VITE_ENABLE_AVAILABILITY === 'true',
+    ENABLE_TRIGGER_WARNINGS: import.meta.env.VITE_ENABLE_TRIGGER_WARNINGS === 'true',
+    DEBUG_MODE: import.meta.env.VITE_DEBUG_MODE === 'true',
     
     // API Configuration
-    DDD_PROXY_URL: '/api/ddd-proxy',
-    
-    // App Metadata
-    APP_VERSION: '1.0.0',
-    APP_NAME: 'Movie Picker'
+    DDD_PROXY_URL: import.meta.env.VITE_DDD_PROXY_URL || '/api/ddd-proxy',
+    APP_VERSION: import.meta.env.VITE_APP_VERSION || '1.0.0'
 };
 
-export default ENV;
+// Debug logging in development
+if (ENV.DEBUG_MODE) {
+    console.log('[ENV] Configuration loaded:', {
+        TMDB_API_KEY: ENV.TMDB_API_KEY ? '✓ Set' : '✗ Missing',
+        DTD_API_KEY: ENV.DTD_API_KEY ? '✓ Set' : '✗ Missing',
+        FIREBASE: ENV.FIREBASE.apiKey ? '✓ Set' : '✗ Missing',
+        FEATURES: {
+            availability: ENV.ENABLE_AVAILABILITY,
+            triggerWarnings: ENV.ENABLE_TRIGGER_WARNINGS
+        }
+    });
+}
