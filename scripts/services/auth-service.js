@@ -1,7 +1,7 @@
 /**
  * Authentication Service
  * Firebase v8 Compatible - FULLY WORKING Google Sign-In
- * FIXED: All ENV.APP.debug → ENV.DEBUG_MODE
+ * ENHANCED: Better error messages with Firebase Console links (Fix #2)
  */
 
 import { firebase, auth, db } from './firebase-config.js';
@@ -21,7 +21,6 @@ class AuthService {
             if (user) {
                 this.currentUser = user;
                 
-                // FIXED: ENV.APP.debug → ENV.DEBUG_MODE
                 if (ENV && ENV.DEBUG_MODE) {
                     console.log('[Auth] User signed in:', user.email);
                 }
@@ -49,7 +48,6 @@ class AuthService {
                     groups: []
                 });
                 
-                // FIXED: ENV.APP.debug → ENV.DEBUG_MODE
                 if (ENV && ENV.DEBUG_MODE) {
                     console.log('[Auth] User signed out');
                 }
@@ -78,7 +76,6 @@ class AuthService {
             
             showSuccess('Account created successfully!');
             
-            // FIXED: ENV.APP.debug → ENV.DEBUG_MODE
             if (ENV && ENV.DEBUG_MODE) {
                 console.log('[Auth] User signed up:', email);
             }
@@ -104,7 +101,6 @@ class AuthService {
             const userCredential = await auth.signInWithEmailAndPassword(email, password);
             showSuccess('Welcome back!');
             
-            // FIXED: ENV.APP.debug → ENV.DEBUG_MODE
             if (ENV && ENV.DEBUG_MODE) {
                 console.log('[Auth] User signed in:', email);
             }
@@ -126,7 +122,7 @@ class AuthService {
         }
     }
     
-    // FIXED & BULLETPROOF Google Sign-In
+    // ✅ FIX #2: ENHANCED Google Sign-In with detailed error messages
     async signInWithGoogle() {
         try {
             const provider = new firebase.auth.GoogleAuthProvider();
@@ -165,7 +161,6 @@ class AuthService {
 
             showSuccess('Signed in with Google!');
             
-            // FIXED: ENV.APP.debug → ENV.DEBUG_MODE
             if (ENV && ENV.DEBUG_MODE) {
                 console.log('[Auth] Google sign in successful:', user.email);
             }
@@ -176,17 +171,56 @@ class AuthService {
         } catch (error) {
             console.error('[Auth] Google sign in error:', error);
             
-            const errorMessages = {
-                'auth/popup-blocked': 'Popup blocked. Please allow popups and try again.',
-                'auth/unauthorized-domain': 'Domain not authorized. Add your domain in Firebase Console → Authentication → Settings.',
-                'auth/network-request-failed': 'No internet connection. Please check your network.',
-                'auth/cancelled-popup-request': 'Sign-in was cancelled.',
-                'auth/operation-not-allowed': 'Google sign-in is disabled in Firebase Console.',
-                'auth/popup-closed-by-user': 'Sign-in popup was closed.'
+            // ✅ FIX #2: Enhanced error messages with Firebase Console links
+            const enhancedErrorMessages = {
+                'auth/popup-blocked': {
+                    message: 'Pop-up was blocked by your browser. Please allow pop-ups for this site and try again.',
+                    type: 'POPUP_BLOCKED'
+                },
+                'auth/unauthorized-domain': {
+                    message: `This domain (${window.location.hostname}) is not authorized for Google Sign-In.\n\nTo fix this:\n1. Go to Firebase Console → Authentication → Settings → Authorized domains\n2. Add: ${window.location.hostname}\n3. Wait 2-5 minutes and try again`,
+                    type: 'DOMAIN_NOT_AUTHORIZED',
+                    helpLink: `https://console.firebase.google.com/project/${ENV.FIREBASE.projectId}/authentication/settings`
+                },
+                'auth/network-request-failed': {
+                    message: 'No internet connection. Please check your network and try again.',
+                    type: 'NETWORK_ERROR'
+                },
+                'auth/cancelled-popup-request': {
+                    message: 'Sign-in was cancelled. Please try again.',
+                    type: 'CANCELLED'
+                },
+                'auth/operation-not-allowed': {
+                    message: 'Google Sign-In is not enabled in Firebase Console.\n\nTo fix this:\n1. Go to Firebase Console → Authentication → Sign-in method\n2. Enable Google provider\n3. Try again',
+                    type: 'NOT_ENABLED',
+                    helpLink: `https://console.firebase.google.com/project/${ENV.FIREBASE.projectId}/authentication/providers`
+                },
+                'auth/popup-closed-by-user': {
+                    message: 'Sign-in popup was closed. Please try again.',
+                    type: 'CANCELLED'
+                },
+                'auth/internal-error': {
+                    message: 'Internal error occurred. This usually means:\n\n1. Google Sign-In provider is not enabled in Firebase Console\n2. Domain is not authorized\n\nPlease check Firebase Console → Authentication',
+                    type: 'INTERNAL_ERROR',
+                    helpLink: `https://console.firebase.google.com/project/${ENV.FIREBASE.projectId}/authentication/providers`
+                }
             };
             
-            showError(errorMessages[error.code] || 'Failed to sign in with Google');
-            throw error;
+            const errorInfo = enhancedErrorMessages[error.code];
+            
+            if (errorInfo) {
+                // Show enhanced error with help link if available
+                const errorWithType = new Error(`${errorInfo.type}: ${errorInfo.message}`);
+                errorWithType.helpLink = errorInfo.helpLink;
+                errorWithType.type = errorInfo.type;
+                
+                showError(errorInfo.message);
+                throw errorWithType;
+            } else {
+                // Fallback for unknown errors
+                showError(`Failed to sign in with Google: ${error.message}`);
+                throw error;
+            }
         }
     }
     
@@ -289,7 +323,6 @@ class AuthService {
                     groups: userData.groups || []
                 });
                 
-                // FIXED: ENV.APP.debug → ENV.DEBUG_MODE
                 if (ENV && ENV.DEBUG_MODE) {
                     console.log('[Auth] User data loaded');
                 }
@@ -311,7 +344,6 @@ class AuthService {
                     groups: userData.groups || []
                 });
                 
-                // FIXED: ENV.APP.debug → ENV.DEBUG_MODE
                 if (ENV && ENV.DEBUG_MODE) {
                     console.log('[Auth] User data updated');
                 }
@@ -329,7 +361,6 @@ class AuthService {
                 swipeHistory: swipeHistory
             });
             
-            // FIXED: ENV.APP.debug → ENV.DEBUG_MODE
             if (ENV && ENV.DEBUG_MODE) {
                 console.log('[Auth] Swipe history synced');
             }
@@ -387,7 +418,6 @@ class AuthService {
             
             showSuccess(`Added ${friendData.displayName} as a friend!`);
             
-            // FIXED: ENV.APP.debug → ENV.DEBUG_MODE
             if (ENV && ENV.DEBUG_MODE) {
                 console.log('[Auth] Friend added:', friendEmail);
             }
@@ -429,7 +459,6 @@ class AuthService {
             
             showSuccess(`Group "${groupName}" created!`);
             
-            // FIXED: ENV.APP.debug → ENV.DEBUG_MODE
             if (ENV && ENV.DEBUG_MODE) {
                 console.log('[Auth] Group created:', groupName);
             }
