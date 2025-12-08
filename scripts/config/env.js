@@ -20,6 +20,7 @@ const missingVars = requiredVars.filter(varName => !import.meta.env[varName]);
 if (missingVars.length > 0) {
     console.error('❌ Missing required environment variables:', missingVars);
     console.error('📝 Copy .env.example to .env.local and fill in your keys');
+    // ✅ FIX: Changed backticks to parentheses
     throw new Error(`Missing environment variables: ${missingVars.join(', ')}`);
 }
 
