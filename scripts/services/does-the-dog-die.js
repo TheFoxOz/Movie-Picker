@@ -1,9 +1,13 @@
 /**
  * DoesTheDogDie.com API Service
  * Fetches trigger warnings for movies
+ * ✅ FIX #2: API key now loaded from ENV (no hardcoded keys)
  */
 
-const DDD_API_KEY = '8422ca0f3512e1d0cb973215099d0f20';
+import { ENV } from '../config/env.js';
+
+// ✅ FIX #2: Load from ENV instead of hardcoded
+const DDD_API_KEY = ENV.DTD_API_KEY;
 const DDD_BASE_URL = 'https://www.doesthedogdie.com';
 // CORS proxy to bypass browser restrictions
 const CORS_PROXY = 'https://corsproxy.io/?';
@@ -19,12 +23,17 @@ class DoesTheDogDieService {
     async searchByTitle(title) {
         const cacheKey = `title:${title.toLowerCase()}`;
         if (this.cache.has(cacheKey)) {
-            console.log(`[DDD] Cache hit for: ${title}`);
+            if (ENV && ENV.DEBUG_MODE) {
+                console.log(`[DDD] Cache hit for: ${title}`);
+            }
             return this.cache.get(cacheKey);
         }
 
         try {
-            console.log(`[DDD] Searching for: ${title}`);
+            if (ENV && ENV.DEBUG_MODE) {
+                console.log(`[DDD] Searching for: ${title}`);
+            }
+            
             const url = `${DDD_BASE_URL}/dddsearch?q=${encodeURIComponent(title)}`;
             const response = await fetch(
                 `${CORS_PROXY}${encodeURIComponent(url)}`,
@@ -45,7 +54,10 @@ class DoesTheDogDieService {
             const result = data.items?.[0] || null; // Get first match
             
             this.cache.set(cacheKey, result);
-            console.log(`[DDD] Found: ${result?.name || 'No match'}`);
+            
+            if (ENV && ENV.DEBUG_MODE) {
+                console.log(`[DDD] Found: ${result?.name || 'No match'}`);
+            }
             
             return result;
 
@@ -61,12 +73,17 @@ class DoesTheDogDieService {
     async searchByIMDB(imdbId) {
         const cacheKey = `imdb:${imdbId}`;
         if (this.cache.has(cacheKey)) {
-            console.log(`[DDD] Cache hit for IMDB: ${imdbId}`);
+            if (ENV && ENV.DEBUG_MODE) {
+                console.log(`[DDD] Cache hit for IMDB: ${imdbId}`);
+            }
             return this.cache.get(cacheKey);
         }
 
         try {
-            console.log(`[DDD] Searching by IMDB: ${imdbId}`);
+            if (ENV && ENV.DEBUG_MODE) {
+                console.log(`[DDD] Searching by IMDB: ${imdbId}`);
+            }
+            
             const url = `${DDD_BASE_URL}/dddsearch?imdb=${imdbId}`;
             const response = await fetch(
                 `${CORS_PROXY}${encodeURIComponent(url)}`,
@@ -87,7 +104,10 @@ class DoesTheDogDieService {
             const result = data.items?.[0] || null;
             
             this.cache.set(cacheKey, result);
-            console.log(`[DDD] Found: ${result?.name || 'No match'}`);
+            
+            if (ENV && ENV.DEBUG_MODE) {
+                console.log(`[DDD] Found: ${result?.name || 'No match'}`);
+            }
             
             return result;
 
@@ -103,12 +123,17 @@ class DoesTheDogDieService {
     async getTriggerWarnings(dddId) {
         const cacheKey = `warnings:${dddId}`;
         if (this.cache.has(cacheKey)) {
-            console.log(`[DDD] Cache hit for warnings: ${dddId}`);
+            if (ENV && ENV.DEBUG_MODE) {
+                console.log(`[DDD] Cache hit for warnings: ${dddId}`);
+            }
             return this.cache.get(cacheKey);
         }
 
         try {
-            console.log(`[DDD] Fetching warnings for ID: ${dddId}`);
+            if (ENV && ENV.DEBUG_MODE) {
+                console.log(`[DDD] Fetching warnings for ID: ${dddId}`);
+            }
+            
             const url = `${DDD_BASE_URL}/media/${dddId}`;
             const response = await fetch(
                 `${CORS_PROXY}${encodeURIComponent(url)}`,
@@ -144,7 +169,10 @@ class DoesTheDogDieService {
             }
             
             this.cache.set(cacheKey, warnings);
-            console.log(`[DDD] Found ${warnings.length} trigger warnings`);
+            
+            if (ENV && ENV.DEBUG_MODE) {
+                console.log(`[DDD] Found ${warnings.length} trigger warnings`);
+            }
             
             return warnings;
 
@@ -172,7 +200,9 @@ class DoesTheDogDieService {
             }
 
             if (!movie || !movie.id) {
-                console.log(`[DDD] No match found for: ${title}`);
+                if (ENV && ENV.DEBUG_MODE) {
+                    console.log(`[DDD] No match found for: ${title}`);
+                }
                 return [];
             }
 
@@ -191,7 +221,9 @@ class DoesTheDogDieService {
      */
     clearCache() {
         this.cache.clear();
-        console.log('[DDD] Cache cleared');
+        if (ENV && ENV.DEBUG_MODE) {
+            console.log('[DDD] Cache cleared');
+        }
     }
 }
 
