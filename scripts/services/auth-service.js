@@ -2,11 +2,13 @@
  * Authentication Service
  * Firebase v8 Compatible - FULLY WORKING Google Sign-In
  * ENHANCED: Better error messages with Firebase Console links (Fix #2)
+ * ✅ FIX: Corrected notification imports
  */
 
 import { firebase, auth, db } from './firebase-config.js';
 import { store } from '../state/store.js';
-import { showSuccess, showError } from '../utils/notifications.js';
+// ✅ FIX: Changed to correct import from notifications.js
+import { notify } from '../utils/notifications.js';
 import { ENV } from '../config/env.js';
 
 class AuthService {
@@ -71,16 +73,17 @@ class AuthService {
                 swipeHistory: [],
                 friends: [],
                 groups: [],
-                onboardingCompleted: false  // New users need onboarding
+                onboardingCompleted: false
             });
             
-            showSuccess('Account created successfully!');
+            // ✅ FIX: Changed showSuccess to notify.success
+            notify.success('Account created successfully!');
             
             if (ENV && ENV.DEBUG_MODE) {
                 console.log('[Auth] User signed up:', email);
             }
             
-            return { user, isNewUser: true };  // Always new user for signUp
+            return { user, isNewUser: true };
             
         } catch (error) {
             console.error('[Auth] Sign up error:', error);
@@ -91,7 +94,8 @@ class AuthService {
                 'auth/invalid-email': 'Invalid email address'
             };
             
-            showError(errorMessages[error.code] || 'Failed to create account');
+            // ✅ FIX: Changed showError to notify.error
+            notify.error(errorMessages[error.code] || 'Failed to create account');
             throw error;
         }
     }
@@ -99,13 +103,13 @@ class AuthService {
     async signIn(email, password) {
         try {
             const userCredential = await auth.signInWithEmailAndPassword(email, password);
-            showSuccess('Welcome back!');
+            notify.success('Welcome back!');
             
             if (ENV && ENV.DEBUG_MODE) {
                 console.log('[Auth] User signed in:', email);
             }
             
-            return { user: userCredential.user, isNewUser: false };  // Existing user
+            return { user: userCredential.user, isNewUser: false };
             
         } catch (error) {
             console.error('[Auth] Sign in error:', error);
@@ -117,7 +121,7 @@ class AuthService {
                 'auth/too-many-requests': 'Too many failed attempts. Try again later'
             };
             
-            showError(errorMessages[error.code] || 'Failed to sign in');
+            notify.error(errorMessages[error.code] || 'Failed to sign in');
             throw error;
         }
     }
@@ -129,7 +133,6 @@ class AuthService {
             provider.addScope('email');
             provider.addScope('profile');
             
-            // Critical fix: forces account selection + prevents domain issues
             provider.setCustomParameters({
                 prompt: 'select_account'
             });
@@ -139,9 +142,7 @@ class AuthService {
 
             if (!user) throw new Error('No user returned from Google');
 
-            // Check if user exists in Firestore
             const userDoc = await db.collection('users').doc(user.uid).get();
-            
             const isNewUser = !userDoc.exists;
             
             if (isNewUser) {
@@ -154,24 +155,22 @@ class AuthService {
                     swipeHistory: [],
                     friends: [],
                     groups: [],
-                    onboardingCompleted: false  // New users need onboarding
+                    onboardingCompleted: false
                 });
                 console.log('[Auth] New Google user created in Firestore');
             }
 
-            showSuccess('Signed in with Google!');
+            notify.success('Signed in with Google!');
             
             if (ENV && ENV.DEBUG_MODE) {
                 console.log('[Auth] Google sign in successful:', user.email);
             }
             
-            // Return user with new user flag
             return { user, isNewUser };
             
         } catch (error) {
             console.error('[Auth] Google sign in error:', error);
             
-            // ✅ FIX #2: Enhanced error messages with Firebase Console links
             const enhancedErrorMessages = {
                 'auth/popup-blocked': {
                     message: 'Pop-up was blocked by your browser. Please allow pop-ups for this site and try again.',
@@ -209,22 +208,19 @@ class AuthService {
             const errorInfo = enhancedErrorMessages[error.code];
             
             if (errorInfo) {
-                // Show enhanced error with help link if available
                 const errorWithType = new Error(`${errorInfo.type}: ${errorInfo.message}`);
                 errorWithType.helpLink = errorInfo.helpLink;
                 errorWithType.type = errorInfo.type;
                 
-                showError(errorInfo.message);
+                notify.error(errorInfo.message);
                 throw errorWithType;
             } else {
-                // Fallback for unknown errors
-                showError(`Failed to sign in with Google: ${error.message}`);
+                notify.error(`Failed to sign in with Google: ${error.message}`);
                 throw error;
             }
         }
     }
     
-    // Anonymous/Guest Sign-In
     async signInAnonymously() {
         try {
             const result = await auth.signInAnonymously();
@@ -232,7 +228,6 @@ class AuthService {
             
             if (!user) throw new Error('Anonymous sign-in failed');
             
-            // Create guest user profile
             const userDoc = await db.collection('users').doc(user.uid).get();
             const isNewUser = !userDoc.exists;
             
@@ -247,12 +242,12 @@ class AuthService {
                     swipeHistory: [],
                     friends: [],
                     groups: [],
-                    onboardingCompleted: false  // New guests need onboarding
+                    onboardingCompleted: false
                 });
                 console.log('[Auth] Guest user created');
             }
             
-            showSuccess('Welcome, Guest!');
+            notify.success('Welcome, Guest!');
             
             if (ENV && ENV.DEBUG_MODE) {
                 console.log('[Auth] Anonymous sign in successful');
@@ -262,7 +257,7 @@ class AuthService {
             
         } catch (error) {
             console.error('[Auth] Anonymous sign in error:', error);
-            showError('Failed to continue as guest. Please try again.');
+            notify.error('Failed to continue as guest. Please try again.');
             throw error;
         }
     }
@@ -270,18 +265,15 @@ class AuthService {
     async signOut() {
         try {
             await auth.signOut();
-            showSuccess('Signed out successfully');
+            notify.success('Signed out successfully');
             
         } catch (error) {
             console.error('[Auth] Sign out error:', error);
-            showError('Failed to sign out');
+            notify.error('Failed to sign out');
             throw error;
         }
     }
     
-    /**
-     * Check if user has completed onboarding
-     */
     async hasCompletedOnboarding(uid) {
         try {
             const userDoc = await db.collection('users').doc(uid).get();
@@ -291,13 +283,10 @@ class AuthService {
             return false;
         } catch (error) {
             console.error('[Auth] Check onboarding error:', error);
-            return false;  // Default to false if error
+            return false;
         }
     }
     
-    /**
-     * Mark onboarding as complete
-     */
     async completeOnboarding(uid) {
         try {
             await db.collection('users').doc(uid).update({
@@ -372,7 +361,7 @@ class AuthService {
     
     async addFriend(friendEmail) {
         if (!this.currentUser) {
-            showError('You must be signed in to add friends');
+            notify.error('You must be signed in to add friends');
             return;
         }
         
@@ -382,7 +371,7 @@ class AuthService {
                 .get();
             
             if (querySnapshot.empty) {
-                showError('No user found with that email');
+                notify.error('No user found with that email');
                 return;
             }
             
@@ -390,7 +379,7 @@ class AuthService {
             const friendData = friendDoc.data();
             
             if (friendData.uid === this.currentUser.uid) {
-                showError('You cannot add yourself as a friend');
+                notify.error('You cannot add yourself as a friend');
                 return;
             }
             
@@ -416,7 +405,7 @@ class AuthService {
                 })
             });
             
-            showSuccess(`Added ${friendData.displayName} as a friend!`);
+            notify.success(`Added ${friendData.displayName} as a friend!`);
             
             if (ENV && ENV.DEBUG_MODE) {
                 console.log('[Auth] Friend added:', friendEmail);
@@ -424,13 +413,13 @@ class AuthService {
             
         } catch (error) {
             console.error('[Auth] Add friend error:', error);
-            showError('Failed to add friend');
+            notify.error('Failed to add friend');
         }
     }
     
     async createGroup(groupName, groupEmoji = 'Film') {
         if (!this.currentUser) {
-            showError('You must be signed in to create groups');
+            notify.error('You must be signed in to create groups');
             return;
         }
         
@@ -457,7 +446,7 @@ class AuthService {
                 groups: firebase.firestore.FieldValue.arrayUnion(newGroup)
             });
             
-            showSuccess(`Group "${groupName}" created!`);
+            notify.success(`Group "${groupName}" created!`);
             
             if (ENV && ENV.DEBUG_MODE) {
                 console.log('[Auth] Group created:', groupName);
@@ -467,7 +456,7 @@ class AuthService {
             
         } catch (error) {
             console.error('[Auth] Create group error:', error);
-            showError('Failed to create group');
+            notify.error('Failed to create group');
         }
     }
     
