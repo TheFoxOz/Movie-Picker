@@ -3,12 +3,14 @@
  * Shows clear visual indicators when swiping in any direction
  * Displays trigger warning badge from DoesTheDogDie.com
  * FIXED: Proper event dispatching for card advancing
+ * ✅ FIX: Corrected confetti and notification imports
  */
 
 import { store } from '../state/store.js';
 import { authService } from '../services/auth-service.js';
-import { showConfetti, showHeartConfetti } from '../utils/confetti.js';
-import { showSwipeToast } from '../utils/notifications.js';
+// ✅ FIX: Changed to correct imports
+import { celebrate } from '../utils/confetti.js';
+import { notify } from '../utils/notifications.js';
 
 export class SwipeCard {
     constructor(container, movie) {
@@ -20,7 +22,7 @@ export class SwipeCard {
         this.currentX = 0;
         this.startY = 0;
         this.currentY = 0;
-        this.actionInProgress = false;  // ADDED: Prevent multiple actions
+        this.actionInProgress = false;
 
         this.render();
         this.attachEvents();
@@ -152,42 +154,32 @@ export class SwipeCard {
             const absDiffX = Math.abs(diffX);
             const absDiffY = Math.abs(diffY);
 
-            // Rotate card based on horizontal drag
             const rotate = diffX / 10;
             card.style.transform = `translateX(${diffX}px) translateY(${diffY}px) rotate(${rotate}deg)`;
 
-            // Get badge elements
             const passBadge = card.querySelector('#badge-pass');
             const maybeBadge = card.querySelector('#badge-maybe');
             const likeBadge = card.querySelector('#badge-like');
             const loveBadge = card.querySelector('#badge-love');
 
-            // Reset all badges
             passBadge.style.opacity = 0;
             maybeBadge.style.opacity = 0;
             likeBadge.style.opacity = 0;
             loveBadge.style.opacity = 0;
 
-            // Determine primary direction (horizontal vs vertical)
             if (absDiffX > absDiffY) {
-                // HORIZONTAL SWIPE (Left or Right)
                 if (diffX < -80) {
-                    // SWIPE LEFT → PASS (Nope)
                     passBadge.style.opacity = Math.min(absDiffX / 150, 1);
                     passBadge.style.transform = `translate(-50%, -50%) scale(${1 + absDiffX / 300})`;
                 } else if (diffX > 80) {
-                    // SWIPE RIGHT → LIKE
                     likeBadge.style.opacity = Math.min(absDiffX / 150, 1);
                     likeBadge.style.transform = `translate(-50%, -50%) scale(${1 + absDiffX / 300})`;
                 }
             } else {
-                // VERTICAL SWIPE (Up or Down)
                 if (diffY < -80) {
-                    // SWIPE UP → MAYBE
                     maybeBadge.style.opacity = Math.min(absDiffY / 150, 1);
                     maybeBadge.style.transform = `translate(-50%, -50%) scale(${1 + absDiffY / 300})`;
                 } else if (diffY > 80) {
-                    // SWIPE DOWN → LOVE
                     loveBadge.style.opacity = Math.min(absDiffY / 150, 1);
                     loveBadge.style.transform = `translate(-50%, -50%) scale(${1 + absDiffY / 300})`;
                 }
@@ -205,39 +197,30 @@ export class SwipeCard {
 
             card.style.transition = 'all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1)';
 
-            // Determine if swipe was strong enough
             const threshold = 120;
 
             if (absDiffX > absDiffY) {
-                // HORIZONTAL SWIPE
                 if (absDiffX > threshold) {
                     if (diffX < 0) {
-                        // LEFT → PASS
                         this.swipeOff('pass');
                     } else {
-                        // RIGHT → LIKE
                         this.swipeOff('like');
                     }
                     return;
                 }
             } else {
-                // VERTICAL SWIPE
                 if (absDiffY > threshold) {
                     if (diffY < 0) {
-                        // UP → MAYBE
                         this.swipeOff('maybe');
                     } else {
-                        // DOWN → LOVE
                         this.swipeOff('love');
                     }
                     return;
                 }
             }
 
-            // SNAP BACK - Not strong enough
             card.style.transform = 'translateX(0) translateY(0) rotate(0deg)';
             
-            // Hide all badges
             const badges = card.querySelectorAll('.swipe-badge');
             badges.forEach(badge => {
                 badge.style.opacity = 0;
@@ -245,17 +228,14 @@ export class SwipeCard {
             });
         };
 
-        // Mouse events
         card.addEventListener('mousedown', onGrab);
         document.addEventListener('mousemove', onMove);
         document.addEventListener('mouseup', onRelease);
 
-        // Touch events
         card.addEventListener('touchstart', onGrab, { passive: true });
         document.addEventListener('touchmove', onMove, { passive: false });
         document.addEventListener('touchend', onRelease);
 
-        // Store cleanup
         this.cleanup = () => {
             card.removeEventListener('mousedown', onGrab);
             document.removeEventListener('mousemove', onMove);
@@ -271,7 +251,6 @@ export class SwipeCard {
     }
 
     swipeOff(action) {
-        // FIXED: Prevent multiple actions
         if (this.actionInProgress) {
             console.log('[SwipeCard] Action already in progress, ignoring');
             return;
@@ -282,7 +261,6 @@ export class SwipeCard {
         
         const card = this.element;
         
-        // Determine swipe direction based on action
         let translateX = 0;
         let translateY = 0;
         let rotate = 0;
@@ -309,7 +287,6 @@ export class SwipeCard {
         card.style.transform = `translateX(${translateX}px) translateY(${translateY}px) rotate(${rotate}deg)`;
         card.style.opacity = '0';
 
-        // Save to history
         const swipeData = {
             movie: this.movie,
             action,
@@ -319,25 +296,30 @@ export class SwipeCard {
         const history = [...(store.getState().swipeHistory || []), swipeData];
         store.setState({ swipeHistory: history });
 
-        // Sync if logged in
         if (authService.isAuthenticated()) {
             authService.syncSwipeHistory(history);
         }
 
-        // Feedback
+        // ✅ FIX: Updated to use correct confetti and notification functions
+        const rect = card.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+
         if (action === 'love') {
-            showHeartConfetti();
-            showSwipeToast(this.movie.title, 'love');
+            celebrate.love(centerX, centerY);
+            this.showSwipeToast(this.movie.title, 'love');
         } else if (action === 'like') {
-            showConfetti();
-            showSwipeToast(this.movie.title, 'like');
+            celebrate.custom(centerX, centerY, {
+                particleCount: 50,
+                colors: ['#10b981', '#059669', '#34d399']
+            });
+            this.showSwipeToast(this.movie.title, 'like');
         } else if (action === 'pass') {
-            showSwipeToast(this.movie.title, 'pass');
+            this.showSwipeToast(this.movie.title, 'pass');
         } else if (action === 'maybe') {
-            showSwipeToast(this.movie.title, 'maybe');
+            this.showSwipeToast(this.movie.title, 'maybe');
         }
 
-        // FIXED: Dispatch event AFTER animation with proper logging
         setTimeout(() => {
             console.log('[SwipeCard] Animation complete, dispatching swipe-action event');
             
@@ -353,14 +335,35 @@ export class SwipeCard {
             document.dispatchEvent(event);
             console.log('[SwipeCard] Event dispatched successfully');
             
-            // Remove card from DOM
             if (card && card.parentNode) {
                 card.remove();
                 console.log('[SwipeCard] Card removed from DOM');
             }
             
             this.actionInProgress = false;
-        }, 400);  // Match animation duration
+        }, 400);
+    }
+
+    // ✅ FIX: Added helper method for toast notifications
+    showSwipeToast(movieTitle, action) {
+        const messages = {
+            love: `❤️ Loved "${movieTitle}"!`,
+            like: `👍 Liked "${movieTitle}"`,
+            maybe: `❓ Maybe watch "${movieTitle}"`,
+            pass: `✕ Passed on "${movieTitle}"`
+        };
+
+        const types = {
+            love: 'success',
+            like: 'success',
+            maybe: 'warning',
+            pass: 'error'
+        };
+
+        const message = messages[action] || `Swiped on "${movieTitle}"`;
+        const type = types[action] || 'info';
+
+        notify[type](message, 3000);
     }
 
     destroy() {
