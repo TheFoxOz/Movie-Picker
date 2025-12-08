@@ -1,10 +1,12 @@
 /**
  * Onboarding Flow
  * Handles: Login → Platform Selection → Swipe Tab
+ * ENHANCED: Better error messages with helpful links (Fix #2)
  */
 
 import { authService } from '../services/auth-service.js';
 import { store } from '../state/store.js';
+import { ENV } from '../config/env.js';
 
 export class OnboardingFlow {
     constructor() {
@@ -27,6 +29,44 @@ export class OnboardingFlow {
         // Show onboarding flow
         this.showLogin();
         return true;
+    }
+
+    // ✅ FIX #2: Enhanced error display with Firebase Console links
+    showError(message, helpLink = null) {
+        const errorContainer = this.overlay.querySelector('#error-container');
+        if (!errorContainer) return;
+
+        errorContainer.innerHTML = `
+            <div style="padding: 1rem; background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(220, 38, 38, 0.05)); border: 2px solid rgba(239, 68, 68, 0.3); border-radius: 1rem; backdrop-filter: blur(10px); margin-bottom: 1.5rem; animation: slideDown 0.3s ease-out;">
+                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                    <svg style="width: 24px; height: 24px; flex-shrink: 0; color: #fca5a5;" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                    </svg>
+                    <strong style="color: #fca5a5; font-weight: 700; font-size: 1rem;">Error</strong>
+                </div>
+                <p style="color: rgba(255, 255, 255, 0.9); font-size: 0.95rem; line-height: 1.6; margin: 0; white-space: pre-line;">
+                    ${message}
+                </p>
+                ${helpLink ? `
+                    <a href="${helpLink}" target="_blank" style="display: inline-flex; align-items: center; gap: 0.5rem; margin-top: 1rem; padding: 0.75rem 1.25rem; background: linear-gradient(135deg, #ef4444, #dc2626); color: white; text-decoration: none; border-radius: 0.75rem; font-weight: 600; font-size: 0.9rem; transition: all 0.2s ease;">
+                        Open Firebase Console →
+                    </a>
+                ` : ''}
+            </div>
+            <style>
+                @keyframes slideDown {
+                    from { opacity: 0; transform: translateY(-10px); }
+                    to { opacity: 1; transform: translateY(0); }
+                }
+            </style>
+        `;
+    }
+
+    clearError() {
+        const errorContainer = this.overlay.querySelector('#error-container');
+        if (errorContainer) {
+            errorContainer.innerHTML = '';
+        }
     }
 
     showSignup() {
@@ -52,6 +92,9 @@ export class OnboardingFlow {
                             Join Movie Picker and start swiping!
                         </p>
                     </div>
+
+                    <!-- Error Container -->
+                    <div id="error-container"></div>
 
                     <!-- Signup Form -->
                     <form id="signup-form" style="display: flex; flex-direction: column; gap: 1.25rem;">
@@ -114,6 +157,8 @@ export class OnboardingFlow {
         // Signup form
         form?.addEventListener('submit', async (e) => {
             e.preventDefault();
+            this.clearError();
+            
             const name = this.overlay.querySelector('#name-input').value;
             const email = this.overlay.querySelector('#signup-email-input').value;
             const password = this.overlay.querySelector('#signup-password-input').value;
@@ -125,14 +170,10 @@ export class OnboardingFlow {
             signupBtn.disabled = true;
 
             try {
-                // Use Firebase createUserWithEmailAndPassword
-                const userCredential = await authService.createUserWithEmailAndPassword(email, password);
-                
-                // Update display name
-                await authService.updateProfile(userCredential.user, { displayName: name });
-                
-                console.log('[Onboarding] Signup successful:', userCredential.user);
+                const { user } = await authService.signUp(email, password, name);
+                console.log('[Onboarding] Signup successful:', user.email);
                 this.showPlatformSelection();
+                
             } catch (error) {
                 console.error('[Onboarding] Signup error:', error);
                 signupBtn.textContent = 'Create Account';
@@ -147,7 +188,7 @@ export class OnboardingFlow {
                     errorMessage = 'Password is too weak. Please use at least 6 characters.';
                 }
                 
-                alert(errorMessage);
+                this.showError(errorMessage);
             }
         });
 
@@ -181,6 +222,9 @@ export class OnboardingFlow {
                             Swipe your way to the perfect movie
                         </p>
                     </div>
+
+                    <!-- Error Container -->
+                    <div id="error-container"></div>
 
                     <!-- Login Form -->
                     <form id="login-form" style="display: flex; flex-direction: column; gap: 1.25rem;">
@@ -324,7 +368,15 @@ export class OnboardingFlow {
     }
 
     completeOnboarding() {
-        // Save that onboarding is complete
+        // Mark onboarding as complete in Firebase
+        const user = authService.getCurrentUser();
+        if (user) {
+            authService.completeOnboarding(user.uid).catch(err => {
+                console.error('[Onboarding] Failed to mark onboarding complete:', err);
+            });
+        }
+
+        // Save that onboarding is complete in local state
         const preferences = store.getState().preferences || {};
         preferences.onboardingComplete = true;
         store.setState({ preferences });
@@ -377,6 +429,8 @@ export class OnboardingFlow {
         // Regular login
         form?.addEventListener('submit', async (e) => {
             e.preventDefault();
+            this.clearError();
+            
             const email = this.overlay.querySelector('#email-input').value;
             const password = this.overlay.querySelector('#password-input').value;
             const loginBtn = this.overlay.querySelector('#login-btn');
@@ -387,12 +441,10 @@ export class OnboardingFlow {
             loginBtn.disabled = true;
 
             try {
-                // Use Firebase signInWithEmailAndPassword
-                await authService.signInWithEmailAndPassword(email, password);
+                await authService.signIn(email, password);
                 console.log('[Onboarding] Login successful');
-                
-                // Continue even if Firestore sync fails
                 this.showPlatformSelection();
+                
             } catch (error) {
                 console.error('[Onboarding] Login error:', error);
                 loginBtn.textContent = 'Sign In';
@@ -408,7 +460,7 @@ export class OnboardingFlow {
                     } else if (error.code === 'auth/invalid-email') {
                         errorMessage = 'Invalid email address.';
                     }
-                    alert(errorMessage);
+                    this.showError(errorMessage);
                 } else {
                     // Non-auth error (like Firestore), continue anyway
                     console.warn('[Onboarding] Non-auth error, continuing:', error);
@@ -426,6 +478,8 @@ export class OnboardingFlow {
         });
         googleBtn?.addEventListener('click', async () => {
             console.log('[Onboarding] Google login');
+            this.clearError();
+            
             const originalHTML = googleBtn.innerHTML;
             googleBtn.innerHTML = '<span style="opacity: 0.6;">Signing in with Google...</span>';
             googleBtn.disabled = true;
@@ -434,15 +488,19 @@ export class OnboardingFlow {
                 await authService.signInWithGoogle();
                 console.log('[Onboarding] Google login successful');
                 this.showPlatformSelection();
+                
             } catch (error) {
                 console.error('[Onboarding] Google login error:', error);
                 googleBtn.innerHTML = originalHTML;
                 googleBtn.disabled = false;
                 
-                // Only alert if it's a real auth failure, not CORS/network
-                if (error.code?.startsWith('auth/')) {
-                    alert('Google sign-in failed. Please try again.');
+                // ✅ FIX #2: Show enhanced error with help link
+                if (error.type && error.helpLink) {
+                    this.showError(error.message, error.helpLink);
+                } else if (error.code?.startsWith('auth/')) {
+                    this.showError(error.message || 'Google sign-in failed. Please try again.');
                 } else {
+                    // Non-auth error (CORS/network), continue anyway
                     console.warn('[Onboarding] Non-auth error (CORS/network), continuing anyway');
                     this.showPlatformSelection();
                 }
@@ -458,6 +516,8 @@ export class OnboardingFlow {
         });
         guestBtn?.addEventListener('click', async () => {
             console.log('[Onboarding] Guest login');
+            this.clearError();
+            
             guestBtn.textContent = 'Signing in as Guest...';
             guestBtn.disabled = true;
 
@@ -465,6 +525,7 @@ export class OnboardingFlow {
                 await authService.signInAnonymously();
                 console.log('[Onboarding] Guest login successful');
                 this.showPlatformSelection();
+                
             } catch (error) {
                 console.error('[Onboarding] Guest login error:', error);
                 
@@ -475,7 +536,7 @@ export class OnboardingFlow {
                 } else {
                     guestBtn.textContent = 'Continue as Guest';
                     guestBtn.disabled = false;
-                    alert('Guest sign-in failed. Please try again or use email login.');
+                    this.showError('Guest sign-in failed. Please try again or use email login.');
                 }
             }
         });
@@ -485,47 +546,6 @@ export class OnboardingFlow {
             e.preventDefault();
             this.showSignup();
         });
-    }
-
-    async mockLogin(email, password) {
-        const loginBtn = this.overlay.querySelector('#login-btn');
-        const googleBtn = this.overlay.querySelector('#google-login-btn');
-        const guestBtn = this.overlay.querySelector('#guest-login-btn');
-        
-        if (loginBtn) {
-            loginBtn.textContent = 'Signing in...';
-            loginBtn.disabled = true;
-        }
-
-        try {
-            let user;
-            
-            if (email === 'google') {
-                // Google login
-                user = await authService.loginWithGoogle();
-            } else if (email === 'guest') {
-                // Guest login
-                user = await authService.loginAsGuest();
-            } else {
-                // Regular login
-                user = await authService.login(email, password);
-            }
-
-            console.log('[Onboarding] Login successful:', user);
-
-            // Move to platform selection
-            this.showPlatformSelection();
-            
-        } catch (error) {
-            console.error('[Onboarding] Login failed:', error);
-            
-            if (loginBtn) {
-                loginBtn.textContent = 'Sign In';
-                loginBtn.disabled = false;
-            }
-            
-            alert('Login failed. Please try again.');
-        }
     }
 
     attachPlatformListeners() {
