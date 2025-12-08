@@ -1,6 +1,8 @@
 /**
- * Swipe Tab Component – FIXED VERSION
- * Fixed: Always renders HTML structure, even on subsequent renders
+ * Swipe Tab Component – COMPLETE FIXED VERSION
+ * ✅ Fix #3: Always renders HTML structure, never blank
+ * ✅ Removed hasLoaded flag that caused issues
+ * ✅ Proper movie loading and card management
  */
 
 import { store } from "../state/store.js";
@@ -16,14 +18,13 @@ export class SwipeTab {
         this.movieQueue = [];
         this.isLoading = false;
         this.swipeHandler = null;
-        this.hasLoaded = false;
     }
 
     async render(container) {
         console.log('[SwipeTab] Rendering...');
         this.container = container;
 
-        // ✅ FIXED: Always render HTML structure (removed early return)
+        // ✅ FIX #3: ALWAYS render HTML structure (no early return, no hasLoaded check)
         container.innerHTML = `
             <div style="position: relative; width: 100%; height: calc(100vh - 5rem); display: flex; flex-direction: column; padding-bottom: 7rem;">
                 
@@ -45,28 +46,28 @@ export class SwipeTab {
                     </div>
                 </div>
 
-                <!-- FIXED ACTION BUTTONS - Better spacing and positioning -->
+                <!-- Action Buttons -->
                 <div style="position: fixed; bottom: 7rem; left: 0; right: 0; z-index: 90; padding: 0 1.5rem; pointer-events: none;">
                     <div style="max-width: 420px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 1rem; pointer-events: auto;">
-                        <button id="swipe-pass" class="swipe-action-btn pass-btn">
+                        <button id="swipe-pass" class="swipe-action-btn pass-btn" title="Pass">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="3" stroke="currentColor" style="width:28px;height:28px;">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                             </svg>
                         </button>
                         
-                        <button id="swipe-maybe" class="swipe-action-btn maybe-btn">
+                        <button id="swipe-maybe" class="swipe-action-btn maybe-btn" title="Maybe Later">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width:26px;height:26px;">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
                             </svg>
                         </button>
                         
-                        <button id="swipe-like" class="swipe-action-btn like-btn">
+                        <button id="swipe-like" class="swipe-action-btn like-btn" title="Like">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width:28px;height:28px;">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M6.633 10.5c.806 0 1.533-.446 2.031-1.08a9.041 9.041 0 012.861-2.4c.723-.384 1.35-.956 1.653-1.715a4.498 4.498 0 00.322-1.672V3a.75.75 0 01.75-.75A2.25 2.25 0 0116.5 4.5c0 1.152-.26 2.243-.723 3.218-.266.558.107 1.282.725 1.282h3.126c1.026 0 1.945.694 2.054 1.715.045.422.068.85.068 1.285a11.95 11.95 0 01-2.649 7.521c-.388.482-.987.729-1.605.729H13.48c-.483 0-.964-.078-1.423-.23l-3.114-1.04a4.501 4.501 0 00-1.423-.23H5.904M14.25 9h2.25M5.904 18.75c.083.205.173.405.27.602.197.4-.078.898-.523.898h-.908c-.889 0-1.713-.518-1.972-1.368a12 12 0 01-.521-3.507c0-1.553.295-3.036.831-4.398C3.387 10.203 4.167 9.75 5 9.75h1.053c.472 0 .745.556.5.96a8.958 8.958 0 00-1.302 4.665c0 1.194.232 2.333.654 3.375z" />
                             </svg>
                         </button>
                         
-                        <button id="swipe-love" class="swipe-action-btn love-btn">
+                        <button id="swipe-love" class="swipe-action-btn love-btn" title="Love">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24" style="width:30px;height:30px;">
                                 <path d="M11.645 20.91l-.007-.003-.022-.012a15.247 15.247 0 01-.383-.218 25.18 25.18 0 01-4.244-3.17C4.688 15.36 2.25 12.174 2.25 8.25 2.25 5.322 4.714 3 7.688 3A5.5 5.5 0 0112 5.052 5.5 5.5 0 0116.313 3c2.973 0 5.437 2.322 5.437 5.25 0 3.925-2.438 7.111-4.739 9.256a25.175 25.175 0 01-4.244 3.17 15.247 15.247 0 01-.383.219l-.022.012-.007.004-.003.001a.752.752 0 01-.704 0l-.003-.001z" />
                             </svg>
@@ -83,23 +84,22 @@ export class SwipeTab {
                     <p style="font-size: 1.125rem; color: rgba(255, 255, 255, 0.8); margin: 0 0 2rem 0; max-width: 400px;">
                         You've swiped through all available movies. Check your Library to see your picks!
                     </p>
-                    <button id="goto-library" style="padding: 1rem 2rem; background: linear-gradient(135deg, #ff2e63, #d90062); border: none; border-radius: 1rem; color: white; font-size: 1rem; font-weight: 700; cursor: pointer;">
+                    <button id="goto-library" style="padding: 1rem 2rem; background: linear-gradient(135deg, #ff2e63, #d90062); border: none; border-radius: 1rem; color: white; font-size: 1rem; font-weight: 700; cursor: pointer; transition: transform 0.2s;">
                         View My Library
                     </button>
                 </div>
             </div>
         `;
 
-        console.log('[SwipeTab] HTML structure injected');
+        console.log('[SwipeTab] HTML structure rendered');
         this.injectButtonStyles();
         
-        // ✅ FIXED: Only load movies if first time
-        if (!this.hasLoaded) {
-            console.log('[SwipeTab] First load - fetching movies...');
-            this.hasLoaded = true;
+        // Load movies separately (always runs, no hasLoaded check)
+        if (this.movieQueue.length === 0) {
+            console.log('[SwipeTab] Movie queue empty, loading movies...');
             await this.loadMoviesWithRetry();
         } else {
-            console.log('[SwipeTab] Already loaded - using existing queue');
+            console.log('[SwipeTab] Using existing movie queue:', this.movieQueue.length, 'movies');
         }
         
         this.attachListeners();
@@ -189,7 +189,11 @@ export class SwipeTab {
     }
 
     async loadMoviesWithRetry(attempt = 1) {
-        if (this.isLoading) return;
+        if (this.isLoading) {
+            console.log('[SwipeTab] Already loading movies, skipping...');
+            return;
+        }
+        
         this.isLoading = true;
 
         try {
@@ -224,18 +228,21 @@ export class SwipeTab {
                 })
             ]);
 
+            // Deduplicate movies
             const map = new Map();
             lists.flat().forEach(m => map.set(m.id, m));
 
             const movies = Array.from(map.values());
             console.log(`[SwipeTab] Loaded ${movies.length} unique movies`);
 
+            // Filter out already swiped movies
             const state = store.getState();
             const swiped = new Set((state.swipeHistory || []).map(s => String(s.movie.id)));
 
             this.movieQueue = movies.filter(m => !swiped.has(String(m.id)));
             console.log(`[SwipeTab] ${this.movieQueue.length} movies after filtering swiped`);
 
+            // Retry if not enough movies
             if (this.movieQueue.length < 10 && attempt <= 3) {
                 console.log(`[SwipeTab] Need more movies, retrying (${this.movieQueue.length} < 10)...`);
                 this.isLoading = false;
@@ -278,21 +285,34 @@ export class SwipeTab {
     }
 
     showNextCard() {
-        const container = this.container.querySelector("#swipe-container");
-        const completed = this.container.querySelector("#swipe-completed");
+        const container = this.container?.querySelector("#swipe-container");
+        const completed = this.container?.querySelector("#swipe-completed");
 
-        if (!container) return;
+        if (!container) {
+            console.warn('[SwipeTab] Container not found');
+            return;
+        }
 
+        // Check if all movies are swiped
         if (this.movieQueue.length === 0) {
+            console.log('[SwipeTab] No more movies - showing completed state');
             container.innerHTML = "";
-            completed.style.display = "flex";
+            if (completed) {
+                completed.style.display = "flex";
+            }
             showConfetti();
             return;
         }
 
-        completed.style.display = "none";
+        // Hide completed state
+        if (completed) {
+            completed.style.display = "none";
+        }
 
+        // Show next movie
         const movie = this.movieQueue.shift();
+        console.log('[SwipeTab] Showing movie:', movie.title);
+        
         container.innerHTML = "";
         this.currentCard = new SwipeCard(container, movie);
     }
@@ -305,32 +325,58 @@ export class SwipeTab {
             "swipe-love": "love"
         };
 
+        // Attach button listeners
         Object.entries(ACTION_MAP).forEach(([id, action]) => {
-            const btn = this.container.querySelector(`#${id}`);
-            if (btn) btn.addEventListener("click", () => this.handleButtonAction(action));
+            const btn = this.container?.querySelector(`#${id}`);
+            if (btn) {
+                btn.addEventListener("click", () => this.handleButtonAction(action));
+            }
         });
 
-        this.swipeHandler = () => setTimeout(() => this.showNextCard(), 400);
+        // Listen for swipe-action events (dispatched by SwipeCard)
+        this.swipeHandler = () => {
+            console.log('[SwipeTab] Swipe action detected, showing next card after delay');
+            setTimeout(() => this.showNextCard(), 400);
+        };
         document.addEventListener("swipe-action", this.swipeHandler);
 
-        const gotoLibrary = this.container.querySelector("#goto-library");
+        // Go to library button
+        const gotoLibrary = this.container?.querySelector("#goto-library");
         if (gotoLibrary) {
             gotoLibrary.addEventListener("click", () => {
-                document.dispatchEvent(new CustomEvent("navigate-tab", { detail: { tab: "library" } }));
+                console.log('[SwipeTab] Navigating to library');
+                document.dispatchEvent(new CustomEvent("navigate-tab", { 
+                    detail: { tab: "library" } 
+                }));
             });
         }
     }
 
     handleButtonAction(action) {
-        if (this.currentCard) this.currentCard.handleAction(action);
+        console.log('[SwipeTab] Button action:', action);
+        if (this.currentCard) {
+            this.currentCard.handleAction(action);
+        }
     }
 
     destroy() {
-        if (this.currentCard) this.currentCard.destroy();
+        console.log('[SwipeTab] Destroying...');
+        
+        // Clean up current card
+        if (this.currentCard) {
+            this.currentCard.destroy();
+            this.currentCard = null;
+        }
+        
+        // Remove event listeners
         if (this.swipeHandler) {
             document.removeEventListener("swipe-action", this.swipeHandler);
             this.swipeHandler = null;
         }
-        this.hasLoaded = false;
+        
+        // ✅ FIX #3: DON'T reset state - keep movieQueue so it doesn't reload
+        // Movies will be reused when user comes back to this tab
+        
+        console.log('[SwipeTab] Destroyed');
     }
 }
