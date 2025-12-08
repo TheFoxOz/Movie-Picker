@@ -3,13 +3,15 @@
  * ✅ Fix #3: Always renders HTML structure, never blank
  * ✅ Removed hasLoaded flag that caused issues
  * ✅ Proper movie loading and card management
+ * ✅ FIX: Corrected notification and confetti imports
  */
 
 import { store } from "../state/store.js";
 import { SwipeCard } from "../components/swipe-card.js";
 import { getTMDBService } from "../services/tmdb.js";
-import { showToast } from "../utils/notifications.js";
-import { showConfetti } from "../utils/confetti.js";
+// ✅ FIX: Changed to correct imports
+import { notify } from "../utils/notifications.js";
+import { celebrate } from "../utils/confetti.js";
 
 export class SwipeTab {
     constructor() {
@@ -199,7 +201,6 @@ export class SwipeTab {
         try {
             console.log(`[SwipeTab] Loading movies (attempt ${attempt})...`);
             
-            // Safe TMDB service retrieval
             let tmdb;
             try {
                 tmdb = getTMDBService();
@@ -212,7 +213,6 @@ export class SwipeTab {
                 throw new Error("TMDB service not initialized");
             }
 
-            // Fetch movies with error handling
             const lists = await Promise.all([
                 tmdb.fetchPopularMovies(5).catch(err => {
                     console.warn("[SwipeTab] Popular movies failed:", err.message);
@@ -228,21 +228,18 @@ export class SwipeTab {
                 })
             ]);
 
-            // Deduplicate movies
             const map = new Map();
             lists.flat().forEach(m => map.set(m.id, m));
 
             const movies = Array.from(map.values());
             console.log(`[SwipeTab] Loaded ${movies.length} unique movies`);
 
-            // Filter out already swiped movies
             const state = store.getState();
             const swiped = new Set((state.swipeHistory || []).map(s => String(s.movie.id)));
 
             this.movieQueue = movies.filter(m => !swiped.has(String(m.id)));
             console.log(`[SwipeTab] ${this.movieQueue.length} movies after filtering swiped`);
 
-            // Retry if not enough movies
             if (this.movieQueue.length < 10 && attempt <= 3) {
                 console.log(`[SwipeTab] Need more movies, retrying (${this.movieQueue.length} < 10)...`);
                 this.isLoading = false;
@@ -256,13 +253,14 @@ export class SwipeTab {
             console.error("[SwipeTab] Load failed:", err);
             
             if (attempt <= 3) {
-                showToast(`Loading movies... (attempt ${attempt}/3)`, "info");
+                // ✅ FIX: Changed showToast to notify.info
+                notify.info(`Loading movies... (attempt ${attempt}/3)`);
                 this.isLoading = false;
                 setTimeout(() => this.loadMoviesWithRetry(attempt + 1), 1500);
             } else {
-                showToast("Failed to load movies. Please refresh the page.", "error");
+                // ✅ FIX: Changed showToast to notify.error
+                notify.error("Failed to load movies. Please refresh the page.");
                 
-                // Show error state in UI
                 const container = this.container?.querySelector("#swipe-container");
                 if (container) {
                     container.innerHTML = `
@@ -293,23 +291,21 @@ export class SwipeTab {
             return;
         }
 
-        // Check if all movies are swiped
         if (this.movieQueue.length === 0) {
             console.log('[SwipeTab] No more movies - showing completed state');
             container.innerHTML = "";
             if (completed) {
                 completed.style.display = "flex";
             }
-            showConfetti();
+            // ✅ FIX: Changed showConfetti to celebrate.center
+            celebrate.center();
             return;
         }
 
-        // Hide completed state
         if (completed) {
             completed.style.display = "none";
         }
 
-        // Show next movie
         const movie = this.movieQueue.shift();
         console.log('[SwipeTab] Showing movie:', movie.title);
         
@@ -325,7 +321,6 @@ export class SwipeTab {
             "swipe-love": "love"
         };
 
-        // Attach button listeners
         Object.entries(ACTION_MAP).forEach(([id, action]) => {
             const btn = this.container?.querySelector(`#${id}`);
             if (btn) {
@@ -333,14 +328,12 @@ export class SwipeTab {
             }
         });
 
-        // Listen for swipe-action events (dispatched by SwipeCard)
         this.swipeHandler = () => {
             console.log('[SwipeTab] Swipe action detected, showing next card after delay');
             setTimeout(() => this.showNextCard(), 400);
         };
         document.addEventListener("swipe-action", this.swipeHandler);
 
-        // Go to library button
         const gotoLibrary = this.container?.querySelector("#goto-library");
         if (gotoLibrary) {
             gotoLibrary.addEventListener("click", () => {
@@ -362,20 +355,15 @@ export class SwipeTab {
     destroy() {
         console.log('[SwipeTab] Destroying...');
         
-        // Clean up current card
         if (this.currentCard) {
             this.currentCard.destroy();
             this.currentCard = null;
         }
         
-        // Remove event listeners
         if (this.swipeHandler) {
             document.removeEventListener("swipe-action", this.swipeHandler);
             this.swipeHandler = null;
         }
-        
-        // ✅ FIX #3: DON'T reset state - keep movieQueue so it doesn't reload
-        // Movies will be reused when user comes back to this tab
         
         console.log('[SwipeTab] Destroyed');
     }
