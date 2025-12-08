@@ -1,6 +1,7 @@
 /**
  * Library Tab Component
  * TRUE UNLIMITED TMDB movies — no CSP issues, infinite scroll, all filters
+ * ✅ FIX #1: Added missing getButtonStyle() method
  */
 
 import { store } from '../state/store.js';
@@ -71,7 +72,6 @@ export class LibraryTab {
                 this.allMovies = Array.from(map.values());
             }
 
-            // TRUE UNLIMITED: Discover API - continues loading until TMDB limit
             console.log(`[Library] Loading Discover page ${page}...`);
             const response = await fetch(
                 `https://api.themoviedb.org/3/discover/movie?api_key=${tmdbService.apiKey}&language=en-US&sort_by=popularity.desc&page=${page}&include_adult=false`
@@ -86,13 +86,11 @@ export class LibraryTab {
             const data = await response.json();
             newMovies = data.results.map(m => tmdbService.transformMovie(m));
 
-            // Check if we've reached the end
             if (newMovies.length === 0 || page >= data.total_pages || page >= 500) {
                 console.log(`[Library] Reached end. Total pages: ${data.total_pages}, Current page: ${page}`);
                 this.hasMorePages = false;
             }
 
-            // Add new unique movies
             const existingIds = new Set(this.allMovies.map(m => m.id));
             const filtered = newMovies.filter(m => !existingIds.has(m.id));
             this.allMovies.push(...filtered);
@@ -117,9 +115,6 @@ export class LibraryTab {
             const { scrollTop, scrollHeight, clientHeight } = document.documentElement;
             const scrolledToBottom = scrollHeight - scrollTop - clientHeight;
             
-            console.log(`[Scroll] Distance from bottom: ${scrolledToBottom}px, Loading: ${this.isLoading}, HasMore: ${this.hasMorePages}`);
-            
-            // Trigger earlier (1500px from bottom instead of 800px)
             if (scrolledToBottom < 1500 && !this.isLoading && this.hasMorePages) {
                 console.log(`[Scroll] Triggering load for page ${this.currentPage + 1}`);
                 this.loadMovies(this.currentPage + 1).then(() => this.updateMoviesGrid());
@@ -128,7 +123,6 @@ export class LibraryTab {
         
         window.addEventListener('scroll', this.scrollListener);
         
-        // Also trigger initial check in case content doesn't fill screen
         setTimeout(() => {
             const { scrollHeight, clientHeight } = document.documentElement;
             if (scrollHeight <= clientHeight && this.hasMorePages && !this.isLoading) {
@@ -147,11 +141,25 @@ export class LibraryTab {
         `;
     }
 
-    // FIXED: getButtonStyle method was missing!
+    // ✅ FIX #1: ADDED MISSING METHOD
     getButtonStyle(isActive, activeGradient, defaultBg = 'rgba(255,255,255,0.05)') {
         const bg = isActive ? activeGradient : defaultBg;
-        const border = isActive ? activeGradient.split(',')[0].replace('linear-gradient(135deg, ', '') : 'rgba(255,255,255,0.1)';
-        return `padding:0.75rem 1.5rem;background:${bg};border:1px solid ${border};border-radius:0.75rem;color:white;font-size:0.875rem;font-weight:600;cursor:pointer;white-space:nowrap;transition:all 0.3s;`;
+        const borderColor = isActive 
+            ? activeGradient.split(',')[0].replace('linear-gradient(135deg, ', '').trim() 
+            : 'rgba(255,255,255,0.1)';
+        
+        return `
+            padding: 0.75rem 1.5rem;
+            background: ${bg};
+            border: 1px solid ${borderColor};
+            border-radius: 0.75rem;
+            color: white;
+            font-size: 0.875rem;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        `.replace(/\s+/g, ' ').trim();
     }
 
     renderContent() {
@@ -316,22 +324,18 @@ export class LibraryTab {
             search.addEventListener('input', e => {
                 this.searchQuery = e.target.value.trim();
                 
-                // Clear previous timeout
                 if (searchTimeout) clearTimeout(searchTimeout);
                 
-                // If search query exists, search TMDB directly
                 if (this.searchQuery.length >= 2) {
                     searchTimeout = setTimeout(() => {
                         this.searchTMDB(this.searchQuery);
-                    }, 500); // Debounce 500ms
+                    }, 500);
                 } else {
-                    // If cleared, show all loaded movies
                     this.updateMoviesGrid();
                 }
             });
         }
 
-        // Load More button
         const loadMoreBtn = this.container.querySelector('#load-more-btn');
         if (loadMoreBtn) {
             loadMoreBtn.addEventListener('click', () => {
@@ -392,14 +396,12 @@ export class LibraryTab {
             
             console.log(`[Search] Found ${searchResults.length} results`);
             
-            // Add search results to allMovies if not already there
             const existingIds = new Set(this.allMovies.map(m => m.id));
             const newMovies = searchResults.filter(m => !existingIds.has(m.id));
             if (newMovies.length > 0) {
                 this.allMovies.push(...newMovies);
             }
             
-            // Update grid with search results
             this.updateMoviesGrid();
 
         } catch (error) {
