@@ -1,4 +1,3 @@
-cat > scripts/app-init.js << 'EOF'
 /**
  * App Initialization - FIXED VERSION
  * Only imports services that actually exist
@@ -97,7 +96,6 @@ class MoviePickerApp {
     async initializeEnhancedServices() {
         console.log('[App] Initializing enhanced services...');
         
-        // FIXED: Use does-the-dog-die.js instead of non-existent trigger-warning-service.js
         try {
             const { doesTheDogDieService } = await import('./services/does-the-dog-die.js');
             const { ENV } = await import('./config/env.js');
@@ -232,5 +230,3 @@ if (document.readyState === 'loading') {
 }
 
 export { MoviePickerApp };
-EOF
-
