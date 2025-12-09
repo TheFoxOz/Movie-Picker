@@ -1,13 +1,28 @@
-/**
- * Library Tab Component
- * TRUE UNLIMITED TMDB movies — no CSP issues, infinite scroll, all filters
- * ✅ FIX #1: Added missing getButtonStyle() method
- */
-
 import { store } from '../state/store.js';
-import { tmdbService, GENRE_IDS } from '../services/tmdb.js';
+import { tmdbService } from '../services/tmdb.js';
 import { movieModal } from '../components/movie-modal.js';
 import { ENV } from '../config/env.js';
+
+const GENRE_IDS = {
+    ACTION: 28,
+    ADVENTURE: 12,
+    ANIMATION: 16,
+    COMEDY: 35,
+    CRIME: 80,
+    DOCUMENTARY: 99,
+    DRAMA: 18,
+    FAMILY: 10751,
+    FANTASY: 14,
+    HISTORY: 36,
+    HORROR: 27,
+    MUSIC: 10402,
+    MYSTERY: 9648,
+    ROMANCE: 10749,
+    SCIFI: 878,
+    THRILLER: 53,
+    WAR: 10752,
+    WESTERN: 37
+};
 
 export class LibraryTab {
     constructor() {
@@ -49,7 +64,6 @@ export class LibraryTab {
         this.isLoading = true;
 
         try {
-            const tmdbService = tmdbService();
             if (!tmdbService) {
                 this.hasMorePages = false;
                 return;
@@ -60,15 +74,20 @@ export class LibraryTab {
             if (page === 1) {
                 console.log('[Library] Loading initial collection...');
                 const sources = await Promise.all([
-                    tmdbService.fetchPopularMovies(8),
-                    tmdbService.fetchTrendingMovies(),
-                    tmdbService.fetchTopRatedMovies(8),
-                    tmdbService.fetchUpcomingMovies(4),
-                    tmdbService.fetchNowPlayingMovies(4)
+                    tmdbService.getPopularMovies(1).catch(() => []),
+                    tmdbService.getTrendingMovies('week').catch(() => []),
+                    tmdbService.discoverMovies({ sortBy: 'vote_average.desc', minVotes: 1000, page: 1 }).catch(() => ({ movies: [] }))
                 ]);
 
+                const popularMovies = sources[0] || [];
+                const trendingMovies = sources[1] || [];
+                const topRatedResult = sources[2];
+                const topRatedMovies = topRatedResult.movies || topRatedResult || [];
+
                 const map = new Map();
-                sources.flat().forEach(m => map.set(m.id, m));
+                [...popularMovies, ...trendingMovies, ...topRatedMovies].forEach(m => {
+                    if (m && m.id) map.set(m.id, m);
+                });
                 this.allMovies = Array.from(map.values());
             }
 
@@ -84,7 +103,7 @@ export class LibraryTab {
             }
 
             const data = await response.json();
-            newMovies = data.results.map(m => tmdbService.transformMovie(m));
+            newMovies = data.results.map(m => tmdbService.processMovie(m));
 
             if (newMovies.length === 0 || page >= data.total_pages || page >= 500) {
                 console.log(`[Library] Reached end. Total pages: ${data.total_pages}, Current page: ${page}`);
@@ -141,7 +160,6 @@ export class LibraryTab {
         `;
     }
 
-    // ✅ FIX #1: ADDED MISSING METHOD
     getButtonStyle(isActive, activeGradient, defaultBg = 'rgba(255,255,255,0.05)') {
         const bg = isActive ? activeGradient : defaultBg;
         const borderColor = isActive 
@@ -265,7 +283,7 @@ export class LibraryTab {
         }
         if (this.currentGenre !== 'all') {
             const genreId = parseInt(this.currentGenre);
-            moviesToShow = moviesToShow.filter(m => m.genre_ids?.includes(genreId));
+            moviesToShow = moviesToShow.filter(m => (m.genre_ids || m.genreIds)?.includes(genreId));
         }
         if (this.currentPlatform !== 'all') {
             moviesToShow = moviesToShow.filter(m => m.platform === this.currentPlatform);
@@ -292,16 +310,16 @@ export class LibraryTab {
     }
 
     renderMovieCard(movie) {
-        const posterUrl = movie.poster_path || `https://placehold.co/300x450/1a1a2e/ffffff?text=${encodeURIComponent(movie.title)}`;
+        const posterUrl = movie.posterURL || movie.poster_path || `https://placehold.co/300x450/1a1a2e/ffffff?text=${encodeURIComponent(movie.title)}`;
 
         return `
             <div class="library-movie-card" data-movie-id="${movie.id}">
                 <div style="position:relative;width:100%;aspect-ratio:2/3;border-radius:0.75rem;overflow:hidden;background:rgba(255,255,255,0.05);box-shadow:0 4px 16px rgba(0,0,0,0.3);transition:transform 0.3s;cursor:pointer;">
                     <img src="${posterUrl}" alt="${movie.title}" style="width:100%;height:100%;object-fit:cover;"
                          onerror="this.src='https://placehold.co/300x450/1a1a2e/ffffff?text=${encodeURIComponent(movie.title)}'">
-                    ${movie.vote_average ? `
+                    ${movie.vote_average || movie.rating ? `
                         <div style="position:absolute;top:0.5rem;right:0.5rem;padding:0.25rem 0.5rem;background:rgba(251,191,36,0.9);border-radius:0.5rem;">
-                            <span style="color:white;font-size:0.75rem;font-weight:700;">${movie.vote_average.toFixed(1)}</span>
+                            <span style="color:white;font-size:0.75rem;font-weight:700;">${(movie.vote_average || movie.rating).toFixed(1)}</span>
                         </div>
                     ` : ''}
                     <div style="position:absolute;bottom:0;left:0;right:0;padding:0.75rem 0.5rem;background:linear-gradient(0deg,rgba(0,0,0,0.9),transparent);">
@@ -309,7 +327,7 @@ export class LibraryTab {
                             ${movie.title}
                         </h3>
                         <p style="font-size:0.6875rem;color:rgba(255,255,255,0.7);margin:0.25rem 0 0 0;">
-                            ${movie.year || ''}${movie.runtime ? ` • ${movie.runtime}` : ''}
+                            ${movie.year || movie.releaseDate?.split('-')[0] || ''}${movie.runtime ? ` • ${movie.runtime}` : ''}
                         </p>
                     </div>
                 </div>
@@ -379,7 +397,6 @@ export class LibraryTab {
         console.log(`[Search] Searching TMDB for: "${query}"`);
         
         try {
-            const tmdbService = tmdbService();
             if (!tmdbService) return;
 
             const response = await fetch(
@@ -392,7 +409,7 @@ export class LibraryTab {
             }
 
             const data = await response.json();
-            const searchResults = data.results.map(m => tmdbService.transformMovie(m));
+            const searchResults = data.results.map(m => tmdbService.processMovie(m));
             
             console.log(`[Search] Found ${searchResults.length} results`);
             
