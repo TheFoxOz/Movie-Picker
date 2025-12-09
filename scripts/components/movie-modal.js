@@ -3,7 +3,7 @@
  * Shows detailed movie information with TRAILER and DDD warnings
  */
 
-import { getTMDBService } from '../services/tmdb.js';
+import { tmdbService } from '../services/tmdb.js';
 import { ENV } from '../config/env.js';
 
 class MovieModal {
@@ -31,7 +31,6 @@ class MovieModal {
         // Fetch trailer from TMDB
         if (movie.id) {
             try {
-                const tmdbService = getTMDBService();
                 const trailerKey = await tmdbService.getMovieTrailer(movie.id);
                 this.trailerKey = trailerKey;
                 
@@ -45,7 +44,6 @@ class MovieModal {
 
         // Fetch trigger warnings if not loaded
         if (!movie.warningsLoaded) {
-            const tmdbService = getTMDBService();
             if (tmdbService) {
                 tmdbService.fetchTriggerWarnings(movie);
             }
