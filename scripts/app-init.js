@@ -1,6 +1,7 @@
 /**
  * App Initialization
  * Handles app startup, onboarding flow, and tab navigation
+ * ✅ INTEGRATED: user-profile-revised.js for proper user settings
  */
 
 import { onboardingFlow } from './components/onboarding-flow.js';
@@ -11,6 +12,7 @@ import { HomeTab } from './tabs/home.js';
 import { MatchesTab } from './tabs/matches.js';
 import { store } from './state/store.js';
 import { authService } from './services/auth-service.js';
+import { userProfileService } from './services/user-profile-revised.js';
 
 class MoviePickerApp {
     constructor() {
@@ -19,7 +21,6 @@ class MoviePickerApp {
         this.container = null;
         this.bottomNav = null;
         this.services = {
-            availability: null,
             triggerWarnings: null,
             userProfile: null
         };
@@ -28,13 +29,13 @@ class MoviePickerApp {
     async init() {
         console.log('[App] Initializing Movie Picker App...');
 
-        // Load preferences from localStorage
-        this.loadPreferences();
-        
-        // Initialize enhanced services (availability + trigger warnings)
+        // ✅ NEW: Initialize user profile service first
+        this.initializeUserProfile();
+
+        // Initialize enhanced services
         await this.initializeEnhancedServices();
 
-        // Initialize tabs FIRST
+        // Initialize tabs
         console.log('[App] Initializing tabs...');
         this.tabs = {
             home: new HomeTab(),
@@ -52,14 +53,11 @@ class MoviePickerApp {
         const needsOnboarding = await onboardingFlow.start();
 
         if (!needsOnboarding) {
-            // User already onboarded, show app
             console.log('[App] User already onboarded, showing app');
             this.showApp();
         } else {
-            // Onboarding will handle showing the app
             console.log('[App] Starting onboarding flow');
             
-            // Listen for onboarding completion
             const handleNavigation = (e) => {
                 console.log('[App] Onboarding complete, showing app');
                 this.showApp();
@@ -71,49 +69,82 @@ class MoviePickerApp {
         }
     }
 
-    loadPreferences() {
-        try {
-            const saved = localStorage.getItem('moviePickerPreferences');
-            if (saved) {
-                const preferences = JSON.parse(saved);
-                store.setState({ preferences });
-                console.log('[App] Loaded preferences from localStorage');
+    // ✅ NEW: Initialize user profile service
+    initializeUserProfile() {
+        console.log('[App] Initializing user profile...');
+        
+        const profile = userProfileService.getProfile();
+        
+        // Sync profile to store for backwards compatibility
+        store.setState({ 
+            userProfile: profile,
+            preferences: {
+                platforms: profile.selectedPlatforms.reduce((acc, platform) => {
+                    acc[platform] = true;
+                    return acc;
+                }, {}),
+                region: profile.region,
+                triggerWarnings: profile.triggerWarnings,
+                theme: profile.theme,
+                language: profile.language,
+                location: profile.location
             }
-        } catch (error) {
-            console.error('[App] Failed to load preferences:', error);
-        }
+        });
+        
+        console.log('[App] ✅ User profile initialized');
+        console.log('[App] Region:', profile.region);
+        console.log('[App] Platforms:', profile.selectedPlatforms);
+        console.log('[App] Trigger categories:', profile.triggerWarnings.enabledCategories.length);
+        
+        // Listen for profile updates
+        this.setupProfileListeners();
+    }
 
-        // Load swipe history
-        try {
-            const savedHistory = localStorage.getItem('moviePickerSwipeHistory');
-            if (savedHistory) {
-                const swipeHistory = JSON.parse(savedHistory);
-                store.setState({ swipeHistory });
-                console.log(`[App] Loaded ${swipeHistory.length} swipes from localStorage`);
+    // ✅ NEW: Setup profile event listeners
+    setupProfileListeners() {
+        // Region changed
+        window.addEventListener('profile-region-updated', (e) => {
+            console.log('[App] Region changed to:', e.detail.region);
+            
+            const preferences = store.getState().preferences || {};
+            preferences.region = e.detail.region;
+            store.setState({ preferences });
+            
+            if (this.currentTab === 'home' || this.currentTab === 'library') {
+                this.renderCurrentTab();
             }
-        } catch (error) {
-            console.error('[App] Failed to load swipe history:', error);
-        }
+        });
+
+        // Platforms changed
+        window.addEventListener('profile-platforms-updated', (e) => {
+            console.log('[App] Platforms updated:', e.detail.platforms);
+            
+            const preferences = store.getState().preferences || {};
+            preferences.platforms = e.detail.platforms.reduce((acc, platform) => {
+                acc[platform] = true;
+                return acc;
+            }, {});
+            store.setState({ preferences });
+            
+            window.dispatchEvent(new CustomEvent('preferences-updated', {
+                detail: preferences
+            }));
+        });
+
+        // Trigger warnings changed
+        window.addEventListener('profile-triggers-updated', (e) => {
+            console.log('[App] Trigger preferences updated');
+            
+            const preferences = store.getState().preferences || {};
+            preferences.triggerWarnings = e.detail.triggers;
+            store.setState({ preferences });
+        });
+
+        console.log('[App] ✅ Profile event listeners registered');
     }
 
     async initializeEnhancedServices() {
         console.log('[App] Initializing enhanced services...');
-        
-        // Load availability service
-        try {
-            const { availabilityService } = await import('./services/availability-service.js');
-            const { ENV } = await import('./config/env.js');
-            
-            if (availabilityService && ENV && ENV.TMDB_API_KEY) {
-                await availabilityService.initialize('tmdb', ENV.TMDB_API_KEY);
-                this.services.availability = availabilityService;
-                console.log('[App] ✅ Availability service ready (TMDB)');
-            } else {
-                console.warn('[App] ⚠️ Availability service: Missing TMDB key');
-            }
-        } catch (error) {
-            console.warn('[App] ⚠️ Availability service not loaded:', error.message);
-        }
         
         // Load trigger warning service
         try {
@@ -131,47 +162,25 @@ class MoviePickerApp {
             console.warn('[App] ⚠️ Trigger warning service not loaded:', error.message);
         }
         
-        // Load user profile service
-        try {
-            const { userProfileService } = await import('./services/user-profile-revised.js');
-            
-            if (userProfileService) {
-                this.services.userProfile = userProfileService;
-                console.log('[App] ✅ User profile service ready');
-                console.log('[App] User region:', userProfileService.getRegion());
-            }
-        } catch (error) {
-            console.warn('[App] ⚠️ User profile service not loaded:', error.message);
-        }
+        // User profile service already initialized
+        this.services.userProfile = userProfileService;
         
-        // Summary
         const loadedServices = Object.entries(this.services)
             .filter(([_, service]) => service !== null)
             .map(([name]) => name);
         
-        if (loadedServices.length > 0) {
-            console.log(`[App] ✅ Loaded ${loadedServices.length}/3 enhanced services:`, loadedServices);
-        } else {
-            console.log('[App] ℹ️ No enhanced services loaded (continuing with basic features)');
-        }
+        console.log(`[App] ✅ Loaded ${loadedServices.length}/2 enhanced services:`, loadedServices);
         
-        // Make services available globally for debugging
         if (typeof window !== 'undefined') {
             window.moviePickerServices = this.services;
         }
     }
 
     setupDOM() {
-        // Main container
         this.container = document.getElementById('app-container') || this.createAppContainer();
-
-        // Bottom navigation
         this.bottomNav = document.getElementById('bottom-nav') || this.createBottomNav();
-
-        // Setup navigation listeners
         this.setupNavigationListeners();
 
-        // Listen for navigation events
         window.addEventListener('navigate-to-tab', (e) => {
             this.navigateToTab(e.detail);
         });
@@ -180,10 +189,7 @@ class MoviePickerApp {
     createAppContainer() {
         const container = document.createElement('div');
         container.id = 'app-container';
-        container.style.cssText = `
-            min-height: 100vh;
-            padding-bottom: 5rem;
-        `;
+        container.style.cssText = 'min-height: 100vh; padding-bottom: 5rem;';
         document.body.appendChild(container);
         return container;
     }
@@ -191,17 +197,7 @@ class MoviePickerApp {
     createBottomNav() {
         const nav = document.createElement('nav');
         nav.id = 'bottom-nav';
-        nav.style.cssText = `
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: rgba(17, 17, 27, 0.95);
-            backdrop-filter: blur(10px);
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-            padding: 0.5rem;
-            z-index: 1000;
-        `;
+        nav.style.cssText = 'position: fixed; bottom: 0; left: 0; right: 0; background: rgba(17, 17, 27, 0.95); backdrop-filter: blur(10px); border-top: 1px solid rgba(255, 255, 255, 0.1); padding: 0.5rem; z-index: 1000;';
 
         nav.innerHTML = `
             <div style="display: flex; justify-content: space-around; max-width: 600px; margin: 0 auto;">
@@ -220,22 +216,7 @@ class MoviePickerApp {
     renderNavButton(tabName, icon, label) {
         const isActive = this.currentTab === tabName;
         return `
-            <button class="nav-btn" data-tab="${tabName}" style="
-                flex: 1;
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                gap: 0.25rem;
-                padding: 0.75rem 0.5rem;
-                background: ${isActive ? 'rgba(255, 46, 99, 0.1)' : 'transparent'};
-                border: none;
-                border-radius: 0.75rem;
-                color: ${isActive ? '#ff2e63' : 'rgba(255, 255, 255, 0.6)'};
-                font-size: 0.75rem;
-                font-weight: ${isActive ? '700' : '600'};
-                cursor: pointer;
-                transition: all 0.3s;
-            ">
+            <button class="nav-btn" data-tab="${tabName}" style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 0.25rem; padding: 0.75rem 0.5rem; background: ${isActive ? 'rgba(255, 46, 99, 0.1)' : 'transparent'}; border: none; border-radius: 0.75rem; color: ${isActive ? '#ff2e63' : 'rgba(255, 255, 255, 0.6)'}; font-size: 0.75rem; font-weight: ${isActive ? '700' : '600'}; cursor: pointer; transition: all 0.3s;">
                 <span style="font-size: 1.5rem;">${icon}</span>
                 <span>${label}</span>
             </button>
@@ -246,37 +227,22 @@ class MoviePickerApp {
         this.bottomNav.addEventListener('click', (e) => {
             const btn = e.target.closest('.nav-btn');
             if (btn) {
-                const tabName = btn.dataset.tab;
-                this.navigateToTab(tabName);
+                this.navigateToTab(btn.dataset.tab);
             }
         });
     }
 
     navigateToTab(tabName) {
-        if (!tabName) {
-            console.warn('[App] No tab name provided to navigateToTab');
-            return;
-        }
+        if (!tabName) return;
 
-        if (this.currentTab === tabName) {
-            console.log(`[App] Already on ${tabName} tab, re-rendering anyway`);
-            // Don't skip - re-render the current tab
-        } else {
-            console.log(`[App] Navigating from ${this.currentTab} to ${tabName} tab`);
-        }
-
+        console.log(`[App] Navigating to ${tabName} tab`);
         this.currentTab = tabName;
 
-        // WORKAROUND: Force re-initialize SwipeTab every time
         if (tabName === 'swipe') {
-            console.log('[App] Re-initializing SwipeTab');
             this.tabs.swipe = new SwipeTab();
         }
 
-        // Update navigation UI
         this.updateNavigation();
-
-        // Render tab
         this.renderCurrentTab();
     }
 
@@ -291,124 +257,37 @@ class MoviePickerApp {
     }
 
     async renderCurrentTab() {
-        if (!this.container) {
-            console.error('[App] No container found!');
-            return;
-        }
+        if (!this.container) return;
 
-        console.log(`[App] Rendering ${this.currentTab} tab...`);
+        this.container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:calc(100vh - 15rem);"><div style="width:48px;height:48px;border:4px solid rgba(255,46,99,0.3);border-top-color:#ff2e63;border-radius:50%;animation:spin 1s linear infinite;"></div></div><style>@keyframes spin { to { transform: rotate(360deg); }}</style>';
 
-        // Clear container completely
-        this.container.innerHTML = '';
-        this.container.style.display = 'block';
-
-        // Show loading state
-        this.container.innerHTML = `
-            <div style="display:flex;align-items:center;justify-content:center;height:calc(100vh - 15rem);flex-direction:column;gap:1rem;">
-                <div style="width:48px;height:48px;border:4px solid rgba(255,46,99,0.3);border-top-color:#ff2e63;border-radius:50%;animation:spin 1s linear infinite;"></div>
-                <div style="color:rgba(255,255,255,0.6);">Loading ${this.currentTab}...</div>
-            </div>
-            <style>
-                @keyframes spin {
-                    to { transform: rotate(360deg); }
-                }
-            </style>
-        `;
-
-        // Small delay to show loading state
         await new Promise(resolve => setTimeout(resolve, 100));
 
-        // Clear again before rendering
         this.container.innerHTML = '';
 
-        // Render selected tab
         const tab = this.tabs[this.currentTab];
         if (tab && typeof tab.render === 'function') {
             try {
-                console.log(`[App] Calling ${this.currentTab}.render()`);
                 await tab.render(this.container);
-                console.log(`[App] ✅ Rendered ${this.currentTab} tab successfully`);
-                
-                // Verify content was added
-                if (!this.container.innerHTML || this.container.innerHTML.trim() === '') {
-                    console.error(`[App] ⚠️ ${this.currentTab} tab rendered but container is empty!`);
-                    this.container.innerHTML = `
-                        <div style="display:flex;align-items:center;justify-content:center;height:calc(100vh - 15rem);flex-direction:column;gap:1rem;padding:2rem;text-align:center;">
-                            <div style="font-size:3rem;">⚠️</div>
-                            <div style="color:white;font-weight:700;font-size:1.25rem;">${this.currentTab} Tab Empty</div>
-                            <div style="color:rgba(255,255,255,0.6);font-size:0.875rem;">The tab rendered but didn't add any content</div>
-                            <button onclick="location.reload()" style="padding:0.75rem 1.5rem;background:linear-gradient(135deg,#ff2e63,#d90062);border:none;border-radius:0.75rem;color:white;font-weight:700;cursor:pointer;">
-                                Reload App
-                            </button>
-                        </div>
-                    `;
-                }
+                console.log(`[App] ✅ Rendered ${this.currentTab} tab`);
             } catch (error) {
-                console.error(`[App] ❌ Error rendering ${this.currentTab} tab:`, error);
-                console.error('[App] Error stack:', error.stack);
-                this.container.innerHTML = `
-                    <div style="display:flex;align-items:center;justify-content:center;height:calc(100vh - 15rem);flex-direction:column;gap:1rem;padding:2rem;">
-                        <div style="font-size:3rem;">⚠️</div>
-                        <div style="color:white;font-weight:700;font-size:1.25rem;">Error Loading ${this.currentTab}</div>
-                        <div style="color:rgba(255,255,255,0.6);font-size:0.875rem;max-width:400px;text-align:center;">${error.message}</div>
-                        <button onclick="console.log('Error details:', ${JSON.stringify({error: error.message, stack: error.stack})})" style="padding:0.5rem 1rem;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:0.5rem;color:white;font-weight:600;cursor:pointer;margin-top:0.5rem;">
-                            Show Details in Console
-                        </button>
-                        <button onclick="location.reload()" style="padding:0.75rem 1.5rem;background:linear-gradient(135deg,#ff2e63,#d90062);border:none;border-radius:0.75rem;color:white;font-weight:700;cursor:pointer;">
-                            Reload App
-                        </button>
-                    </div>
-                `;
+                console.error(`[App] ❌ Error rendering ${this.currentTab}:`, error);
             }
-        } else {
-            console.error(`[App] Tab not found or invalid: ${this.currentTab}`);
-            console.log('[App] Available tabs:', Object.keys(this.tabs));
-            console.log('[App] Tab object:', tab);
-            this.container.innerHTML = `
-                <div style="display:flex;align-items:center;justify-content:center;height:calc(100vh - 15rem);flex-direction:column;gap:1rem;">
-                    <div style="font-size:3rem;">❌</div>
-                    <div style="color:white;font-weight:700;">Tab Not Found</div>
-                    <div style="color:rgba(255,255,255,0.6);">${this.currentTab}</div>
-                    <div style="color:rgba(255,255,255,0.4);font-size:0.75rem;margin-top:1rem;">Available: ${Object.keys(this.tabs).join(', ')}</div>
-                </div>
-            `;
         }
     }
 
     showApp() {
-        // Ensure app container and nav are visible
-        if (this.container) {
-            this.container.style.display = 'block';
-        }
-        if (this.bottomNav) {
-            this.bottomNav.style.display = 'flex'; // Changed from 'block' to 'flex'
-        }
+        if (this.container) this.container.style.display = 'block';
+        if (this.bottomNav) this.bottomNav.style.display = 'flex';
         
-        // Show header
         const header = document.getElementById('app-header');
-        if (header) {
-            header.style.display = 'block';
-        }
+        if (header) header.style.display = 'block';
 
-        // Render current tab
         this.renderCurrentTab();
-
-        // Save preferences on changes
         this.setupPreferencesSync();
     }
 
     setupPreferencesSync() {
-        // Listen for preference updates
-        window.addEventListener('preferences-updated', (e) => {
-            try {
-                localStorage.setItem('moviePickerPreferences', JSON.stringify(e.detail));
-                console.log('[App] Preferences synced to localStorage');
-            } catch (error) {
-                console.error('[App] Failed to sync preferences:', error);
-            }
-        });
-
-        // Listen for swipe history updates
         store.subscribe((state) => {
             try {
                 if (state.swipeHistory) {
@@ -421,7 +300,7 @@ class MoviePickerApp {
     }
 }
 
-// Initialize app when DOM is ready
+// Initialize app
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
         const app = new MoviePickerApp();
