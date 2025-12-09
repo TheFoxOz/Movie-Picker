@@ -1,430 +1,383 @@
 /**
- * TMDB Service with DoesTheDogDie Integration
- * Handles all interactions with The Movie Database API
+ * TMDB Service - Movie Database API Integration
+ * ✅ INTEGRATED: trigger-warning-service.js for categorized warnings
+ * ✅ INTEGRATED: user-profile-revised.js for region/preference filtering
  */
 
-import { ENV } from '../config/env.js';
 import { doesTheDogDieService } from './does-the-dog-die.js';
-
-// Genre IDs from TMDB
-export const GENRE_IDS = {
-    ACTION: 28,
-    ADVENTURE: 12,
-    ANIMATION: 16,
-    COMEDY: 35,
-    CRIME: 80,
-    DOCUMENTARY: 99,
-    DRAMA: 18,
-    FAMILY: 10751,
-    FANTASY: 14,
-    HISTORY: 36,
-    HORROR: 27,
-    MUSIC: 10402,
-    MYSTERY: 9648,
-    ROMANCE: 10749,
-    SCIFI: 878,
-    THRILLER: 53,
-    WAR: 10752,
-    WESTERN: 37
-};
-
-// Genre ID to name mapping
-const GENRE_MAP = {
-    28: 'Action', 12: 'Adventure', 16: 'Animation', 35: 'Comedy', 80: 'Crime',
-    99: 'Documentary', 18: 'Drama', 10751: 'Family', 14: 'Fantasy', 36: 'History',
-    27: 'Horror', 10402: 'Music', 9648: 'Mystery', 10749: 'Romance', 878: 'Sci-Fi',
-    53: 'Thriller', 10752: 'War', 37: 'Western'
-};
+import { triggerWarningService } from './trigger-warning-service.js';
+import { userProfileService } from './user-profile-revised.js';
 
 class TMDBService {
-    constructor(apiKey) {
-        this.apiKey = apiKey;
-        this.baseUrl = 'https://api.themoviedb.org/3';
-        this.imageBaseUrl = 'https://image.tmdb.org/t/p';
+    constructor() {
+        this.apiKey = null;
+        this.baseURL = 'https://api.themoviedb.org/3';
+        this.imageBaseURL = 'https://image.tmdb.org/t/p';
+        this.cache = {
+            movies: new Map(),
+            genres: new Map(),
+            triggerWarnings: new Map()
+        };
+        this.genreList = [];
+        this.isInitialized = false;
     }
-    
-    /**
-     * Transform TMDB movie data to our app format
-     */
-    transformMovie(tmdbMovie) {
-        const platforms = ['Netflix', 'Hulu', 'Prime Video', 'Disney+', 'HBO Max', 'Apple TV+'];
-        
-        // Deterministic platform assignment (same movie = same platform)
-        const seed = (tmdbMovie.release_date || '2000') + (tmdbMovie.title || '');
-        let hash = 0;
-        for (let i = 0; i < seed.length; i++) {
-            hash = ((hash << 5) - hash) + seed.charCodeAt(i);
-            hash = hash & hash;
+
+    async initialize(apiKey) {
+        if (!apiKey) {
+            console.error('[TMDB] ❌ No API key provided');
+            return false;
         }
-        const platform = platforms[Math.abs(hash) % platforms.length];
+
+        this.apiKey = apiKey;
         
-        const primaryGenre = tmdbMovie.genre_ids && tmdbMovie.genre_ids.length > 0
-            ? GENRE_MAP[tmdbMovie.genre_ids[0]] || 'Drama'
-            : 'Drama';
+        try {
+            await this.loadGenres();
+            this.isInitialized = true;
+            console.log('[TMDB] ✅ Service initialized');
+            return true;
+        } catch (error) {
+            console.error('[TMDB] ❌ Initialization failed:', error);
+            return false;
+        }
+    }
+
+    async loadGenres() {
+        try {
+            const response = await fetch(
+                `${this.baseURL}/genre/movie/list?api_key=${this.apiKey}`
+            );
+            const data = await response.json();
+            
+            this.genreList = data.genres || [];
+            this.genreList.forEach(genre => {
+                this.cache.genres.set(genre.id, genre.name);
+            });
+            
+            console.log('[TMDB] ✅ Loaded genres:', this.genreList.length);
+        } catch (error) {
+            console.error('[TMDB] ❌ Failed to load genres:', error);
+            throw error;
+        }
+    }
+
+    getGenreNames(genreIds) {
+        if (!genreIds || !Array.isArray(genreIds)) return [];
+        return genreIds
+            .map(id => this.cache.genres.get(id))
+            .filter(Boolean);
+    }
+
+    getImageURL(path, size = 'w500') {
+        if (!path) return null;
+        return `${this.imageBaseURL}/${size}${path}`;
+    }
+
+    // ✅ UPDATED: Fetch trigger warnings with categorization and user filtering
+    async fetchTriggerWarnings(movie) {
+        if (!movie || !movie.id) {
+            console.warn('[TMDB] No movie ID provided for trigger warnings');
+            return [];
+        }
+
+        // Check cache first
+        if (this.cache.triggerWarnings.has(movie.id)) {
+            return this.cache.triggerWarnings.get(movie.id);
+        }
+
+        try {
+            console.log(`[TMDB] Fetching trigger warnings for: ${movie.title}`);
+            
+            // Get raw warnings from DoesTheDogDie service
+            const rawWarnings = await doesTheDogDieService.getContentWarnings(movie.id);
+            
+            if (!rawWarnings || rawWarnings.length === 0) {
+                console.log('[TMDB] No trigger warnings found');
+                this.cache.triggerWarnings.set(movie.id, []);
+                return [];
+            }
+
+            // ✅ NEW: Use trigger warning service to categorize
+            const categorizedWarnings = await triggerWarningService.getWarnings(movie.id);
+            
+            if (!categorizedWarnings || !categorizedWarnings.categories) {
+                // Fallback to raw warnings if service fails
+                console.warn('[TMDB] Trigger warning service failed, using raw warnings');
+                this.cache.triggerWarnings.set(movie.id, rawWarnings);
+                return rawWarnings;
+            }
+
+            // ✅ NEW: Filter by user preferences
+            const userProfile = userProfileService.getProfile();
+            const enabledCategories = userProfile.triggerWarnings.enabledCategories;
+            const showAllWarnings = userProfile.triggerWarnings.showAllWarnings;
+
+            const filteredWarnings = triggerWarningService.filterByUserPreferences(
+                categorizedWarnings,
+                enabledCategories,
+                showAllWarnings
+            );
+
+            console.log(`[TMDB] ✅ Processed ${filteredWarnings.categories.length} categorized warnings`);
+            console.log(`[TMDB] Total items: ${filteredWarnings.totalWarnings}`);
+
+            // Cache the filtered warnings
+            this.cache.triggerWarnings.set(movie.id, filteredWarnings.categories);
+            
+            // Add to movie object
+            movie.triggerWarnings = filteredWarnings.categories;
+            movie.triggerWarningCount = filteredWarnings.totalWarnings;
+            movie.hasTriggerWarnings = filteredWarnings.totalWarnings > 0;
+
+            return filteredWarnings.categories;
+
+        } catch (error) {
+            console.error('[TMDB] ❌ Failed to fetch trigger warnings:', error);
+            this.cache.triggerWarnings.set(movie.id, []);
+            return [];
+        }
+    }
+
+    // ✅ UPDATED: Discover movies with region filtering
+    async discoverMovies(options = {}) {
+        const userProfile = userProfileService.getProfile();
         
+        const params = new URLSearchParams({
+            api_key: this.apiKey,
+            language: 'en-US',
+            sort_by: options.sortBy || 'popularity.desc',
+            page: options.page || 1,
+            include_adult: false,
+            include_video: false,
+            // ✅ NEW: Use user's region for proper localization
+            region: userProfile.region || 'US',
+            watch_region: userProfile.region || 'US'
+        });
+
+        // Add optional filters
+        if (options.withGenres) {
+            params.append('with_genres', options.withGenres);
+        }
+        if (options.year) {
+            params.append('primary_release_year', options.year);
+        }
+        if (options.minRating) {
+            params.append('vote_average.gte', options.minRating);
+        }
+        if (options.minVotes) {
+            params.append('vote_count.gte', options.minVotes || 100);
+        }
+
+        try {
+            const response = await fetch(
+                `${this.baseURL}/discover/movie?${params.toString()}`
+            );
+            const data = await response.json();
+            
+            console.log(`[TMDB] ✅ Discovered ${data.results?.length || 0} movies (page ${options.page})`);
+            
+            return {
+                movies: this.processMovies(data.results || []),
+                totalPages: data.total_pages,
+                totalResults: data.total_results,
+                page: data.page
+            };
+        } catch (error) {
+            console.error('[TMDB] ❌ Discovery failed:', error);
+            return { movies: [], totalPages: 0, totalResults: 0, page: 1 };
+        }
+    }
+
+    // ✅ UPDATED: Get popular movies with region filtering
+    async getPopularMovies(page = 1) {
+        const userProfile = userProfileService.getProfile();
+        
+        const params = new URLSearchParams({
+            api_key: this.apiKey,
+            language: 'en-US',
+            page: page,
+            // ✅ NEW: Use user's region
+            region: userProfile.region || 'US'
+        });
+
+        try {
+            const response = await fetch(
+                `${this.baseURL}/movie/popular?${params.toString()}`
+            );
+            const data = await response.json();
+            
+            console.log(`[TMDB] Loaded popular page ${page}, ${data.results?.length || 0} movies`);
+            
+            return this.processMovies(data.results || []);
+        } catch (error) {
+            console.error('[TMDB] ❌ Failed to load popular movies:', error);
+            return [];
+        }
+    }
+
+    // ✅ UPDATED: Get trending movies with region filtering
+    async getTrendingMovies(timeWindow = 'week') {
+        const userProfile = userProfileService.getProfile();
+        
+        const params = new URLSearchParams({
+            api_key: this.apiKey,
+            language: 'en-US',
+            // ✅ NEW: Use user's region
+            region: userProfile.region || 'US'
+        });
+
+        try {
+            const response = await fetch(
+                `${this.baseURL}/trending/movie/${timeWindow}?${params.toString()}`
+            );
+            const data = await response.json();
+            
+            console.log(`[TMDB] ✅ Loaded ${data.results?.length || 0} trending movies`);
+            
+            return this.processMovies(data.results || []);
+        } catch (error) {
+            console.error('[TMDB] ❌ Failed to load trending movies:', error);
+            return [];
+        }
+    }
+
+    async getMovieDetails(movieId) {
+        if (this.cache.movies.has(movieId)) {
+            return this.cache.movies.get(movieId);
+        }
+
+        const params = new URLSearchParams({
+            api_key: this.apiKey,
+            language: 'en-US',
+            append_to_response: 'credits,videos,similar,recommendations'
+        });
+
+        try {
+            const response = await fetch(
+                `${this.baseURL}/movie/${movieId}?${params.toString()}`
+            );
+            const movie = await response.json();
+            
+            const processed = this.processMovie(movie);
+            this.cache.movies.set(movieId, processed);
+            
+            return processed;
+        } catch (error) {
+            console.error('[TMDB] ❌ Failed to get movie details:', error);
+            return null;
+        }
+    }
+
+    async searchMovies(query, page = 1) {
+        const userProfile = userProfileService.getProfile();
+        
+        const params = new URLSearchParams({
+            api_key: this.apiKey,
+            language: 'en-US',
+            query: query,
+            page: page,
+            include_adult: false,
+            // ✅ NEW: Use user's region
+            region: userProfile.region || 'US'
+        });
+
+        try {
+            const response = await fetch(
+                `${this.baseURL}/search/movie?${params.toString()}`
+            );
+            const data = await response.json();
+            
+            return {
+                movies: this.processMovies(data.results || []),
+                totalPages: data.total_pages,
+                totalResults: data.total_results
+            };
+        } catch (error) {
+            console.error('[TMDB] ❌ Search failed:', error);
+            return { movies: [], totalPages: 0, totalResults: 0 };
+        }
+    }
+
+    processMovies(movies) {
+        return movies.map(movie => this.processMovie(movie));
+    }
+
+    processMovie(movie) {
         return {
-            id: tmdbMovie.id,
-            title: tmdbMovie.title,
-            year: tmdbMovie.release_date ? new Date(tmdbMovie.release_date).getFullYear() : null,
-            release_date: tmdbMovie.release_date,
-            genre: primaryGenre,
-            genre_ids: tmdbMovie.genre_ids || [],
-            synopsis: tmdbMovie.overview || 'No synopsis available.',
-            overview: tmdbMovie.overview,
-            imdb: tmdbMovie.vote_average ? tmdbMovie.vote_average.toFixed(1) : 'N/A',
-            vote_average: tmdbMovie.vote_average,
-            vote_count: tmdbMovie.vote_count,
-            poster_path: tmdbMovie.poster_path 
-                ? `${this.imageBaseUrl}/w500${tmdbMovie.poster_path}` 
-                : null,
-            backdrop_path: tmdbMovie.backdrop_path
-                ? `${this.imageBaseUrl}/w1280${tmdbMovie.backdrop_path}`
-                : null,
-            platform: platform,
-            cast: tmdbMovie.credits?.cast?.slice(0, 6).map(p => p.name) || [],
-            runtime: tmdbMovie.runtime ? `${tmdbMovie.runtime} min` : null,
-            imdb_id: tmdbMovie.imdb_id || null,
-            triggerWarnings: [], // Will be populated by DDD
-            warningsLoaded: false,
-            popularity: tmdbMovie.popularity
+            id: movie.id,
+            title: movie.title,
+            originalTitle: movie.original_title,
+            overview: movie.overview,
+            releaseDate: movie.release_date,
+            rating: movie.vote_average,
+            voteCount: movie.vote_count,
+            popularity: movie.popularity,
+            genres: this.getGenreNames(movie.genre_ids || movie.genres?.map(g => g.id)),
+            genreIds: movie.genre_ids || movie.genres?.map(g => g.id) || [],
+            posterPath: movie.poster_path,
+            backdropPath: movie.backdrop_path,
+            posterURL: this.getImageURL(movie.poster_path),
+            backdropURL: this.getImageURL(movie.backdrop_path, 'w780'),
+            adult: movie.adult,
+            originalLanguage: movie.original_language,
+            // Additional details if available
+            runtime: movie.runtime,
+            budget: movie.budget,
+            revenue: movie.revenue,
+            status: movie.status,
+            tagline: movie.tagline,
+            homepage: movie.homepage,
+            // Credits
+            cast: movie.credits?.cast?.slice(0, 10),
+            crew: movie.credits?.crew,
+            director: movie.credits?.crew?.find(p => p.job === 'Director'),
+            // Videos
+            trailer: movie.videos?.results?.find(v => 
+                v.type === 'Trailer' && v.site === 'YouTube'
+            ),
+            // Similar/Recommended
+            similar: movie.similar?.results,
+            recommendations: movie.recommendations?.results,
+            // Trigger warnings (will be populated separately)
+            triggerWarnings: [],
+            hasTriggerWarnings: false,
+            triggerWarningCount: 0
         };
     }
 
-    /**
-     * Fetch trigger warnings from DoesTheDogDie (async)
-     */
-    async fetchTriggerWarnings(movie) {
-        if (movie.warningsLoaded) {
-            return movie.triggerWarnings;
+    // Helper to batch load trigger warnings for multiple movies
+    async loadTriggerWarningsForMovies(movies, options = {}) {
+        const { maxConcurrent = 3, delay = 100 } = options;
+        
+        console.log(`[TMDB] Loading trigger warnings for ${movies.length} movies...`);
+        
+        const results = [];
+        
+        for (let i = 0; i < movies.length; i += maxConcurrent) {
+            const batch = movies.slice(i, i + maxConcurrent);
+            const promises = batch.map(movie => this.fetchTriggerWarnings(movie));
+            
+            await Promise.all(promises);
+            results.push(...batch);
+            
+            // Rate limiting delay
+            if (i + maxConcurrent < movies.length) {
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
         }
-
-        try {
-            const warnings = await doesTheDogDieService.getWarningsForMovie(
-                movie.title,
-                movie.imdb_id
-            );
-            
-            movie.triggerWarnings = warnings || [];
-            movie.warningsLoaded = true;
-            
-            // Dispatch event for UI updates
-            window.dispatchEvent(new CustomEvent('trigger-warnings-loaded', {
-                detail: { movieId: movie.id, warnings: movie.triggerWarnings }
-            }));
-            
-            return movie.triggerWarnings;
-            
-        } catch (error) {
-            console.error(`[TMDB] Failed to fetch warnings for ${movie.title}:`, error);
-            movie.warningsLoaded = true;
-            return [];
-        }
+        
+        console.log(`[TMDB] ✅ Loaded trigger warnings for ${results.length} movies`);
+        return results;
     }
 
-    /**
-     * Fetch popular movies
-     */
-    async fetchPopularMovies(pages = 5, startPage = 1) {
-        const allMovies = [];
-        
-        try {
-            for (let page = startPage; page < startPage + pages; page++) {
-                const response = await fetch(
-                    `${this.baseUrl}/movie/popular?api_key=${this.apiKey}&page=${page}&language=en-US`
-                );
-                
-                if (!response.ok) {
-                    console.error(`[TMDB] Failed to fetch popular movies page ${page}`);
-                    break;
-                }
-                
-                const data = await response.json();
-                const movies = data.results.map(movie => this.transformMovie(movie));
-                allMovies.push(...movies);
-                
-                if (ENV && ENV.DEBUG_MODE) {
-                    console.log(`[TMDB] Loaded popular page ${page}, ${movies.length} movies`);
-                }
-            }
-            
-            return allMovies;
-            
-        } catch (error) {
-            console.error('[TMDB] Error fetching popular movies:', error);
-            return allMovies;
-        }
-    }
-    
-    /**
-     * Fetch trending movies (this week)
-     */
-    async fetchTrendingMovies() {
-        try {
-            const response = await fetch(
-                `${this.baseUrl}/trending/movie/week?api_key=${this.apiKey}`
-            );
-            
-            if (!response.ok) {
-                throw new Error('Failed to fetch trending movies');
-            }
-            
-            const data = await response.json();
-            return data.results.map(movie => this.transformMovie(movie));
-            
-        } catch (error) {
-            console.error('[TMDB] Error fetching trending movies:', error);
-            return [];
-        }
-    }
-    
-    /**
-     * Fetch top-rated movies
-     */
-    async fetchTopRatedMovies(pages = 5) {
-        const allMovies = [];
-        
-        try {
-            for (let page = 1; page <= pages; page++) {
-                const response = await fetch(
-                    `${this.baseUrl}/movie/top_rated?api_key=${this.apiKey}&page=${page}&language=en-US`
-                );
-                
-                if (!response.ok) {
-                    console.error(`[TMDB] Failed to fetch top-rated movies page ${page}`);
-                    break;
-                }
-                
-                const data = await response.json();
-                const movies = data.results.map(movie => this.transformMovie(movie));
-                allMovies.push(...movies);
-                
-                if (ENV && ENV.DEBUG_MODE) {
-                    console.log(`[TMDB] Loaded top-rated page ${page}, ${movies.length} movies`);
-                }
-            }
-            
-            return allMovies;
-            
-        } catch (error) {
-            console.error('[TMDB] Error fetching top-rated movies:', error);
-            return allMovies;
-        }
-    }
-    
-    /**
-     * Fetch upcoming movies
-     */
-    async fetchUpcomingMovies(pages = 5) {
-        const allMovies = [];
-        
-        try {
-            for (let page = 1; page <= pages; page++) {
-                const response = await fetch(
-                    `${this.baseUrl}/movie/upcoming?api_key=${this.apiKey}&page=${page}&language=en-US`
-                );
-                
-                if (!response.ok) {
-                    console.error(`[TMDB] Failed to fetch upcoming movies page ${page}`);
-                    break;
-                }
-                
-                const data = await response.json();
-                const movies = data.results.map(movie => this.transformMovie(movie));
-                allMovies.push(...movies);
-                
-                if (ENV && ENV.DEBUG_MODE) {
-                    console.log(`[TMDB] Loaded upcoming page ${page}, ${movies.length} movies`);
-                }
-            }
-            
-            return allMovies;
-            
-        } catch (error) {
-            console.error('[TMDB] Error fetching upcoming movies:', error);
-            return allMovies;
-        }
-    }
-    
-    /**
-     * Fetch now playing movies
-     */
-    async fetchNowPlayingMovies(pages = 5) {
-        const allMovies = [];
-        
-        try {
-            for (let page = 1; page <= pages; page++) {
-                const response = await fetch(
-                    `${this.baseUrl}/movie/now_playing?api_key=${this.apiKey}&page=${page}&language=en-US`
-                );
-                
-                if (!response.ok) {
-                    console.error(`[TMDB] Failed to fetch now playing movies page ${page}`);
-                    break;
-                }
-                
-                const data = await response.json();
-                const movies = data.results.map(movie => this.transformMovie(movie));
-                allMovies.push(...movies);
-                
-                if (ENV && ENV.DEBUG_MODE) {
-                    console.log(`[TMDB] Loaded now playing page ${page}, ${movies.length} movies`);
-                }
-            }
-            
-            return allMovies;
-            
-        } catch (error) {
-            console.error('[TMDB] Error fetching now playing movies:', error);
-            return allMovies;
-        }
-    }
-    
-    /**
-     * Fetch movies by genre
-     */
-    async fetchMoviesByGenre(genreId, pages = 5) {
-        const allMovies = [];
-        
-        try {
-            for (let page = 1; page <= pages; page++) {
-                const response = await fetch(
-                    `${this.baseUrl}/discover/movie?api_key=${this.apiKey}&with_genres=${genreId}&page=${page}&language=en-US&sort_by=popularity.desc`
-                );
-                
-                if (!response.ok) {
-                    console.error(`[TMDB] Failed to fetch movies by genre ${genreId} page ${page}`);
-                    break;
-                }
-                
-                const data = await response.json();
-                const movies = data.results.map(movie => this.transformMovie(movie));
-                allMovies.push(...movies);
-                
-                if (ENV && ENV.DEBUG_MODE) {
-                    console.log(`[TMDB] Loaded genre ${genreId} page ${page}, ${movies.length} movies`);
-                }
-            }
-            
-            return allMovies;
-            
-        } catch (error) {
-            console.error('[TMDB] Error fetching movies by genre:', error);
-            return allMovies;
-        }
-    }
-    
-    /**
-     * Search movies by query
-     */
-    async searchMovies(query, pages = 3) {
-        const allMovies = [];
-        
-        try {
-            for (let page = 1; page <= pages; page++) {
-                const response = await fetch(
-                    `${this.baseUrl}/search/movie?api_key=${this.apiKey}&query=${encodeURIComponent(query)}&page=${page}&language=en-US`
-                );
-                
-                if (!response.ok) {
-                    console.error(`[TMDB] Failed to search movies page ${page}`);
-                    break;
-                }
-                
-                const data = await response.json();
-                const movies = data.results.map(movie => this.transformMovie(movie));
-                allMovies.push(...movies);
-                
-                if (data.results.length === 0) break; // No more results
-            }
-            
-            return allMovies;
-            
-        } catch (error) {
-            console.error('[TMDB] Error searching movies:', error);
-            return allMovies;
-        }
-    }
-    
-    /**
-     * Get movie details by ID
-     */
-    async getMovieDetails(movieId) {
-        try {
-            const response = await fetch(
-                `${this.baseUrl}/movie/${movieId}?api_key=${this.apiKey}&language=en-US&append_to_response=credits,videos`
-            );
-            
-            if (!response.ok) {
-                throw new Error('Failed to fetch movie details');
-            }
-            
-            const data = await response.json();
-            const movie = this.transformMovie(data);
-            
-            // Add cast
-            if (data.credits && data.credits.cast) {
-                movie.cast = data.credits.cast.slice(0, 5).map(person => person.name);
-            }
-            
-            // Add director
-            if (data.credits && data.credits.crew) {
-                const director = data.credits.crew.find(person => person.job === 'Director');
-                if (director) {
-                    movie.director = director.name;
-                }
-            }
-            
-            // Add trailer
-            if (data.videos && data.videos.results) {
-                const trailer = data.videos.results.find(video => 
-                    video.type === 'Trailer' && video.site === 'YouTube'
-                );
-                if (trailer) {
-                    movie.trailer = `https://www.youtube.com/watch?v=${trailer.key}`;
-                }
-            }
-
-            // Fetch trigger warnings in background
-            this.fetchTriggerWarnings(movie);
-            
-            return movie;
-            
-        } catch (error) {
-            console.error('[TMDB] Error fetching movie details:', error);
-            return null;
-        }
-    }
-
-    async getMovieTrailer(movieId) {
-        try {
-            const data = await this.request(`/movie/${movieId}/videos`);
-            const trailer = data.results.find(v => v.type === 'Trailer' && v.site === 'YouTube');
-            return trailer ? trailer.key : null;
-        } catch (e) {
-            console.error('[TMDB] Trailer fetch error:', e);
-            return null;
-        }
-    }
-
-    async request(endpoint, params = {}) {
-        const url = `${this.baseUrl}${endpoint}?api_key=${this.apiKey}&${new URLSearchParams(params)}`;
-        const response = await fetch(url);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        return response.json();
+    // Clear cache
+    clearCache() {
+        this.cache.movies.clear();
+        this.cache.triggerWarnings.clear();
+        console.log('[TMDB] Cache cleared');
     }
 }
 
-// FIXED: Lazy initialization — works even if key is set after import
-let tmdbServiceInstance = null;
+// Create singleton instance
+const tmdbService = new TMDBService();
 
-export function getTMDBService() {
-    if (!tmdbServiceInstance && window.__tmdb_api_key) {
-        tmdbServiceInstance = new TMDBService(window.__tmdb_api_key);
-        if (ENV && ENV.DEBUG_MODE) {
-            console.log('[TMDB] Service initialized (lazy)');
-        }
-    }
-    return tmdbServiceInstance;
-}
-
-export { TMDBService };
+export { tmdbService, TMDBService };
