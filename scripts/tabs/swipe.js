@@ -4,11 +4,12 @@
  * ✅ Removed hasLoaded flag that caused issues
  * ✅ Proper movie loading and card management
  * ✅ FIX: Corrected notification and confetti imports
+ * ✅ FIX: Corrected tmdbService import (not getTMDBService)
  */
 
 import { store } from "../state/store.js";
 import { SwipeCard } from "../components/swipe-card.js";
-import { getTMDBService } from "../services/tmdb.js";
+import { tmdbService } from "../services/tmdb.js";
 // ✅ FIX: Changed to correct imports
 import { notify } from "../utils/notifications.js";
 import { celebrate } from "../utils/confetti.js";
@@ -201,35 +202,39 @@ export class SwipeTab {
         try {
             console.log(`[SwipeTab] Loading movies (attempt ${attempt})...`);
             
-            let tmdb;
-            try {
-                tmdb = getTMDBService();
-            } catch (error) {
-                console.error("[SwipeTab] Failed to get TMDB service:", error);
-                throw new Error("TMDB service unavailable");
-            }
+            // ✅ FIX: Changed from getTMDBService() to tmdbService
+            const tmdb = tmdbService;
             
             if (!tmdb) {
                 throw new Error("TMDB service not initialized");
             }
 
             const lists = await Promise.all([
-                tmdb.fetchPopularMovies(5).catch(err => {
+                tmdb.getPopularMovies(1).catch(err => {
                     console.warn("[SwipeTab] Popular movies failed:", err.message);
                     return [];
                 }),
-                tmdb.fetchTrendingMovies().catch(err => {
+                tmdb.getTrendingMovies('week').catch(err => {
                     console.warn("[SwipeTab] Trending movies failed:", err.message);
                     return [];
                 }),
-                tmdb.fetchTopRatedMovies(5).catch(err => {
+                tmdb.discoverMovies({ sortBy: 'vote_average.desc', minVotes: 1000, page: 1 }).catch(err => {
                     console.warn("[SwipeTab] Top rated movies failed:", err.message);
-                    return [];
+                    return { movies: [] };
                 })
             ]);
 
+            // Flatten and deduplicate
+            const popularMovies = lists[0] || [];
+            const trendingMovies = lists[1] || [];
+            const topRatedMovies = lists[2]?.movies || [];
+            
             const map = new Map();
-            lists.flat().forEach(m => map.set(m.id, m));
+            [...popularMovies, ...trendingMovies, ...topRatedMovies].forEach(m => {
+                if (m && m.id) {
+                    map.set(m.id, m);
+                }
+            });
 
             const movies = Array.from(map.values());
             console.log(`[SwipeTab] Loaded ${movies.length} unique movies`);
