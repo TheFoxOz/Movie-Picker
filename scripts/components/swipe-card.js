@@ -4,6 +4,7 @@
  * Displays trigger warning badge from DoesTheDogDie.com
  * FIXED: Proper event dispatching for card advancing
  * ✅ FIX: Corrected confetti and notification imports
+ * ✅ FIX: Changed getTMDBService to tmdbService
  */
 
 import { store } from '../state/store.js';
@@ -33,8 +34,7 @@ export class SwipeCard {
         if (this.movie.warningsLoaded) return;
 
         try {
-            const { getTMDBService } = await import('../services/tmdb.js');
-            const tmdbService = getTMDBService();
+            const { tmdbService } = await import('../services/tmdb.js');
             
             if (tmdbService) {
                 await tmdbService.fetchTriggerWarnings(this.movie);

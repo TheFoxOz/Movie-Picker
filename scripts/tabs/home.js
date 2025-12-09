@@ -4,7 +4,7 @@
  */
 
 import { store } from '../state/store.js';
-import { getTMDBService, GENRE_IDS } from '../services/tmdb.js';
+import { tmdbService, GENRE_IDS } from '../services/tmdb.js';
 import { movieModal } from '../components/movie-modal.js';
 import { ENV } from '../config/env.js';
 
@@ -60,7 +60,7 @@ export class HomeTab {
         this.isLoading = true;
 
         try {
-            const tmdbService = getTMDBService();
+            const tmdbService = tmdbService();
             if (!tmdbService) {
                 console.error('[Home] TMDB service not available');
                 return;
@@ -130,7 +130,7 @@ export class HomeTab {
 
         if (lovedMovies.length === 0 && likedMovies.length === 0) {
             // No history - return popular movies
-            const tmdbService = getTMDBService();
+            const tmdbService = tmdbService();
             const popular = await tmdbService.fetchPopularMovies(5);
             return this.filterMovies(popular);
         }
@@ -156,7 +156,7 @@ export class HomeTab {
         console.log('[Home] Top genres from history:', topGenres);
 
         // Fetch movies from these genres
-        const tmdbService = getTMDBService();
+        const tmdbService = tmdbService();
         const recommendations = [];
 
         for (const genreId of topGenres) {

@@ -5,7 +5,7 @@
  */
 
 import { store } from '../state/store.js';
-import { getTMDBService, GENRE_IDS } from '../services/tmdb.js';
+import { tmdbService, GENRE_IDS } from '../services/tmdb.js';
 import { movieModal } from '../components/movie-modal.js';
 import { ENV } from '../config/env.js';
 
@@ -49,7 +49,7 @@ export class LibraryTab {
         this.isLoading = true;
 
         try {
-            const tmdbService = getTMDBService();
+            const tmdbService = tmdbService();
             if (!tmdbService) {
                 this.hasMorePages = false;
                 return;
@@ -379,7 +379,7 @@ export class LibraryTab {
         console.log(`[Search] Searching TMDB for: "${query}"`);
         
         try {
-            const tmdbService = getTMDBService();
+            const tmdbService = tmdbService();
             if (!tmdbService) return;
 
             const response = await fetch(
