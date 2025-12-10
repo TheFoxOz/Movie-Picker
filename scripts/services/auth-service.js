@@ -1,41 +1,53 @@
 /**
- * Authentication Service – ABSOLUTE FINAL VERSION (Dec 2025)
- * • Perfect Google Sign-In
- * • Safe swipe history sync
- * • Onboarding fully supported with preferences saved
- * • Auto-migrates old preferences to new format
- * • Syncs preferences to Firestore
- * • Offline-first & bulletproof
- * • Fixes Home & Profile tab crashes forever
+ * Authentication Service – Firebase V10 Modernized
+ * • Fixes Vercel build error (no 'firebase' export)
+ * • Fixes Cross-Origin-Opener-Policy error for Google Sign-In (using redirect)
+ * • Ensures all Firestore/Auth calls use modern v10 module syntax
  */
 
-// 1. FIX: Removed 'firebase' import to resolve Vercel build error.
-// The new firebase-config.js only exports 'auth' and 'db'.
+// ---------------------------------------------------------------------
+// 1. Core Imports (Auth/DB Services)
+// ---------------------------------------------------------------------
+
+// Only import what is EXPORTED from firebase-config.js (auth, db)
 import { auth, db } from './firebase-config.js'; 
 import { store } from '../state/store.js';
 import { notify } from '../utils/notifications.js';
 
-// 2. MODERNIZATION: Import necessary Firebase v10 functions
+
+// ---------------------------------------------------------------------
+// 2. Firebase v10 Auth Imports
+// ---------------------------------------------------------------------
+
 import { 
     GoogleAuthProvider, 
-    signInWithPopup, 
+    signInWithRedirect,   // Used for the robust sign-in method
+    getRedirectResult,    // Used to retrieve the result after redirect
     createUserWithEmailAndPassword, 
     signInWithEmailAndPassword,
-    signInAnonymously,
+    signInAnonymously, 
     signOut,
     updateProfile 
 } from 'firebase/auth';
 
+
+// ---------------------------------------------------------------------
+// 3. Firebase v10 Firestore Imports
+// ---------------------------------------------------------------------
+
 import { 
-    serverTimestamp, 
-    doc, 
-    getDoc, 
-    setDoc, 
-    updateDoc, 
-    collection, 
-    onSnapshot 
+    serverTimestamp,      // For storing creation timestamps
+    doc,                  // For creating document references
+    getDoc,               // For fetching a document once
+    setDoc,               // For setting or merging document data
+    updateDoc,            // For updating specific fields
+    onSnapshot            // For realtime listeners
 } from 'firebase/firestore';
 
+
+// ---------------------------------------------------------------------
+// 4. AuthService Class
+// ---------------------------------------------------------------------
 
 class AuthService {
     constructor() {
@@ -50,10 +62,9 @@ class AuthService {
                 this.currentUser = user;
                 console.log('[Auth] User signed in:', user.email || 'anonymous');
 
-                // Critical: Auto-migrate old preferences to new format
                 this.migrateAndSyncPreferences();
-
-                // Load user data
+                
+                // Load user data (Note: loadUserData handles the doc(db, 'users', uid).get() internally)
                 this.loadUserData(user.uid).catch(err =>
                     console.warn('[Auth] Load user data failed (offline?)', err.message)
                 );
@@ -91,12 +102,9 @@ class AuthService {
 
             if (raw) {
                 const old = JSON.parse(raw);
-
-                // If already correct format → keep it
                 if (old.platforms && !Array.isArray(old.platforms)) {
                     prefs = old;
                 } else {
-                    // Migrate old format
                     prefs = {
                         platforms: Array.isArray(old.platforms) ? old.platforms : ['Netflix', 'Prime Video', 'Disney+'],
                         region: old.region || 'US',
@@ -108,7 +116,6 @@ class AuthService {
                     console.log('[Auth] Migrated old preferences to new format');
                 }
             } else {
-                // First time user
                 prefs = {
                     platforms: ['Netflix', 'Prime Video', 'Disney+'],
                     region: 'US',
@@ -116,12 +123,10 @@ class AuthService {
                 };
             }
 
-            // Save clean copy to localStorage
             localStorage.setItem('moviePickerPreferences', JSON.stringify(prefs));
 
-            // Sync to Firestore if user is logged in
             if (this.currentUser) {
-                // 3. MODERNIZATION: Use setDoc with collection/doc refs
+                // Modern Firestore: doc, setDoc
                 const userRef = doc(db, 'users', this.currentUser.uid);
                 setDoc(userRef, { preferences: prefs }, { merge: true })
                     .catch(err => console.warn('[Auth] Failed to sync preferences:', err.message));
@@ -134,7 +139,7 @@ class AuthService {
     // === SIGN UP ===
     async signUp(email, password, displayName) {
         try {
-            // 4. MODERNIZATION: Use imported v10 function
+            // Modern Auth: createUserWithEmailAndPassword, updateProfile
             const { user } = await createUserWithEmailAndPassword(auth, email, password);
             await updateProfile(user, { displayName });
 
@@ -144,7 +149,7 @@ class AuthService {
                 triggerWarnings: { enabledCategories: [], showAllWarnings: false }
             };
             
-            // 5. MODERNIZATION: Use setDoc with collection/doc refs and serverTimestamp
+            // Modern Firestore: doc, setDoc, serverTimestamp
             const userRef = doc(db, 'users', user.uid);
             await setDoc(userRef, {
                 uid: user.uid,
@@ -176,7 +181,7 @@ class AuthService {
     // === SIGN IN ===
     async signIn(email, password) {
         try {
-            // 6. MODERNIZATION: Use imported v10 function
+            // Modern Auth: signInWithEmailAndPassword
             await signInWithEmailAndPassword(auth, email, password);
             notify.success('Welcome back!');
         } catch (error) {
@@ -191,73 +196,95 @@ class AuthService {
         }
     }
 
-    // === GOOGLE SIGN-IN ===
+    // === GOOGLE SIGN-IN (Redirect Method FIX) ===
     async signInWithGoogle() {
         try {
-            // 7. MODERNIZATION: Use imported v10 class
             const provider = new GoogleAuthProvider();
             provider.addScope('email profile');
             provider.setCustomParameters({ prompt: 'select_account' });
 
-            // 8. MODERNIZATION: Use imported v10 function
-            const { user } = await signInWithPopup(auth, provider);
+            // CRITICAL FIX: Use redirect instead of popup to avoid COOP errors
+            await signInWithRedirect(auth, provider);
+            // Execution stops here. The app will reload after redirect.
 
-            // 9. MODERNIZATION: Use doc and getDoc
-            const userRef = doc(db, 'users', user.uid);
-            const userDoc = await getDoc(userRef);
-            const isNewUser = !userDoc.exists;
-
-            const prefs = {
-                platforms: ['Netflix', 'Prime Video', 'Disney+'],
-                region: 'US',
-                triggerWarnings: { enabledCategories: [], showAllWarnings: false }
-            };
-
-            if (isNewUser) {
-                // 10. MODERNIZATION: Use setDoc and serverTimestamp
-                await setDoc(userRef, {
-                    uid: user.uid,
-                    email: user.email,
-                    displayName: user.displayName || user.email.split('@')[0],
-                    avatar: user.photoURL || 'Smile',
-                    createdAt: serverTimestamp(),
-                    swipeHistory: [],
-                    friends: [],
-                    groups: [],
-                    onboardingCompleted: false,
-                    preferences: prefs
-                });
-            }
-
-            localStorage.setItem('moviePickerPreferences', JSON.stringify(prefs));
-            notify.success('Signed in with Google!');
-            return { user, isNewUser };
         } catch (error) {
-            console.error('[Auth] Google sign-in failed:', error);
+            console.error('[Auth] Google sign-in failed during redirect setup:', error);
             const msg = {
-                'auth/popup-blocked': 'Popup blocked — allow popups',
-                'auth/unauthorized-domain': `Add ${location.hostname} to Firebase Auth domains`,
+                'auth/network-request-failed': 'No internet connection'
+            }[error.code] || 'Google sign-in failed to initialize.';
+            notify.error(msg);
+            throw error;
+        }
+    }
+    
+    // === HANDLE REDIRECT RESULT (Must be called on app startup) ===
+    async handleRedirectResult() {
+        try {
+            // Modern Auth: getRedirectResult
+            const result = await getRedirectResult(auth);
+
+            if (result) {
+                // User signed in successfully via redirect
+                const { user } = result;
+
+                // Modern Firestore: doc, getDoc
+                const userRef = doc(db, 'users', user.uid);
+                const userDoc = await getDoc(userRef);
+                const isNewUser = !userDoc.exists;
+
+                const prefs = {
+                    platforms: ['Netflix', 'Prime Video', 'Disney+'],
+                    region: 'US',
+                    triggerWarnings: { enabledCategories: [], showAllWarnings: false }
+                };
+
+                if (isNewUser) {
+                    // Modern Firestore: setDoc, serverTimestamp
+                    await setDoc(userRef, {
+                        uid: user.uid,
+                        email: user.email,
+                        displayName: user.displayName || user.email.split('@')[0],
+                        avatar: user.photoURL || 'Smile',
+                        createdAt: serverTimestamp(),
+                        swipeHistory: [],
+                        friends: [],
+                        groups: [],
+                        onboardingCompleted: false,
+                        preferences: prefs
+                    });
+                }
+
+                localStorage.setItem('moviePickerPreferences', JSON.stringify(prefs));
+                notify.success('Signed in with Google!');
+                return { user, isNewUser };
+            }
+            return null; 
+
+        } catch (error) {
+            console.error('[Auth] Error handling redirect result:', error);
+            const msg = {
+                'auth/account-exists-with-different-credential': 'Account exists with a different sign-in method.',
                 'auth/popup-closed-by-user': 'Sign-in cancelled',
                 'auth/network-request-failed': 'No internet connection'
-            }[error.code] || 'Google sign-in failed';
+            }[error.code] || 'Google sign-in failed on redirect.';
             notify.error(msg);
             throw error;
         }
     }
 
-    // === GUEST MODE ===
+    // === GUEST MODE (Fixed to v10 syntax) ===
     async signInAnonymously() {
         try {
-            // 11. MODERNIZATION: Use imported v10 function
+            // Modern Auth: signInAnonymously
             const { user } = await signInAnonymously(auth);
             
-            // 12. MODERNIZATION: Use doc and getDoc
+            // Modern Firestore: doc, getDoc
             const userRef = doc(db, 'users', user.uid);
             const userDoc = await getDoc(userRef);
             const isNewUser = !userDoc.exists;
 
             if (isNewUser) {
-                // 13. MODERNIZATION: Use setDoc and serverTimestamp
+                // Modern Firestore: setDoc, serverTimestamp
                 await setDoc(userRef, {
                     uid: user.uid,
                     email: null,
@@ -276,6 +303,7 @@ class AuthService {
             return { user, isNewUser };
         } catch (error) {
             notify.error('Guest mode failed');
+            console.error('[Auth] Anonymous sign-in failed:', error);
             throw error;
         }
     }
@@ -283,7 +311,7 @@ class AuthService {
     // === SIGN OUT ===
     async signOut() {
         try {
-            // 14. MODERNIZATION: Use imported v10 function
+            // Modern Auth: signOut
             await signOut(auth);
             notify.success('Signed out');
         } catch (error) {
@@ -294,7 +322,7 @@ class AuthService {
     // === LOAD USER DATA ===
     async loadUserData(uid) {
         try {
-            // 15. MODERNIZATION: Use doc and getDoc
+            // Modern Firestore: doc, getDoc
             const userRef = doc(db, 'users', uid);
             const docSnapshot = await getDoc(userRef);
             
@@ -306,7 +334,6 @@ class AuthService {
                     groups: data.groups || []
                 });
 
-                // Also sync preferences from Firestore
                 if (data.preferences) {
                     localStorage.setItem('moviePickerPreferences', JSON.stringify(data.preferences));
                 }
@@ -318,7 +345,7 @@ class AuthService {
 
     // === REALTIME LISTENERS ===
     setupRealtimeListeners(uid) {
-        // 16. MODERNIZATION: Use doc and onSnapshot
+        // Modern Firestore: doc, onSnapshot
         const userRef = doc(db, 'users', uid);
         const unsub = onSnapshot(userRef, (docSnapshot) => {
             if (docSnapshot.exists()) {
@@ -354,7 +381,7 @@ class AuthService {
 
             if (cleanHistory.length === 0) return;
 
-            // 17. MODERNIZATION: Use doc and updateDoc
+            // Modern Firestore: doc, updateDoc
             const userRef = doc(db, 'users', this.currentUser.uid);
             await updateDoc(userRef, {
                 swipeHistory: cleanHistory
@@ -376,7 +403,7 @@ class AuthService {
         };
 
         try {
-            // 18. MODERNIZATION: Use doc, updateDoc, and serverTimestamp
+            // Modern Firestore: doc, updateDoc, serverTimestamp
             const userRef = doc(db, 'users', uid);
             await updateDoc(userRef, {
                 onboardingCompleted: true,
