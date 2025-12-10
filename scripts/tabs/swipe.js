@@ -4,17 +4,16 @@
  *
  * FIXES INCLUDED:
  * 1. CRITICAL BUILD FIX (Path): Corrected import to '../services/tmdb.js'.
- * 2. CRITICAL BUILD FIX (Export): Changed to a NAMED import with an alias. 
- * (NOW ASSUMING the correct export name in tmdb.js is 'TMDB').
+ * 2. CRITICAL BUILD FIX (Export): Using the confirmed named export 'tmdbService' 
+ * and aliasing it to 'movieService'.
  * 3. Runtime Fix: Added data validation (.filter()) inside loadMoviesWithRetry.
  */
 
 import { store } from '../state/store.js';
 // ---------------------------------------------------------------------
-// CRITICAL BUILD FIX: Importing the named export 'TMDB' and aliasing it to 'movieService'
-// If this fails, you MUST check the export name in /scripts/services/tmdb.js and replace 'TMDB' with it.
+// CRITICAL BUILD FIX: Using the correct, confirmed export name: tmdbService
 // ---------------------------------------------------------------------
-import { TMDB as movieService } from '../services/tmdb.js'; 
+import { tmdbService as movieService } from '../services/tmdb.js'; 
 // ---------------------------------------------------------------------
 import { authService } from '../services/auth-service.js';
 import { notify } from '../utils/notifications.js';
@@ -227,7 +226,7 @@ class SwipeTab {
         console.log(`[SwipeTab] Loading movies (attempt ${this.loadAttempt})...`);
 
         try {
-            const { movies, totalPages } = await movieService.fetchMovies(this.currentPage);
+            const { movies, totalPages } = await movieService.discoverMovies({ page: this.currentPage }); // Updated to use discoverMovies to be consistent with service structure
             this.totalPages = totalPages;
 
             // --- CRITICAL DATA VALIDATION FIX: Filter out any invalid/null entries ---
@@ -241,7 +240,7 @@ class SwipeTab {
                     id: movie.id, 
                     title: movie.title || movie.name,
                     posterURL: movie.posterURL,
-                    releaseYear: movie.releaseYear,
+                    releaseYear: movie.year, // Updated property name to 'year' from 'releaseYear'
                     overview: movie.overview,
                     movie: movie // Full movie data
                 }));
