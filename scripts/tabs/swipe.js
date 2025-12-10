@@ -3,16 +3,16 @@
  * Handles displaying movie cards and the swipe interaction logic.
  *
  * FIXES INCLUDED:
- * 1. Corrected import path for movieService to resolve Vite/Rollup build failure.
- * 2. Added data validation (.filter()) inside loadMoviesWithRetry to skip 
- * any invalid movie objects, resolving the "Cannot read properties of undefined (reading 'id')" error.
+ * 1. CRITICAL BUILD FIX: Corrected import from non-existent 'movie-service.js'
+ * to the correct, existing file 'tmdb.js'.
+ * 2. Runtime Fix: Added data validation (.filter()) inside loadMoviesWithRetry.
  */
 
 import { store } from '../state/store.js';
 // ---------------------------------------------------------------------
-// CRITICAL BUILD FIX: Corrected path from '../services/...' to '../../services/...'
+// CRITICAL BUILD FIX: Importing from tmdb.js instead of the non-existent movie-service.js
 // ---------------------------------------------------------------------
-import { movieService } from '../../services/movie-service.js'; 
+import { movieService } from '../services/tmdb.js'; 
 // ---------------------------------------------------------------------
 import { authService } from '../services/auth-service.js';
 import { notify } from '../utils/notifications.js';
@@ -214,7 +214,6 @@ class SwipeTab {
         this.updateCurrentCard();
     }
 
-    // --- FIX APPLIED HERE ---
     async loadMoviesWithRetry() {
         if (this.isLoading || this.isComplete) {
             console.log('[SwipeTab] Already loading movies, skipping...');
@@ -314,7 +313,7 @@ class SwipeTab {
         }
 
         // Render cards: The top one and the one immediately behind it
-        for (let i = 0; i; i++) {
+        for (let i = 0; i < Math.min(2, this.movieQueue.length - this.currentCardIndex); i++) {
             const cardData = this.movieQueue[this.currentCardIndex + i];
             const isTopCard = (i === 0);
             
