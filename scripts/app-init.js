@@ -1,10 +1,7 @@
 /**
- * App Initialization - FIXED (Dec 2025)
- * 1. CRITICAL FIX: Added authService.handleRedirectResult() call to init()
- * to process Google sign-in redirect before starting the UI flow.
- * 2. Renamed 'MoviePickerApp' function to 'appInit' and removed export
- * to prevent it from being treated as a component by the bundler.
- * 3. Simplified the final DOMContentLoaded check.
+ * App Initialization - FINAL FIX for Google Redirect Navigation
+ * CRITICAL FIX: The call to authService.handleRedirectResult() is now the 
+ * first asynchronous step in the init() method to prevent the navigation loop.
  */
 
 import { onboardingFlow } from './components/onboarding-flow.js';
@@ -14,7 +11,7 @@ import { ProfileTab } from './tabs/profile.js';
 import { HomeTab } from './tabs/home.js';
 import { MatchesTab } from './tabs/matches.js';
 import { store } from './state/store.js';
-import { authService } from './services/auth-service.js'; // Still needed for handleRedirectResult
+import { authService } from './services/auth-service.js';
 
 class MoviePickerApp {
     constructor() {
@@ -32,9 +29,8 @@ class MoviePickerApp {
         console.log('[App] Initializing Movie Picker App...');
         
         // ---------------------------------------------------------------------
-        // CRITICAL FIX: Handle Redirect Result BEFORE initializing tabs/onboarding
-        // If the user just signed in with Google, this processes the token
-        // and updates the user state via the auth listener.
+        // CRITICAL FIX: Handle Redirect Result BEFORE anything else
+        // This processes the token from Google redirect and updates the auth state.
         // ---------------------------------------------------------------------
         await authService.handleRedirectResult(); 
 
@@ -51,9 +47,8 @@ class MoviePickerApp {
 
         this.setupDOM();
         
-        // onboardingFlow.start() relies on the store's isAuthenticated state.
-        // If handleRedirectResult() was successful, the auth listener in authService
-        // would have fired, updating the store, and onboardingFlow.start() should handle it.
+        // onboardingFlow.start() relies on the store's isAuthenticated state, 
+        // which should now be true if the user returned from a successful Google login.
         const needsOnboarding = await onboardingFlow.start();
 
         if (!needsOnboarding) {
@@ -209,6 +204,3 @@ if (document.readyState === 'loading') {
 } else {
     startApp();
 }
-
-// NOTE: Removed `export { MoviePickerApp };` since this is the main entry file 
-// and exporting it can lead to bundler confusion in a static site setup.
