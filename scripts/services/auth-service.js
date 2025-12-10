@@ -1,15 +1,15 @@
 /**
- * Authentication Service – FINAL FIXED & CLEAN (Dec 2025)
- * • No more undefined/unsupported field errors
- * • Safe swipe history sync
- * • Offline-first + resilient
+ * Authentication Service – FINAL PRODUCTION VERSION (Dec 2025)
  * • Perfect Google Sign-In
+ * • Safe swipe history sync (no more undefined errors)
+ * • Offline-first & resilient
+ * • completeOnboarding() restored
+ * • Works with current Firestore rules
  */
 
 import { firebase, auth, db } from './firebase-config.js';
 import { store } from '../state/store.js';
 import { notify } from '../utils/notifications.js';
-import { ENV } from '../config/env.js';
 
 class AuthService {
     constructor() {
@@ -24,11 +24,10 @@ class AuthService {
                 this.currentUser = user;
                 console.log('[Auth] User signed in:', user.email || 'anonymous');
 
-                try {
-                    await this.loadUserData(user.uid);
-                } catch (err) {
-                    console.warn('[Auth] Load user data failed (offline?)', err.message);
-                }
+                // Load user data (swipe history, friends, etc.)
+                this.loadUserData(user.uid).catch(err =>
+                    console.warn('[Auth] Load user data failed (offline?)', err.message)
+                );
 
                 this.setupRealtimeListeners(user.uid);
 
@@ -55,6 +54,7 @@ class AuthService {
         });
     }
 
+    // === SIGN UP ===
     async signUp(email, password, displayName) {
         try {
             const { user } = await auth.createUserWithEmailAndPassword(email, password);
@@ -90,6 +90,7 @@ class AuthService {
         }
     }
 
+    // === SIGN IN ===
     async signIn(email, password) {
         try {
             await auth.signInWithEmailAndPassword(email, password);
@@ -106,6 +107,7 @@ class AuthService {
         }
     }
 
+    // === GOOGLE SIGN-IN ===
     async signInWithGoogle() {
         try {
             const provider = new firebase.auth.GoogleAuthProvider();
@@ -122,7 +124,7 @@ class AuthService {
                     uid: user.uid,
                     email: user.email,
                     displayName: user.displayName || user.email.split('@')[0],
-                    avatar: user.photoURL || 'Smile', // ← Fixed missing quote
+                    avatar: user.photoURL || 'Smile',
                     createdAt: firebase.firestore.FieldValue.serverTimestamp(),
                     swipeHistory: [],
                     friends: [],
@@ -142,7 +144,7 @@ class AuthService {
             console.error('[Auth] Google sign-in failed:', error);
             const msg = {
                 'auth/popup-blocked': 'Popup blocked — allow popups and retry',
-                'auth/unauthorized-domain': `Add ${location.hostname} in Firebase Console → Auth → Settings`,
+                'auth/unauthorized-domain': `Add ${location.hostname} to Firebase Authorized domains`,
                 'auth/popup-closed-by-user': 'Sign-in cancelled',
                 'auth/network-request-failed': 'No internet connection'
             }[error.code] || 'Google sign-in failed';
@@ -151,6 +153,7 @@ class AuthService {
         }
     }
 
+    // === GUEST MODE ===
     async signInAnonymously() {
         try {
             const { user } = await auth.signInAnonymously();
@@ -180,6 +183,7 @@ class AuthService {
         }
     }
 
+    // === SIGN OUT ===
     async signOut() {
         try {
             await auth.signOut();
@@ -189,6 +193,7 @@ class AuthService {
         }
     }
 
+    // === LOAD USER DATA ===
     async loadUserData(uid) {
         try {
             const doc = await db.collection('users').doc(uid).get();
@@ -205,6 +210,7 @@ class AuthService {
         }
     }
 
+    // === REALTIME LISTENERS ===
     setupRealtimeListeners(uid) {
         const unsub = db.collection('users').doc(uid).onSnapshot(doc => {
             if (doc.exists) {
@@ -219,13 +225,13 @@ class AuthService {
         this.unsubscribers.push(unsub);
     }
 
-    // FINAL FIXED: 100% safe Firestore writes
+    // === SAFE SWIPE HISTORY SYNC ===
     async syncSwipeHistory(swipeHistory) {
         if (!this.currentUser) return;
 
         try {
             const cleanHistory = swipeHistory
-                .filter(entry => entry?.movie?.id && entry?.movie?.title) // ← Critical null guard
+                .filter(entry => entry?.movie?.id && entry?.movie?.title)
                 .map(entry => ({
                     movieId: entry.movie.id,
                     title: entry.movie.title,
@@ -240,12 +246,25 @@ class AuthService {
                 swipeHistory: cleanHistory
             });
 
-            console.log('[Auth] Synced', cleanHistory.length, 'swipes safely');
+            console.log('[Auth] Synced', cleanHistory.length, 'swipes');
         } catch (error) {
-            console.warn('[Auth] Sync failed (offline?) — will retry later', error.message);
+            console.warn('[Auth] Sync failed (offline?)', error.message);
         }
     }
 
+    // === ONBOARDING MARK AS COMPLETE ===
+    async completeOnboarding(uid) {
+        return db.collection('users').doc(uid).update({
+            onboardingCompleted: true,
+            onboardingCompletedAt: firebase.firestore.FieldValue.serverTimestamp()
+        }).then(() => {
+            console.log('[Auth] Onboarding marked as complete');
+        }).catch(err => {
+            console.warn('[Auth] Failed to mark onboarding complete:', err.message);
+        });
+    }
+
+    // === UTILITIES ===
     getCurrentUser() { return this.currentUser; }
     isAuthenticated() { return !!this.currentUser; }
 
