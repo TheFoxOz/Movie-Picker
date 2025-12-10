@@ -10,7 +10,7 @@
 
 import { store } from '../state/store.js';
 // ---------------------------------------------------------------------
-// CRITICAL FIX: Changed '../services/movie-service.js' to '../../services/movie-service.js'
+// CRITICAL BUILD FIX: Corrected path from '../services/...' to '../../services/...'
 // ---------------------------------------------------------------------
 import { movieService } from '../../services/movie-service.js'; 
 // ---------------------------------------------------------------------
@@ -314,7 +314,7 @@ class SwipeTab {
         }
 
         // Render cards: The top one and the one immediately behind it
-        for (let i = 0; i < Math.min(2, this.movieQueue.length - this.currentCardIndex); i++) {
+        for (let i = 0; i; i++) {
             const cardData = this.movieQueue[this.currentCardIndex + i];
             const isTopCard = (i === 0);
             
