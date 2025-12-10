@@ -36,8 +36,11 @@ export class HomeTab {
 
     async render(container) {
         this.container = container;
-        this.preferences = store.getState().preferences || this.getDefaultPreferences();
-        
+
+        // Load preferences safely — now supports both old and new format
+        const rawPrefs = store.getState().preferences || {};
+        this.preferences = this.normalizePreferences(rawPrefs);
+
         window.addEventListener('preferences-updated', () => {
             console.log('[Home] Preferences updated, refreshing...');
             this.render(this.container);
@@ -48,20 +51,32 @@ export class HomeTab {
         this.renderContent();
     }
 
-    getDefaultPreferences() {
+    // Ensures preferences are always in the correct shape
+    normalizePreferences(prefs) {
+        const defaults = {
+            platforms: ['Netflix', 'Prime Video', 'Disney+'],
+            region: 'US',
+            triggerWarnings: { enabledCategories: [], showAllWarnings: false }
+        };
+
+        // If old format (platforms as object), convert
+        if (prefs.platforms && typeof prefs.platforms === 'object' && !Array.isArray(prefs.platforms)) {
+            const enabled = Object.keys(prefs.platforms).filter(p => prefs.platforms[p]);
+            return {
+                ...defaults,
+                platforms: enabled.length > 0 ? enabled : defaults.platforms,
+                region: prefs.region || defaults.region,
+                triggerWarnings: prefs.triggerWarnings || defaults.triggerWarnings
+            };
+        }
+
+        // New format or missing → return normalized
         return {
-            platforms: {
-                'Netflix': true,
-                'Hulu': true,
-                'Prime Video': true,
-                'Disney+': true,
-                'HBO Max': true,
-                'Apple TV+': true
-            },
-            triggerWarnings: { enabled: false },
-            theme: 'dark',
-            language: 'en',
-            location: 'US'
+            platforms: Array.isArray(prefs.platforms) && prefs.platforms.length > 0 
+                ? prefs.platforms 
+                : defaults.platforms,
+            region: prefs.region || defaults.region,
+            triggerWarnings: prefs.triggerWarnings || defaults.triggerWarnings
         };
     }
 
@@ -70,13 +85,12 @@ export class HomeTab {
         this.isLoading = true;
 
         try {
-            if (!tmdbService) {
+            if (!tmdbService?.getTrendingMovies) {
                 console.error('[Home] TMDB service not available');
                 return;
             }
 
-            const enabledPlatforms = Object.keys(this.preferences.platforms)
-                .filter(p => this.preferences.platforms[p]);
+            const enabledPlatforms = this.preferences.platforms || [];
 
             console.log('[Home] Loading content for platforms:', enabledPlatforms);
 
@@ -105,17 +119,20 @@ export class HomeTab {
     }
 
     filterMovies(movies) {
-        const enabledPlatforms = Object.keys(this.preferences.platforms)
-            .filter(p => this.preferences.platforms[p]);
+        const enabledPlatforms = this.preferences.platforms || [];
 
         let filtered = movies.filter(movie => 
             enabledPlatforms.includes(movie.platform)
         );
 
-        if (this.preferences.triggerWarnings.enabled) {
+        // New format: check enabledCategories.length instead of .enabled
+        const hasActiveWarnings = this.preferences.triggerWarnings?.enabledCategories?.length > 0;
+
+        if (hasActiveWarnings) {
             filtered = filtered.filter(movie => {
-                if (movie.triggerWarnings && movie.triggerWarnings.length > 0) {
-                    console.log(`[Home] Blocking ${movie.title} (has ${movie.triggerWarnings.length} warnings)`);
+                const hasWarnings = movie.triggerWarnings && movie.triggerWarnings.length > 0;
+                if (hasWarnings) {
+                    console.log(`[Home] Blocking ${movie.title} (has warnings)`);
                     return false;
                 }
                 return true;
@@ -157,11 +174,11 @@ export class HomeTab {
         const recommendations = [];
         for (const genreId of topGenres) {
             try {
-                const movies = await tmdbService.discoverMovies({ 
+                const result = await tmdbService.discoverMovies({ 
                     withGenres: genreId, 
                     page: 1 
                 });
-                recommendations.push(...(movies.movies || movies));
+                recommendations.push(...(result.movies || result));
             } catch (err) {
                 console.warn('[Home] Failed to fetch genre:', genreId);
             }
@@ -183,19 +200,16 @@ export class HomeTab {
                 <p style="color:rgba(255,255,255,0.7);">Loading your personalized feed...</p>
             </div>
             <style>
-                @keyframes spin {
-                    to { transform: rotate(360deg); }
-                }
+                @keyframes spin { to { transform: rotate(360deg); } }
             </style>
         `;
     }
 
     renderContent() {
-        const enabledPlatforms = Object.keys(this.preferences.platforms)
-            .filter(p => this.preferences.platforms[p]);
-
+        const enabledPlatforms = this.preferences.platforms || [];
         const swipeHistory = store.getState().swipeHistory || [];
         const hasHistory = swipeHistory.length > 0;
+        const hasActiveWarnings = this.preferences.triggerWarnings?.enabledCategories?.length > 0;
 
         this.container.innerHTML = `
             <div style="padding: 1.5rem 1rem 6rem;">
@@ -212,7 +226,7 @@ export class HomeTab {
                 ${enabledPlatforms.length === 0 ? `
                     <div style="padding: 1.5rem; background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); border-radius: 1rem; margin-bottom: 2rem;">
                         <div style="display: flex; align-items: center; gap: 0.75rem;">
-                            <span style="font-size: 1.5rem;">⚠️</span>
+                            <span style="font-size: 1.5rem;">Warning</span>
                             <div>
                                 <div style="font-weight: 700; color: #ef4444; margin-bottom: 0.25rem;">No Platforms Enabled</div>
                                 <div style="font-size: 0.875rem; color: rgba(255,255,255,0.7);">
@@ -223,9 +237,9 @@ export class HomeTab {
                     </div>
                 ` : ''}
 
-                ${this.preferences.triggerWarnings.enabled ? `
+                ${hasActiveWarnings ? `
                     <div style="padding: 1rem; background: rgba(251,191,36,0.1); border: 1px solid rgba(251,191,36,0.3); border-radius: 1rem; margin-bottom: 2rem; display: flex; align-items: center; gap: 0.75rem;">
-                        <span style="font-size: 1.25rem;">⚠️</span>
+                        <span style="font-size: 1.25rem;">Warning</span>
                         <div style="font-size: 0.875rem; color: rgba(255,255,255,0.8);">
                             Trigger warning filter is active. Movies with warnings are hidden.
                         </div>
@@ -233,14 +247,14 @@ export class HomeTab {
                 ` : ''}
 
                 ${enabledPlatforms.length > 0 ? `
-                    ${this.renderSection('🔥 Trending This Week', this.trendingMovies, 'trending')}
-                    ${hasHistory ? this.renderSection('✨ Recommended For You', this.recommendedMovies, 'recommended') : ''}
+                    ${this.renderSection('Trending This Week', this.trendingMovies, 'trending')}
+                    ${hasHistory ? this.renderSection('Recommended For You', this.recommendedMovies, 'recommended') : ''}
                     ${enabledPlatforms.map(platform => 
                         this.renderSection(this.getPlatformEmoji(platform) + ' On ' + platform, this.platformMovies[platform] || [], platform.toLowerCase().replace(/\s+/g, '-'))
                     ).join('')}
 
                     <div style="text-align: center; padding: 3rem 1rem;">
-                        <div style="font-size: 3rem; margin-bottom: 0.5rem;">🎬</div>
+                        <div style="font-size: 3rem; margin-bottom: 0.5rem;">Movie Reel</div>
                         <p style="color: rgba(255,255,255,0.5); margin: 0;">
                             More content coming soon!
                         </p>
@@ -253,9 +267,7 @@ export class HomeTab {
     }
 
     renderSection(title, movies, sectionId) {
-        if (!movies || movies.length === 0) {
-            return '';
-        }
+        if (!movies || movies.length === 0) return '';
 
         return `
             <div style="margin-bottom: 2.5rem;">
@@ -288,13 +300,13 @@ export class HomeTab {
                     
                     ${movie.vote_average || movie.rating ? `
                         <div style="position: absolute; top: 0.5rem; right: 0.5rem; padding: 0.25rem 0.5rem; background: rgba(251,191,36,0.9); border-radius: 0.5rem;">
-                            <span style="color: white; font-size: 0.75rem; font-weight: 700;">⭐ ${(movie.vote_average || movie.rating).toFixed(1)}</span>
+                            <span style="color: white; font-size: 0.75rem; font-weight: 700;">Star ${(movie.vote_average || movie.rating).toFixed(1)}</span>
                         </div>
                     ` : ''}
 
                     ${hasWarnings ? `
                         <div style="position: absolute; top: 0.5rem; left: 0.5rem; padding: 0.25rem 0.5rem; background: rgba(239,68,68,0.9); border-radius: 0.5rem;">
-                            <span style="color: white; font-size: 0.75rem; font-weight: 700;">⚠️ ${movie.triggerWarnings.length}</span>
+                            <span style="color: white; font-size: 0.75rem; font-weight: 700;">Warning ${movie.triggerWarnings.length}</span>
                         </div>
                     ` : ''}
 
@@ -313,14 +325,14 @@ export class HomeTab {
 
     getPlatformEmoji(platform) {
         const emojis = {
-            'Netflix': '🔴',
-            'Hulu': '🟢',
-            'Prime Video': '🔵',
-            'Disney+': '⭐',
-            'HBO Max': '🟣',
-            'Apple TV+': '🍎'
+            'Netflix': 'Red Circle',
+            'Hulu': 'Green Circle',
+            'Prime Video': 'Blue Circle',
+            'Disney+': 'Star',
+            'HBO Max': 'Purple Circle',
+            'Apple TV+': 'Apple'
         };
-        return emojis[platform] || '▶️';
+        return emojis[platform] || 'Play Button';
     }
 
     getGreeting() {
@@ -333,17 +345,15 @@ export class HomeTab {
     attachListeners() {
         this.container.querySelectorAll('.home-movie-card').forEach(card => {
             card.addEventListener('mouseover', () => {
-                card.querySelector('div[style*="cursor: pointer"]').style.transform = 'scale(1.05)';
+                card.querySelector('div[style*="cursor: pointer"]')?.style = 'transform: scale(1.05)';
             });
             card.addEventListener('mouseout', () => {
-                card.querySelector('div[style*="cursor: pointer"]').style.transform = 'scale(1)';
+                card.querySelector('div[style*="cursor: pointer"]')?.style = 'transform: scale(1)';
             });
             card.addEventListener('click', () => {
                 const movieId = card.dataset.movieId;
                 const movie = this.findMovieById(parseInt(movieId));
-                if (movie) {
-                    movieModal.show(movie);
-                }
+                if (movie) movieModal.show(movie);
             });
         });
 
@@ -357,26 +367,15 @@ export class HomeTab {
                 btn.style.transform = 'scale(1)';
             });
             btn.addEventListener('click', () => {
-                const section = btn.dataset.section;
-                console.log(`[Home] View all clicked for section: ${section}`);
-                alert(`View All for ${section} - Coming soon! This will show all movies in this category.`);
+                alert(`View All coming soon!`);
             });
         });
     }
 
     findMovieById(movieId) {
-        let movie = this.trendingMovies.find(m => m.id === movieId);
-        if (movie) return movie;
-
-        movie = this.recommendedMovies.find(m => m.id === movieId);
-        if (movie) return movie;
-
-        for (const platform in this.platformMovies) {
-            movie = this.platformMovies[platform].find(m => m.id === movieId);
-            if (movie) return movie;
-        }
-
-        return null;
+        return [...this.trendingMovies, ...this.recommendedMovies, 
+                ...Object.values(this.platformMovies).flat()]
+                .find(m => m.id === movieId);
     }
 
     destroy() {
