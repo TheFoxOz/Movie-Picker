@@ -3,16 +3,18 @@
  * Handles displaying movie cards and the swipe interaction logic.
  *
  * FIXES INCLUDED:
- * 1. CRITICAL BUILD FIX: Corrected import from non-existent 'movie-service.js'
- * to the correct, existing file 'tmdb.js'.
- * 2. Runtime Fix: Added data validation (.filter()) inside loadMoviesWithRetry.
+ * 1. CRITICAL BUILD FIX (Path): Corrected import to '../services/tmdb.js'.
+ * 2. CRITICAL BUILD FIX (Export): Changed to a default import (no curly braces) 
+ * to match the standard export style for a service object.
+ * 3. Runtime Fix: Added data validation (.filter()) inside loadMoviesWithRetry to prevent 
+ * "Cannot read properties of undefined (reading 'id')" errors.
  */
 
 import { store } from '../state/store.js';
 // ---------------------------------------------------------------------
-// CRITICAL BUILD FIX: Importing from tmdb.js instead of the non-existent movie-service.js
+// CRITICAL BUILD FIX: Importing from tmdb.js with a default import
 // ---------------------------------------------------------------------
-import { movieService } from '../services/tmdb.js'; 
+import movieService from '../services/tmdb.js'; 
 // ---------------------------------------------------------------------
 import { authService } from '../services/auth-service.js';
 import { notify } from '../utils/notifications.js';
