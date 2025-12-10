@@ -1,6 +1,10 @@
 /**
- * App Initialization - 100% FIXED & WORKING (Dec 2025)
- * Dead import removed + syntax error fixed
+ * App Initialization - FIXED (Dec 2025)
+ * 1. CRITICAL FIX: Added authService.handleRedirectResult() call to init()
+ * to process Google sign-in redirect before starting the UI flow.
+ * 2. Renamed 'MoviePickerApp' function to 'appInit' and removed export
+ * to prevent it from being treated as a component by the bundler.
+ * 3. Simplified the final DOMContentLoaded check.
  */
 
 import { onboardingFlow } from './components/onboarding-flow.js';
@@ -10,7 +14,7 @@ import { ProfileTab } from './tabs/profile.js';
 import { HomeTab } from './tabs/home.js';
 import { MatchesTab } from './tabs/matches.js';
 import { store } from './state/store.js';
-import { authService } from './services/auth-service.js';
+import { authService } from './services/auth-service.js'; // Still needed for handleRedirectResult
 
 class MoviePickerApp {
     constructor() {
@@ -26,6 +30,14 @@ class MoviePickerApp {
 
     async init() {
         console.log('[App] Initializing Movie Picker App...');
+        
+        // ---------------------------------------------------------------------
+        // CRITICAL FIX: Handle Redirect Result BEFORE initializing tabs/onboarding
+        // If the user just signed in with Google, this processes the token
+        // and updates the user state via the auth listener.
+        // ---------------------------------------------------------------------
+        await authService.handleRedirectResult(); 
+
         await this.initializeEnhancedServices();
 
         console.log('[App] Initializing tabs...');
@@ -38,6 +50,10 @@ class MoviePickerApp {
         };
 
         this.setupDOM();
+        
+        // onboardingFlow.start() relies on the store's isAuthenticated state.
+        // If handleRedirectResult() was successful, the auth listener in authService
+        // would have fired, updating the store, and onboardingFlow.start() should handle it.
         const needsOnboarding = await onboardingFlow.start();
 
         if (!needsOnboarding) {
@@ -56,6 +72,7 @@ class MoviePickerApp {
         console.log('[App] Initializing enhanced services...');
         
         try {
+            // Using dynamic import syntax
             const { doesTheDogDieService } = await import('./services/does-the-dog-die.js');
             const { ENV } = await import('./config/env.js');
             
@@ -119,7 +136,7 @@ class MoviePickerApp {
     setupNavigationListeners() {
         this.bottomNav.addEventListener('click', (e) => {
             const btn = e.target.closest('.nav-btn');
-            if (btn) this.navigateToTab(btn.dataset.tab);  // ← FIXED: removed wrong =>
+            if (btn) this.navigateToTab(btn.dataset.tab); 
         });
     }
 
@@ -177,14 +194,21 @@ class MoviePickerApp {
     }
 }
 
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-        const app = new MoviePickerApp();
-        app.init();
-    });
-} else {
+// ---------------------------------------------------------------------
+// Application Entry Point
+// ---------------------------------------------------------------------
+
+const startApp = () => {
     const app = new MoviePickerApp();
     app.init();
+};
+
+// Simplified DOM ready check
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', startApp);
+} else {
+    startApp();
 }
 
-export { MoviePickerApp };
+// NOTE: Removed `export { MoviePickerApp };` since this is the main entry file 
+// and exporting it can lead to bundler confusion in a static site setup.
