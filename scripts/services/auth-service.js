@@ -1,6 +1,5 @@
 /**
  * Authentication Service – Firebase V10 Modernized
- * • Fixes Vercel build error (no 'firebase' export)
  * • Fixes Cross-Origin-Opener-Policy error for Google Sign-In (using redirect)
  * • Ensures all Firestore/Auth calls use modern v10 module syntax
  */
@@ -9,7 +8,6 @@
 // 1. Core Imports (Auth/DB Services)
 // ---------------------------------------------------------------------
 
-// Only import what is EXPORTED from firebase-config.js (auth, db)
 import { auth, db } from './firebase-config.js'; 
 import { store } from '../state/store.js';
 import { notify } from '../utils/notifications.js';
@@ -22,7 +20,7 @@ import { notify } from '../utils/notifications.js';
 import { 
     GoogleAuthProvider, 
     signInWithRedirect,   // Used for the robust sign-in method
-    getRedirectResult,    // Used to retrieve the result after redirect
+    getRedirectResult,    // Used to retrieve the result after redirect (CRITICAL)
     createUserWithEmailAndPassword, 
     signInWithEmailAndPassword,
     signInAnonymously, 
@@ -217,7 +215,7 @@ class AuthService {
         }
     }
     
-    // === HANDLE REDIRECT RESULT (Must be called on app startup) ===
+    // === HANDLE REDIRECT RESULT (CRITICAL: Must be called on app startup) ===
     async handleRedirectResult() {
         try {
             // Modern Auth: getRedirectResult
@@ -255,7 +253,7 @@ class AuthService {
                 }
 
                 localStorage.setItem('moviePickerPreferences', JSON.stringify(prefs));
-                notify.success('Signed in with Google!');
+                // Note: The auth listener will automatically handle the store update and navigation
                 return { user, isNewUser };
             }
             return null; 
@@ -272,7 +270,7 @@ class AuthService {
         }
     }
 
-    // === GUEST MODE (Fixed to v10 syntax) ===
+    // === GUEST MODE ===
     async signInAnonymously() {
         try {
             // Modern Auth: signInAnonymously
