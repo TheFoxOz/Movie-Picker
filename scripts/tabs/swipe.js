@@ -4,17 +4,17 @@
  *
  * FIXES INCLUDED:
  * 1. CRITICAL BUILD FIX (Path): Corrected import to '../services/tmdb.js'.
- * 2. CRITICAL BUILD FIX (Export): Changed to a default import (no curly braces) 
- * to match the standard export style for a service object.
- * 3. Runtime Fix: Added data validation (.filter()) inside loadMoviesWithRetry to prevent 
- * "Cannot read properties of undefined (reading 'id')" errors.
+ * 2. CRITICAL BUILD FIX (Export): Changed to a NAMED import with an alias. 
+ * (Assumes the export name in tmdb.js is 'TMDBService').
+ * 3. Runtime Fix: Added data validation (.filter()) inside loadMoviesWithRetry.
  */
 
 import { store } from '../state/store.js';
 // ---------------------------------------------------------------------
-// CRITICAL BUILD FIX: Importing from tmdb.js with a default import
+// CRITICAL BUILD FIX: Importing the named export 'TMDBService' and aliasing it to 'movieService'
+// You MUST verify that 'TMDBService' is the actual name exported in /scripts/services/tmdb.js
 // ---------------------------------------------------------------------
-import movieService from '../services/tmdb.js'; 
+import { TMDBService as movieService } from '../services/tmdb.js'; 
 // ---------------------------------------------------------------------
 import { authService } from '../services/auth-service.js';
 import { notify } from '../utils/notifications.js';
