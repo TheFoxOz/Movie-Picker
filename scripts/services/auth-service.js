@@ -9,9 +9,33 @@
  * • Fixes Home & Profile tab crashes forever
  */
 
-import { firebase, auth, db } from './firebase-config.js';
+// 1. FIX: Removed 'firebase' import to resolve Vercel build error.
+// The new firebase-config.js only exports 'auth' and 'db'.
+import { auth, db } from './firebase-config.js'; 
 import { store } from '../state/store.js';
 import { notify } from '../utils/notifications.js';
+
+// 2. MODERNIZATION: Import necessary Firebase v10 functions
+import { 
+    GoogleAuthProvider, 
+    signInWithPopup, 
+    createUserWithEmailAndPassword, 
+    signInWithEmailAndPassword,
+    signInAnonymously,
+    signOut,
+    updateProfile 
+} from 'firebase/auth';
+
+import { 
+    serverTimestamp, 
+    doc, 
+    getDoc, 
+    setDoc, 
+    updateDoc, 
+    collection, 
+    onSnapshot 
+} from 'firebase/firestore';
+
 
 class AuthService {
     constructor() {
@@ -97,8 +121,9 @@ class AuthService {
 
             // Sync to Firestore if user is logged in
             if (this.currentUser) {
-                db.collection('users').doc(this.currentUser.uid)
-                    .set({ preferences: prefs }, { merge: true })
+                // 3. MODERNIZATION: Use setDoc with collection/doc refs
+                const userRef = doc(db, 'users', this.currentUser.uid);
+                setDoc(userRef, { preferences: prefs }, { merge: true })
                     .catch(err => console.warn('[Auth] Failed to sync preferences:', err.message));
             }
         } catch (e) {
@@ -109,21 +134,24 @@ class AuthService {
     // === SIGN UP ===
     async signUp(email, password, displayName) {
         try {
-            const { user } = await auth.createUserWithEmailAndPassword(email, password);
-            await user.updateProfile({ displayName });
+            // 4. MODERNIZATION: Use imported v10 function
+            const { user } = await createUserWithEmailAndPassword(auth, email, password);
+            await updateProfile(user, { displayName });
 
             const prefs = {
                 platforms: ['Netflix', 'Prime Video', 'Disney+'],
                 region: 'US',
                 triggerWarnings: { enabledCategories: [], showAllWarnings: false }
             };
-
-            await db.collection('users').doc(user.uid).set({
+            
+            // 5. MODERNIZATION: Use setDoc with collection/doc refs and serverTimestamp
+            const userRef = doc(db, 'users', user.uid);
+            await setDoc(userRef, {
                 uid: user.uid,
                 email: user.email,
                 displayName: displayName || user.email.split('@')[0],
                 avatar: 'Smile',
-                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                createdAt: serverTimestamp(),
                 swipeHistory: [],
                 friends: [],
                 groups: [],
@@ -148,7 +176,8 @@ class AuthService {
     // === SIGN IN ===
     async signIn(email, password) {
         try {
-            await auth.signInWithEmailAndPassword(email, password);
+            // 6. MODERNIZATION: Use imported v10 function
+            await signInWithEmailAndPassword(auth, email, password);
             notify.success('Welcome back!');
         } catch (error) {
             const msg = {
@@ -165,14 +194,18 @@ class AuthService {
     // === GOOGLE SIGN-IN ===
     async signInWithGoogle() {
         try {
-            const provider = new firebase.auth.GoogleAuthProvider();
+            // 7. MODERNIZATION: Use imported v10 class
+            const provider = new GoogleAuthProvider();
             provider.addScope('email profile');
             provider.setCustomParameters({ prompt: 'select_account' });
 
-            const { user } = await auth.signInWithPopup(provider);
+            // 8. MODERNIZATION: Use imported v10 function
+            const { user } = await signInWithPopup(auth, provider);
 
-            const doc = await db.collection('users').doc(user.uid).get();
-            const isNewUser = !doc.exists;
+            // 9. MODERNIZATION: Use doc and getDoc
+            const userRef = doc(db, 'users', user.uid);
+            const userDoc = await getDoc(userRef);
+            const isNewUser = !userDoc.exists;
 
             const prefs = {
                 platforms: ['Netflix', 'Prime Video', 'Disney+'],
@@ -181,12 +214,13 @@ class AuthService {
             };
 
             if (isNewUser) {
-                await db.collection('users').doc(user.uid).set({
+                // 10. MODERNIZATION: Use setDoc and serverTimestamp
+                await setDoc(userRef, {
                     uid: user.uid,
                     email: user.email,
                     displayName: user.displayName || user.email.split('@')[0],
                     avatar: user.photoURL || 'Smile',
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    createdAt: serverTimestamp(),
                     swipeHistory: [],
                     friends: [],
                     groups: [],
@@ -214,18 +248,23 @@ class AuthService {
     // === GUEST MODE ===
     async signInAnonymously() {
         try {
-            const { user } = await auth.signInAnonymously();
-            const doc = await db.collection('users').doc(user.uid).get();
-            const isNewUser = !doc.exists;
+            // 11. MODERNIZATION: Use imported v10 function
+            const { user } = await signInAnonymously(auth);
+            
+            // 12. MODERNIZATION: Use doc and getDoc
+            const userRef = doc(db, 'users', user.uid);
+            const userDoc = await getDoc(userRef);
+            const isNewUser = !userDoc.exists;
 
             if (isNewUser) {
-                await db.collection('users').doc(user.uid).set({
+                // 13. MODERNIZATION: Use setDoc and serverTimestamp
+                await setDoc(userRef, {
                     uid: user.uid,
                     email: null,
                     displayName: 'Guest',
                     avatar: 'Guest',
                     isAnonymous: true,
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    createdAt: serverTimestamp(),
                     swipeHistory: [],
                     friends: [],
                     groups: [],
@@ -244,7 +283,8 @@ class AuthService {
     // === SIGN OUT ===
     async signOut() {
         try {
-            await auth.signOut();
+            // 14. MODERNIZATION: Use imported v10 function
+            await signOut(auth);
             notify.success('Signed out');
         } catch (error) {
             notify.error('Sign out failed');
@@ -254,9 +294,12 @@ class AuthService {
     // === LOAD USER DATA ===
     async loadUserData(uid) {
         try {
-            const doc = await db.collection('users').doc(uid).get();
-            if (doc.exists) {
-                const data = doc.data();
+            // 15. MODERNIZATION: Use doc and getDoc
+            const userRef = doc(db, 'users', uid);
+            const docSnapshot = await getDoc(userRef);
+            
+            if (docSnapshot.exists()) {
+                const data = docSnapshot.data();
                 store.setState({
                     swipeHistory: data.swipeHistory || [],
                     friends: data.friends || [],
@@ -275,9 +318,11 @@ class AuthService {
 
     // === REALTIME LISTENERS ===
     setupRealtimeListeners(uid) {
-        const unsub = db.collection('users').doc(uid).onSnapshot(doc => {
-            if (doc.exists) {
-                const data = doc.data();
+        // 16. MODERNIZATION: Use doc and onSnapshot
+        const userRef = doc(db, 'users', uid);
+        const unsub = onSnapshot(userRef, (docSnapshot) => {
+            if (docSnapshot.exists()) {
+                const data = docSnapshot.data();
                 store.setState({
                     swipeHistory: data.swipeHistory || [],
                     friends: data.friends || [],
@@ -309,7 +354,9 @@ class AuthService {
 
             if (cleanHistory.length === 0) return;
 
-            await db.collection('users').doc(this.currentUser.uid).update({
+            // 17. MODERNIZATION: Use doc and updateDoc
+            const userRef = doc(db, 'users', this.currentUser.uid);
+            await updateDoc(userRef, {
                 swipeHistory: cleanHistory
             });
 
@@ -329,9 +376,11 @@ class AuthService {
         };
 
         try {
-            await db.collection('users').doc(uid).update({
+            // 18. MODERNIZATION: Use doc, updateDoc, and serverTimestamp
+            const userRef = doc(db, 'users', uid);
+            await updateDoc(userRef, {
                 onboardingCompleted: true,
-                onboardingCompletedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                onboardingCompletedAt: serverTimestamp(),
                 preferences: prefs
             });
             console.log('[Auth] Onboarding complete — preferences saved to Firestore');
