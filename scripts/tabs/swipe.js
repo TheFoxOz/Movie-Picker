@@ -2,13 +2,18 @@
  * SwipeTab component
  * Handles displaying movie cards and the swipe interaction logic.
  *
- * CRITICAL FIX: Added a .filter() inside loadMoviesWithRetry to skip 
- * any undefined or null movie objects returned by the API, resolving the 
- * "Cannot read properties of undefined (reading 'id')" error.
+ * FIXES INCLUDED:
+ * 1. Corrected import path for movieService to resolve Vite/Rollup build failure.
+ * 2. Added data validation (.filter()) inside loadMoviesWithRetry to skip 
+ * any invalid movie objects, resolving the "Cannot read properties of undefined (reading 'id')" error.
  */
 
 import { store } from '../state/store.js';
-import { movieService } from '../services/movie-service.js';
+// ---------------------------------------------------------------------
+// CRITICAL FIX: Changed '../services/movie-service.js' to '../../services/movie-service.js'
+// ---------------------------------------------------------------------
+import { movieService } from '../../services/movie-service.js'; 
+// ---------------------------------------------------------------------
 import { authService } from '../services/auth-service.js';
 import { notify } from '../utils/notifications.js';
 
@@ -224,7 +229,7 @@ class SwipeTab {
             const { movies, totalPages } = await movieService.fetchMovies(this.currentPage);
             this.totalPages = totalPages;
 
-            // --- CRITICAL FIX: Ensure movie objects are valid before mapping ---
+            // --- CRITICAL DATA VALIDATION FIX: Filter out any invalid/null entries ---
             const cleanMovies = movies.filter(movie => movie && movie.id);
 
             if (cleanMovies.length > 0) {
@@ -252,7 +257,7 @@ class SwipeTab {
         } catch (error) {
             console.error(`[SwipeTab] Load failed:`, error);
             if (this.loadAttempt < this.maxLoadAttempts) {
-                // Retry loading logic (handled by the outer function if needed, but not here)
+                // The outer loop or user interaction might trigger another attempt
             } else {
                 this.isComplete = true;
             }
