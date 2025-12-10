@@ -1,7 +1,6 @@
 /**
- * App Initialization - FINAL FIX for Google Redirect Navigation
- * CRITICAL FIX: The call to authService.handleRedirectResult() is now the 
- * first asynchronous step in the init() method to prevent the navigation loop.
+ * App Initialization - FIXED VERSION
+ * Only imports services that actually exist
  */
 
 import { onboardingFlow } from './components/onboarding-flow.js';
@@ -12,6 +11,7 @@ import { HomeTab } from './tabs/home.js';
 import { MatchesTab } from './tabs/matches.js';
 import { store } from './state/store.js';
 import { authService } from './services/auth-service.js';
+import { userProfileService } from './services/user-profile-revised.js';
 
 class MoviePickerApp {
     constructor() {
@@ -27,13 +27,7 @@ class MoviePickerApp {
 
     async init() {
         console.log('[App] Initializing Movie Picker App...');
-        
-        // ---------------------------------------------------------------------
-        // CRITICAL FIX: Handle Redirect Result BEFORE anything else
-        // This processes the token from Google redirect and updates the auth state.
-        // ---------------------------------------------------------------------
-        await authService.handleRedirectResult(); 
-
+        this.initializeUserProfile();
         await this.initializeEnhancedServices();
 
         console.log('[App] Initializing tabs...');
@@ -46,9 +40,6 @@ class MoviePickerApp {
         };
 
         this.setupDOM();
-        
-        // onboardingFlow.start() relies on the store's isAuthenticated state, 
-        // which should now be true if the user returned from a successful Google login.
         const needsOnboarding = await onboardingFlow.start();
 
         if (!needsOnboarding) {
@@ -63,23 +54,62 @@ class MoviePickerApp {
         }
     }
 
+    initializeUserProfile() {
+        const profile = userProfileService.getProfile();
+        store.setState({ 
+            userProfile: profile,
+            preferences: {
+                platforms: profile.selectedPlatforms.reduce((acc, platform) => {
+                    acc[platform] = true;
+                    return acc;
+                }, {}),
+                region: profile.region,
+                triggerWarnings: profile.triggerWarnings
+            }
+        });
+        this.setupProfileListeners();
+    }
+
+    setupProfileListeners() {
+        window.addEventListener('profile-region-updated', (e) => {
+            const preferences = store.getState().preferences || {};
+            preferences.region = e.detail.region;
+            store.setState({ preferences });
+        });
+
+        window.addEventListener('profile-platforms-updated', (e) => {
+            const preferences = store.getState().preferences || {};
+            preferences.platforms = e.detail.platforms.reduce((acc, platform) => {
+                acc[platform] = true;
+                return acc;
+            }, {});
+            store.setState({ preferences });
+        });
+
+        window.addEventListener('profile-triggers-updated', (e) => {
+            const preferences = store.getState().preferences || {};
+            preferences.triggerWarnings = e.detail.triggers;
+            store.setState({ preferences });
+        });
+    }
+
     async initializeEnhancedServices() {
         console.log('[App] Initializing enhanced services...');
         
         try {
-            // Using dynamic import syntax
             const { doesTheDogDieService } = await import('./services/does-the-dog-die.js');
             const { ENV } = await import('./config/env.js');
             
             if (doesTheDogDieService && ENV && ENV.DTD_API_KEY) {
                 this.services.triggerWarnings = doesTheDogDieService;
-                console.log('[App] DoesTheDogDie service ready');
+                console.log('[App] ✅ DoesTheDogDie service ready');
             }
         } catch (error) {
-            console.warn('[App] DoesTheDogDie service not loaded:', error.message);
+            console.warn('[App] ⚠️ DoesTheDogDie service not loaded:', error.message);
         }
         
-        console.log('[App] Loaded services');
+        this.services.userProfile = userProfileService;
+        console.log('[App] ✅ Loaded services');
         
         if (typeof window !== 'undefined') {
             window.moviePickerServices = this.services;
@@ -107,11 +137,11 @@ class MoviePickerApp {
         nav.style.cssText = 'position: fixed; bottom: 0; left: 0; right: 0; background: rgba(17, 17, 27, 0.95); backdrop-filter: blur(10px); border-top: 1px solid rgba(255, 255, 255, 0.1); padding: 0.5rem; z-index: 1000;';
         nav.innerHTML = `
             <div style="display: flex; justify-content: space-around; max-width: 600px; margin: 0 auto;">
-                ${this.renderNavButton('home', 'Home', 'Home')}
-                ${this.renderNavButton('swipe', 'Swipe', 'Swipe')}
-                ${this.renderNavButton('library', 'Library', 'Library')}
-                ${this.renderNavButton('matches', 'Matches', 'Matches')}
-                ${this.renderNavButton('profile', 'Profile', 'Profile')}
+                ${this.renderNavButton('home', '🏠', 'Home')}
+                ${this.renderNavButton('swipe', '👆', 'Swipe')}
+                ${this.renderNavButton('library', '📚', 'Library')}
+                ${this.renderNavButton('matches', '🤝', 'Matches')}
+                ${this.renderNavButton('profile', '👤', 'Profile')}
             </div>
         `;
         document.body.appendChild(nav);
@@ -131,7 +161,7 @@ class MoviePickerApp {
     setupNavigationListeners() {
         this.bottomNav.addEventListener('click', (e) => {
             const btn = e.target.closest('.nav-btn');
-            if (btn) this.navigateToTab(btn.dataset.tab); 
+            if (btn) this.navigateToTab(btn.dataset.tab);
         });
     }
 
@@ -189,18 +219,14 @@ class MoviePickerApp {
     }
 }
 
-// ---------------------------------------------------------------------
-// Application Entry Point
-// ---------------------------------------------------------------------
-
-const startApp = () => {
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+        const app = new MoviePickerApp();
+        app.init();
+    });
+} else {
     const app = new MoviePickerApp();
     app.init();
-};
-
-// Simplified DOM ready check
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', startApp);
-} else {
-    startApp();
 }
+
+export { MoviePickerApp };
