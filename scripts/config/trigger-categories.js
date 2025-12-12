@@ -149,3 +149,4 @@ export function getSeverityColor(severity) {
     };
     return colors[severity] || colors.medium;
 }
+
