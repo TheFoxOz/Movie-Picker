@@ -4,7 +4,7 @@
  */
 
 import { sortMatchesByScore, getMatchColor } from '../utils/scoring.js';
-import { showConfetti } from '../utils/notifications.js';
+import { celebrate } from '../utils/confetti.js';
 
 export class MatchList {
     constructor(container) {
@@ -23,7 +23,7 @@ export class MatchList {
         // Trigger confetti for perfect matches
         const hasPerfectMatch = sortedMatches.some(m => m.matchPercentage === 100);
         if (hasPerfectMatch) {
-            setTimeout(showConfetti, 300);
+            setTimeout(() => celebrate.center(), 300);
         }
     }
     
