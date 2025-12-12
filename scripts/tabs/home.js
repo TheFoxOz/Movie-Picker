@@ -75,28 +75,44 @@ export class HomeTab {
                 return;
             }
 
-            const enabledPlatforms = Object.keys(this.preferences.platforms)
-                .filter(p => this.preferences.platforms[p]);
+            console.log('[Home] Loading content...');
 
-            console.log('[Home] Loading content for platforms:', enabledPlatforms);
-
+            // ✅ FIX: Load different content for each section
             const trending = await tmdbService.getTrendingMovies('week');
             this.trendingMovies = this.filterMovies(trending);
 
+            // Get recommendations (uses swipe history)
             this.recommendedMovies = await this.getRecommendations();
 
-            // ✅ FIX: Don't filter by platform since TMDB doesn't provide that data
-            // Just show popular movies for now
-            this.platformMovies = {};
+            // ✅ FIX: Load DIFFERENT popular movies for platforms section
             const popularMovies = await tmdbService.getPopularMovies(1);
-            const allMovies = this.filterMovies(popularMovies);
+            const topRatedResult = await tmdbService.discoverMovies({ 
+                sortBy: 'vote_average.desc', 
+                minVotes: 1000, 
+                page: 1 
+            });
+            const topRatedMovies = topRatedResult.movies || topRatedResult;
+            
+            // Combine and dedupe
+            const allMovies = [...popularMovies, ...topRatedMovies];
+            const uniqueMovies = [];
+            const seen = new Set();
+            
+            allMovies.forEach(movie => {
+                if (movie && movie.id && !seen.has(movie.id)) {
+                    seen.add(movie.id);
+                    uniqueMovies.push(movie);
+                }
+            });
 
-            // Show popular movies under first enabled platform as placeholder
-            if (enabledPlatforms.length > 0) {
-                this.platformMovies[enabledPlatforms[0]] = allMovies.slice(0, 10);
-            }
+            this.platformMovies = {
+                'Popular': this.filterMovies(uniqueMovies.slice(0, 20))
+            };
 
             console.log('[Home] Content loaded successfully');
+            console.log('[Home] Trending:', this.trendingMovies.length);
+            console.log('[Home] Recommended:', this.recommendedMovies.length);
+            console.log('[Home] Popular:', this.platformMovies['Popular']?.length || 0);
 
         } catch (error) {
             console.error('[Home] Error loading content:', error);
@@ -255,9 +271,7 @@ export class HomeTab {
                 ${enabledPlatforms.length > 0 ? `
                     ${this.renderSection('🔥 Trending This Week', this.trendingMovies, 'trending')}
                     ${hasHistory ? this.renderSection('✨ Recommended For You', this.recommendedMovies, 'recommended') : ''}
-                    ${enabledPlatforms.map(platform => 
-                        this.renderSection(this.getPlatformEmoji(platform) + ' On ' + platform, this.platformMovies[platform] || [], platform.toLowerCase().replace(/\s+/g, '-'))
-                    ).join('')}
+                    ${this.renderSection('🍿 Popular Movies', this.platformMovies['Popular'] || [], 'popular')}
 
                     <div style="text-align: center; padding: 3rem 1rem;">
                         <div style="font-size: 3rem; margin-bottom: 0.5rem;">🎬</div>
@@ -278,20 +292,46 @@ export class HomeTab {
         }
 
         return `
-            <div style="margin-bottom: 2.5rem;">
-                <h2 style="font-size: 1.25rem; font-weight: 700; color: white; margin: 0 0 1rem 0;">
-                    ${title}
-                </h2>
-                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 1rem;">
-                    ${movies.slice(0, 6).map(movie => this.renderMovieCard(movie)).join('')}
-                </div>
-                ${movies.length > 6 ? `
-                    <div style="text-align: center; margin-top: 1rem;">
-                        <button class="view-all-btn" data-section="${sectionId}" style="padding: 0.75rem 1.5rem; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 0.75rem; color: rgba(255,255,255,0.8); font-weight: 600; cursor: pointer; transition: all 0.3s;">
-                            View All (${movies.length})
+            <div style="margin-bottom: 3rem;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; padding: 0 1rem;">
+                    <h2 style="font-size: 1.25rem; font-weight: 700; color: white; margin: 0;">
+                        ${title}
+                    </h2>
+                    ${movies.length > 6 ? `
+                        <button class="view-all-btn" data-section="${sectionId}" style="padding: 0.5rem 1rem; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 0.5rem; color: rgba(255,255,255,0.7); font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: all 0.3s;">
+                            View All →
                         </button>
+                    ` : ''}
+                </div>
+                
+                <!-- Netflix-style horizontal scrolling container -->
+                <div class="movie-row" data-section="${sectionId}" style="
+                    overflow-x: auto;
+                    overflow-y: hidden;
+                    scroll-behavior: smooth;
+                    -webkit-overflow-scrolling: touch;
+                    scrollbar-width: none;
+                    -ms-overflow-style: none;
+                    padding: 0 1rem;
+                ">
+                    <div style="
+                        display: flex;
+                        gap: 0.75rem;
+                        padding-bottom: 1rem;
+                    ">
+                        ${movies.map(movie => this.renderMovieCard(movie)).join('')}
                     </div>
-                ` : ''}
+                </div>
+                
+                <style>
+                    .movie-row::-webkit-scrollbar {
+                        display: none;
+                    }
+                    .home-movie-card {
+                        min-width: 140px;
+                        flex-shrink: 0;
+                    }
+                </style>
             </div>
         `;
     }
