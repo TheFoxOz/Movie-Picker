@@ -239,10 +239,29 @@ export class SwipeTab {
             const movies = Array.from(map.values());
             console.log(`[SwipeTab] Loaded ${movies.length} unique movies`);
 
+            // ✅ FIX: Filter out corrupted swipe history entries
             const state = store.getState();
-            const swiped = new Set((state.swipeHistory || []).map(s => String(s.movie.id)));
+            const swipeHistory = state.swipeHistory || [];
+            
+            // Create Set safely - filter out invalid swipes first
+            const swipedMovieIds = new Set();
+            swipeHistory.forEach(swipe => {
+                if (swipe && swipe.movie && swipe.movie.id) {
+                    swipedMovieIds.add(String(swipe.movie.id));
+                } else {
+                    console.warn('[SwipeTab] Skipping invalid swipe entry:', swipe);
+                }
+            });
 
-            this.movieQueue = movies.filter(m => !swiped.has(String(m.id)));
+            // Filter movies safely
+            this.movieQueue = movies.filter(movie => {
+                if (!movie || !movie.id) {
+                    console.warn('[SwipeTab] Skipping invalid movie:', movie);
+                    return false;
+                }
+                return !swipedMovieIds.has(String(movie.id));
+            });
+            
             console.log(`[SwipeTab] ${this.movieQueue.length} movies after filtering swiped`);
 
             if (this.movieQueue.length < 10 && attempt <= 3) {
