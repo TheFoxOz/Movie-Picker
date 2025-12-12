@@ -127,8 +127,15 @@ export class HomeTab {
 
     async getRecommendations() {
         const swipeHistory = store.getState().swipeHistory || [];
-        const lovedMovies = swipeHistory.filter(s => s.action === 'love').map(s => s.movie);
-        const likedMovies = swipeHistory.filter(s => s.action === 'like').map(s => s.movie);
+        
+        // ✅ FIX: Filter out invalid swipes before mapping
+        const lovedMovies = swipeHistory
+            .filter(s => s && s.action === 'love' && s.movie && s.movie.id)
+            .map(s => s.movie);
+        
+        const likedMovies = swipeHistory
+            .filter(s => s && s.action === 'like' && s.movie && s.movie.id)
+            .map(s => s.movie);
 
         if (lovedMovies.length === 0 && likedMovies.length === 0) {
             const popular = await tmdbService.getPopularMovies(1);
@@ -138,7 +145,14 @@ export class HomeTab {
         const favoriteMovies = [...lovedMovies, ...likedMovies];
         const genreCounts = {};
         
+        // ✅ FIX: Add null check before accessing properties
         favoriteMovies.forEach(movie => {
+            // Make sure movie exists and has genre data
+            if (!movie) {
+                console.warn('[Home] Invalid movie in favorites');
+                return;
+            }
+            
             if (movie.genre_ids || movie.genreIds) {
                 const ids = movie.genre_ids || movie.genreIds;
                 ids.forEach(genreId => {
@@ -167,9 +181,17 @@ export class HomeTab {
             }
         }
 
-        const swipedIds = new Set(swipeHistory.map(s => s.movie.id));
+        // ✅ FIX: Safely create swipedIds Set with null checks
+        const swipedIds = new Set(
+            swipeHistory
+                .filter(s => s && s.movie && s.movie.id)
+                .map(s => s.movie.id)
+        );
+        
+        // ✅ FIX: Add null checks when filtering unique movies
         const unique = recommendations.filter((movie, index, self) => 
-            self.findIndex(m => m.id === movie.id) === index &&
+            movie && movie.id &&
+            self.findIndex(m => m && m.id === movie.id) === index &&
             !swipedIds.has(movie.id)
         );
 
