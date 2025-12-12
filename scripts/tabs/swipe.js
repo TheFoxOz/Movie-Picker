@@ -1,371 +1,394 @@
 /**
- * SwipeCard Component – ENHANCED WITH SWIPE DIRECTION FEEDBACK + TRIGGER WARNINGS
- * Shows clear visual indicators when swiping in any direction
- * Displays trigger warning badge from DoesTheDogDie.com
- * FIXED: Proper event dispatching for card advancing
- * ✅ FIX: Corrected confetti and notification imports
- * ✅ FIX: Changed getTMDBService to tmdbService
+ * Swipe Tab Component – COMPLETE FIXED VERSION
+ * ✅ Fix #3: Always renders HTML structure, never blank
+ * ✅ Removed hasLoaded flag that caused issues
+ * ✅ Proper movie loading and card management
+ * ✅ FIX: Corrected notification and confetti imports
+ * ✅ FIX: Corrected tmdbService import (not getTMDBService)
  */
 
-import { store } from '../state/store.js';
-import { authService } from '../services/auth-service.js';
+import { store } from "../state/store.js";
+import { SwipeCard } from "../components/swipe-card.js";
+import { tmdbService } from "../services/tmdb.js";
 // ✅ FIX: Changed to correct imports
-import { celebrate } from '../utils/confetti.js';
-import { notify } from '../utils/notifications.js';
+import { notify } from "../utils/notifications.js";
+import { celebrate } from "../utils/confetti.js";
 
-export class SwipeCard {
-    constructor(container, movie) {
+export class SwipeTab {
+    constructor() {
+        this.container = null;
+        this.currentCard = null;
+        this.movieQueue = [];
+        this.isLoading = false;
+        this.swipeHandler = null;
+    }
+
+    async render(container) {
+        console.log('[SwipeTab] Rendering...');
         this.container = container;
-        this.movie = movie;
-        this.element = null;
-        this.isDragging = false;
-        this.startX = 0;
-        this.currentX = 0;
-        this.startY = 0;
-        this.currentY = 0;
-        this.actionInProgress = false;
 
-        this.render();
-        this.attachEvents();
-        this.fetchTriggerWarnings();
-    }
-
-    async fetchTriggerWarnings() {
-        if (this.movie.warningsLoaded) return;
-
-        try {
-            const { tmdbService } = await import('../services/tmdb.js');
-            
-            if (tmdbService) {
-                await tmdbService.fetchTriggerWarnings(this.movie);
+        // ✅ FIX #3: ALWAYS render HTML structure (no early return, no hasLoaded check)
+        container.innerHTML = `
+            <div style="position: relative; width: 100%; height: calc(100vh - 5rem); display: flex; flex-direction: column; padding-bottom: 7rem;">
                 
-                if (this.movie.triggerWarnings && this.movie.triggerWarnings.length > 0) {
-                    this.updateWarningBadge();
-                }
-            }
-        } catch (error) {
-            console.error('[SwipeCard] Failed to fetch trigger warnings:', error);
-        }
-    }
-
-    updateWarningBadge() {
-        const posterDiv = this.element.querySelector('div[style*="height: 520px"]');
-        if (!posterDiv) return;
-
-        let badge = posterDiv.querySelector('.trigger-warning-badge');
-        
-        if (this.movie.triggerWarnings && this.movie.triggerWarnings.length > 0 && !badge) {
-            badge = document.createElement('div');
-            badge.className = 'trigger-warning-badge';
-            badge.style.cssText = 'position: absolute; top: 1rem; left: 1rem; padding: 0.5rem 0.75rem; background: rgba(239,68,68,0.95); backdrop-filter: blur(10px); border-radius: 1rem; border: 1px solid rgba(255,255,255,0.2); display: flex; align-items: center; gap: 0.375rem; z-index: 5;';
-            badge.innerHTML = `
-                <span style="font-size: 0.875rem;">⚠️</span>
-                <span style="color: white; font-weight: 700; font-size: 0.875rem;">${this.movie.triggerWarnings.length}</span>
-            `;
-            posterDiv.appendChild(badge);
-        }
-    }
-
-    render() {
-        // ✅ FIX: Use posterURL which includes full TMDB image URL
-        const poster = this.movie.posterURL || this.movie.poster_path || 'https://placehold.co/300x450/1a1a2e/ffffff?text=No+Image';
-
-        this.element = document.createElement('div');
-        this.element.className = 'swipe-card';
-        this.element.innerHTML = `
-            <div style="position: relative; width: 100%; max-width: 380px; border-radius: 1.5rem; box-shadow: 0 20px 60px rgba(0,0,0,0.6); background: #111; transform: rotate(0deg); transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1); user-select: none;">
-                
-                <!-- SWIPE DIRECTION OVERLAYS - ALL CENTERED ON POSTER -->
-                
-                <!-- PASS (Left) - Red X -->
-                <div id="badge-pass" class="swipe-badge" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); padding: 1.5rem 2.5rem; background: linear-gradient(135deg, rgba(239, 68, 68, 0.95), rgba(220, 38, 38, 0.95)); color: white; font-size: 3rem; font-weight: 800; border-radius: 1.5rem; opacity: 0; z-index: 10; box-shadow: 0 8px 32px rgba(239, 68, 68, 0.6); backdrop-filter: blur(10px); border: 3px solid rgba(255, 255, 255, 0.3); display: flex; flex-direction: column; align-items: center; gap: 0.5rem; pointer-events: none;">
-                    <div style="font-size: 5rem; line-height: 1;">✕</div>
-                    <div style="font-size: 2rem; font-weight: 800; letter-spacing: 0.15em;">NOPE</div>
+                <!-- Header -->
+                <div style="padding: 1.5rem 1rem; text-align: center;">
+                    <h1 style="font-size: 1.5rem; font-weight: 800; color: white; margin: 0 0 0.5rem 0;">
+                        Discover Movies
+                    </h1>
+                    <p style="font-size: 0.875rem; color: rgba(255, 255, 255, 0.6); margin: 0;">
+                        Swipe to find your next favorite film
+                    </p>
                 </div>
                 
-                <!-- MAYBE (Up) - Yellow Question -->
-                <div id="badge-maybe" class="swipe-badge" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); padding: 1.5rem 2.5rem; background: linear-gradient(135deg, rgba(251, 191, 36, 0.95), rgba(245, 158, 11, 0.95)); color: white; font-size: 3rem; font-weight: 800; border-radius: 1.5rem; opacity: 0; z-index: 10; box-shadow: 0 8px 32px rgba(251, 191, 36, 0.6); backdrop-filter: blur(10px); border: 3px solid rgba(255, 255, 255, 0.3); display: flex; flex-direction: column; align-items: center; gap: 0.5rem; pointer-events: none;">
-                    <div style="font-size: 5rem; line-height: 1;">❓</div>
-                    <div style="font-size: 2rem; font-weight: 800; letter-spacing: 0.15em;">MAYBE</div>
-                </div>
-                
-                <!-- LIKE (Right) - Green Thumbs Up -->
-                <div id="badge-like" class="swipe-badge" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); padding: 1.5rem 2.5rem; background: linear-gradient(135deg, rgba(16, 185, 129, 0.95), rgba(5, 150, 105, 0.95)); color: white; font-size: 3rem; font-weight: 800; border-radius: 1.5rem; opacity: 0; z-index: 10; box-shadow: 0 8px 32px rgba(16, 185, 129, 0.6); backdrop-filter: blur(10px); border: 3px solid rgba(255, 255, 255, 0.3); display: flex; flex-direction: column; align-items: center; gap: 0.5rem; pointer-events: none;">
-                    <div style="font-size: 5rem; line-height: 1;">👍</div>
-                    <div style="font-size: 2rem; font-weight: 800; letter-spacing: 0.15em;">LIKE</div>
-                </div>
-                
-                <!-- LOVE (Down) - Pink Heart -->
-                <div id="badge-love" class="swipe-badge" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); padding: 1.5rem 2.5rem; background: linear-gradient(135deg, rgba(255, 46, 99, 0.95), rgba(217, 0, 98, 0.95)); color: white; font-size: 3rem; font-weight: 800; border-radius: 1.5rem; opacity: 0; z-index: 10; box-shadow: 0 8px 32px rgba(255, 46, 99, 0.6); backdrop-filter: blur(10px); border: 3px solid rgba(255, 255, 255, 0.3); display: flex; flex-direction: column; align-items: center; gap: 0.5rem; pointer-events: none;">
-                    <div style="font-size: 5rem; line-height: 1;">❤️</div>
-                    <div style="font-size: 2rem; font-weight: 800; letter-spacing: 0.15em;">LOVE</div>
+                <!-- Card Container -->
+                <div id="swipe-container" style="flex: 1; position: relative; display: flex; align-items: center; justify-content: center; padding: 0 1rem;">
+                    <div style="color: rgba(255,255,255,0.6); text-align: center;">
+                        <div style="font-size: 3rem; margin-bottom: 1rem;">🎬</div>
+                        <p>Loading your movies...</p>
+                    </div>
                 </div>
 
-                <!-- Poster (with overflow hidden for clean edges) -->
-                <div style="position: relative; height: 520px; background: #000; border-radius: 1.5rem; overflow: hidden;">
-                    <img src="${poster}" alt="${this.movie.title}" style="width: 100%; height: 100%; object-fit: cover;">
-                    
-                    <!-- Gradient overlay -->
-                    <div style="position: absolute; inset: 0; background: linear-gradient(0deg, rgba(0,0,0,0.8) 0%, transparent 40%);"></div>
-
-                    <!-- Trigger Warning Badge (will be added dynamically if warnings exist) -->
+                <!-- Action Buttons -->
+                <div style="position: fixed; bottom: 7rem; left: 0; right: 0; z-index: 90; padding: 0 1.5rem; pointer-events: none;">
+                    <div style="max-width: 420px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 1rem; pointer-events: auto;">
+                        <button id="swipe-pass" class="swipe-action-btn pass-btn" title="Pass">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="3" stroke="currentColor" style="width:28px;height:28px;">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                        
+                        <button id="swipe-maybe" class="swipe-action-btn maybe-btn" title="Maybe Later">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width:26px;height:26px;">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
+                            </svg>
+                        </button>
+                        
+                        <button id="swipe-like" class="swipe-action-btn like-btn" title="Like">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width:28px;height:28px;">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6.633 10.5c.806 0 1.533-.446 2.031-1.08a9.041 9.041 0 012.861-2.4c.723-.384 1.35-.956 1.653-1.715a4.498 4.498 0 00.322-1.672V3a.75.75 0 01.75-.75A2.25 2.25 0 0116.5 4.5c0 1.152-.26 2.243-.723 3.218-.266.558.107 1.282.725 1.282h3.126c1.026 0 1.945.694 2.054 1.715.045.422.068.85.068 1.285a11.95 11.95 0 01-2.649 7.521c-.388.482-.987.729-1.605.729H13.48c-.483 0-.964-.078-1.423-.23l-3.114-1.04a4.501 4.501 0 00-1.423-.23H5.904M14.25 9h2.25M5.904 18.75c.083.205.173.405.27.602.197.4-.078.898-.523.898h-.908c-.889 0-1.713-.518-1.972-1.368a12 12 0 01-.521-3.507c0-1.553.295-3.036.831-4.398C3.387 10.203 4.167 9.75 5 9.75h1.053c.472 0 .745.556.5.96a8.958 8.958 0 00-1.302 4.665c0 1.194.232 2.333.654 3.375z" />
+                            </svg>
+                        </button>
+                        
+                        <button id="swipe-love" class="swipe-action-btn love-btn" title="Love">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24" style="width:30px;height:30px;">
+                                <path d="M11.645 20.91l-.007-.003-.022-.012a15.247 15.247 0 01-.383-.218 25.18 25.18 0 01-4.244-3.17C4.688 15.36 2.25 12.174 2.25 8.25 2.25 5.322 4.714 3 7.688 3A5.5 5.5 0 0112 5.052 5.5 5.5 0 0116.313 3c2.973 0 5.437 2.322 5.437 5.25 0 3.925-2.438 7.111-4.739 9.256a25.175 25.175 0 01-4.244 3.17 15.247 15.247 0 01-.383.219l-.022.012-.007.004-.003.001a.752.752 0 01-.704 0l-.003-.001z" />
+                            </svg>
+                        </button>
+                    </div>
                 </div>
 
-                <!-- Movie Info -->
-                <div style="padding: 1.5rem;">
-                    <h2 style="font-size: 1.75rem; font-weight: 800; color: white; margin: 0 0 0.5rem 0;">
-                        ${this.movie.title}
+                <!-- Completed State -->
+                <div id="swipe-completed" style="display: none; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; padding: 2rem; text-align: center; background: rgba(10, 10, 15, 0.95); z-index: 10;">
+                    <div style="font-size: 5rem; margin-bottom: 1.5rem;">🎉</div>
+                    <h2 style="font-size: 2rem; font-weight: 800; color: white; margin: 0 0 1rem 0;">
+                        You Did It!
                     </h2>
-                    <p style="color: rgba(255,255,255,0.7); font-size: 1rem; margin: 0 0 1rem 0;">
-                        ${this.movie.releaseDate?.split('-')[0] || ''} • ${this.movie.genres?.[0] || 'Movie'}
+                    <p style="font-size: 1.125rem; color: rgba(255, 255, 255, 0.8); margin: 0 0 2rem 0; max-width: 400px;">
+                        You've swiped through all available movies. Check your Library to see your picks!
                     </p>
-                    <p style="color: rgba(255,255,255,0.9); line-height: 1.6; margin: 0;">
-                        ${this.movie.overview || 'No description available.'}
-                    </p>
+                    <button id="goto-library" style="padding: 1rem 2rem; background: linear-gradient(135deg, #ff2e63, #d90062); border: none; border-radius: 1rem; color: white; font-size: 1rem; font-weight: 700; cursor: pointer; transition: transform 0.2s;">
+                        View My Library
+                    </button>
                 </div>
             </div>
         `;
 
-        this.container.appendChild(this.element);
+        console.log('[SwipeTab] HTML structure rendered');
+        this.injectButtonStyles();
+        
+        // Load movies separately (always runs, no hasLoaded check)
+        if (this.movieQueue.length === 0) {
+            console.log('[SwipeTab] Movie queue empty, loading movies...');
+            await this.loadMoviesWithRetry();
+        } else {
+            console.log('[SwipeTab] Using existing movie queue:', this.movieQueue.length, 'movies');
+        }
+        
+        this.attachListeners();
+        this.showNextCard();
+        console.log('[SwipeTab] ✅ Render complete');
     }
 
-    attachEvents() {
-        const card = this.element;
+    injectButtonStyles() {
+        if (document.getElementById("swipe-btn-style")) return;
 
-        const onGrab = (e) => {
-            this.isDragging = true;
-            this.startX = e.type.includes('mouse') ? e.pageX : e.touches[0].pageX;
-            this.startY = e.type.includes('mouse') ? e.pageY : e.touches[0].pageY;
-            card.style.transition = 'none';
-        };
-
-        const onMove = (e) => {
-            if (!this.isDragging) return;
-
-            this.currentX = e.type.includes('mouse') ? e.pageX : e.touches[0].pageX;
-            this.currentY = e.type.includes('mouse') ? e.pageY : e.touches[0].pageY;
-
-            const diffX = this.currentX - this.startX;
-            const diffY = this.currentY - this.startY;
-            const absDiffX = Math.abs(diffX);
-            const absDiffY = Math.abs(diffY);
-
-            const rotate = diffX / 10;
-            card.style.transform = `translateX(${diffX}px) translateY(${diffY}px) rotate(${rotate}deg)`;
-
-            const passBadge = card.querySelector('#badge-pass');
-            const maybeBadge = card.querySelector('#badge-maybe');
-            const likeBadge = card.querySelector('#badge-like');
-            const loveBadge = card.querySelector('#badge-love');
-
-            passBadge.style.opacity = 0;
-            maybeBadge.style.opacity = 0;
-            likeBadge.style.opacity = 0;
-            loveBadge.style.opacity = 0;
-
-            if (absDiffX > absDiffY) {
-                if (diffX < -80) {
-                    passBadge.style.opacity = Math.min(absDiffX / 150, 1);
-                    passBadge.style.transform = `translate(-50%, -50%) scale(${1 + absDiffX / 300})`;
-                } else if (diffX > 80) {
-                    likeBadge.style.opacity = Math.min(absDiffX / 150, 1);
-                    likeBadge.style.transform = `translate(-50%, -50%) scale(${1 + absDiffX / 300})`;
-                }
-            } else {
-                if (diffY < -80) {
-                    maybeBadge.style.opacity = Math.min(absDiffY / 150, 1);
-                    maybeBadge.style.transform = `translate(-50%, -50%) scale(${1 + absDiffY / 300})`;
-                } else if (diffY > 80) {
-                    loveBadge.style.opacity = Math.min(absDiffY / 150, 1);
-                    loveBadge.style.transform = `translate(-50%, -50%) scale(${1 + absDiffY / 300})`;
-                }
+        const style = document.createElement("style");
+        style.id = "swipe-btn-style";
+        style.textContent = `
+            .swipe-action-btn {
+                width: 64px;
+                height: 64px;
+                border-radius: 50%;
+                border: none;
+                cursor: pointer;
+                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+                backdrop-filter: blur(12px);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                position: relative;
             }
-        };
-
-        const onRelease = () => {
-            if (!this.isDragging) return;
-            this.isDragging = false;
-
-            const diffX = this.currentX - this.startX;
-            const diffY = this.currentY - this.startY;
-            const absDiffX = Math.abs(diffX);
-            const absDiffY = Math.abs(diffY);
-
-            card.style.transition = 'all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1)';
-
-            const threshold = 120;
-
-            if (absDiffX > absDiffY) {
-                if (absDiffX > threshold) {
-                    if (diffX < 0) {
-                        this.swipeOff('pass');
-                    } else {
-                        this.swipeOff('like');
-                    }
-                    return;
-                }
-            } else {
-                if (absDiffY > threshold) {
-                    if (diffY < 0) {
-                        this.swipeOff('maybe');
-                    } else {
-                        this.swipeOff('love');
-                    }
-                    return;
-                }
-            }
-
-            card.style.transform = 'translateX(0) translateY(0) rotate(0deg)';
             
-            const badges = card.querySelectorAll('.swipe-badge');
-            badges.forEach(badge => {
-                badge.style.opacity = 0;
-                badge.style.transform = 'translate(-50%, -50%)';
-            });
-        };
+            .pass-btn {
+                background: linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(220, 38, 38, 0.2));
+                border: 3px solid rgba(239, 68, 68, 0.6);
+                color: #ef4444;
+            }
+            
+            .maybe-btn {
+                background: linear-gradient(135deg, rgba(251, 191, 36, 0.2), rgba(245, 158, 11, 0.2));
+                border: 3px solid rgba(251, 191, 36, 0.6);
+                color: #fbbf24;
+            }
+            
+            .like-btn {
+                background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(5, 150, 105, 0.2));
+                border: 3px solid rgba(16, 185, 129, 0.6);
+                color: #10b981;
+            }
+            
+            .love-btn {
+                background: linear-gradient(135deg, rgba(255, 46, 99, 0.3), rgba(217, 0, 98, 0.3));
+                border: 3px solid rgba(255, 46, 99, 0.6);
+                color: #ff2e63;
+            }
 
-        card.addEventListener('mousedown', onGrab);
-        document.addEventListener('mousemove', onMove);
-        document.addEventListener('mouseup', onRelease);
-
-        card.addEventListener('touchstart', onGrab, { passive: true });
-        document.addEventListener('touchmove', onMove, { passive: false });
-        document.addEventListener('touchend', onRelease);
-
-        this.cleanup = () => {
-            card.removeEventListener('mousedown', onGrab);
-            document.removeEventListener('mousemove', onMove);
-            document.removeEventListener('mouseup', onRelease);
-            card.removeEventListener('touchstart', onGrab);
-            document.removeEventListener('touchmove', onMove);
-            document.removeEventListener('touchend', onRelease);
-        };
+            .swipe-action-btn:hover {
+                transform: scale(1.15);
+                box-shadow: 0 12px 32px rgba(0,0,0,0.6);
+            }
+            
+            .pass-btn:hover {
+                background: linear-gradient(135deg, rgba(239, 68, 68, 0.3), rgba(220, 38, 38, 0.3));
+                border-color: rgba(239, 68, 68, 0.8);
+                box-shadow: 0 12px 32px rgba(239, 68, 68, 0.4);
+            }
+            
+            .maybe-btn:hover {
+                background: linear-gradient(135deg, rgba(251, 191, 36, 0.3), rgba(245, 158, 11, 0.3));
+                border-color: rgba(251, 191, 36, 0.8);
+                box-shadow: 0 12px 32px rgba(251, 191, 36, 0.4);
+            }
+            
+            .like-btn:hover {
+                background: linear-gradient(135deg, rgba(16, 185, 129, 0.3), rgba(5, 150, 105, 0.3));
+                border-color: rgba(16, 185, 129, 0.8);
+                box-shadow: 0 12px 32px rgba(16, 185, 129, 0.4);
+            }
+            
+            .love-btn:hover {
+                background: linear-gradient(135deg, rgba(255, 46, 99, 0.4), rgba(217, 0, 98, 0.4));
+                border-color: rgba(255, 46, 99, 0.8);
+                box-shadow: 0 12px 32px rgba(255, 46, 99, 0.5);
+            }
+            
+            .swipe-action-btn:active {
+                transform: scale(0.95);
+            }
+        `;
+        document.head.appendChild(style);
     }
 
-    handleAction(action) {
-        this.swipeOff(action);
-    }
-
-    swipeOff(action) {
-        if (this.actionInProgress) {
-            console.log('[SwipeCard] Action already in progress, ignoring');
+    async loadMoviesWithRetry(attempt = 1) {
+        if (this.isLoading) {
+            console.log('[SwipeTab] Already loading movies, skipping...');
             return;
         }
-        this.actionInProgress = true;
-
-        console.log(`[SwipeCard] Swiping off: ${action} for movie: ${this.movie.title}`);
         
-        const card = this.element;
-        
-        let translateX = 0;
-        let translateY = 0;
-        let rotate = 0;
+        this.isLoading = true;
 
-        switch(action) {
-            case 'pass':
-                translateX = -500;
-                rotate = -25;
-                break;
-            case 'maybe':
-                translateY = -500;
-                rotate = 0;
-                break;
-            case 'like':
-                translateX = 400;
-                rotate = 20;
-                break;
-            case 'love':
-                translateX = 600;
-                rotate = 30;
-                break;
-        }
-
-        card.style.transform = `translateX(${translateX}px) translateY(${translateY}px) rotate(${rotate}deg)`;
-        card.style.opacity = '0';
-
-        const swipeData = {
-            movie: this.movie,
-            action,
-            timestamp: Date.now()
-        };
-
-        const history = [...(store.getState().swipeHistory || []), swipeData];
-        store.setState({ swipeHistory: history });
-
-        if (authService.isAuthenticated()) {
-            authService.syncSwipeHistory(history);
-        }
-
-        // ✅ FIX: Updated to use correct confetti and notification functions
-        const rect = card.getBoundingClientRect();
-        const centerX = rect.left + rect.width / 2;
-        const centerY = rect.top + rect.height / 2;
-
-        if (action === 'love') {
-            celebrate.love(centerX, centerY);
-            this.showSwipeToast(this.movie.title, 'love');
-        } else if (action === 'like') {
-            celebrate.custom(centerX, centerY, {
-                particleCount: 50,
-                colors: ['#10b981', '#059669', '#34d399']
-            });
-            this.showSwipeToast(this.movie.title, 'like');
-        } else if (action === 'pass') {
-            this.showSwipeToast(this.movie.title, 'pass');
-        } else if (action === 'maybe') {
-            this.showSwipeToast(this.movie.title, 'maybe');
-        }
-
-        setTimeout(() => {
-            console.log('[SwipeCard] Animation complete, dispatching swipe-action event');
+        try {
+            console.log(`[SwipeTab] Loading movies (attempt ${attempt})...`);
             
-            const event = new CustomEvent('swipe-action', {
-                bubbles: true,
-                detail: { 
-                    action: action,
-                    movieId: this.movie.id,
-                    movieTitle: this.movie.title
+            // ✅ FIX: Changed from getTMDBService() to tmdbService
+            const tmdb = tmdbService;
+            
+            if (!tmdb) {
+                throw new Error("TMDB service not initialized");
+            }
+
+            const lists = await Promise.all([
+                tmdb.getPopularMovies(1).catch(err => {
+                    console.warn("[SwipeTab] Popular movies failed:", err.message);
+                    return [];
+                }),
+                tmdb.getTrendingMovies('week').catch(err => {
+                    console.warn("[SwipeTab] Trending movies failed:", err.message);
+                    return [];
+                }),
+                tmdb.discoverMovies({ sortBy: 'vote_average.desc', minVotes: 1000, page: 1 }).catch(err => {
+                    console.warn("[SwipeTab] Top rated movies failed:", err.message);
+                    return { movies: [] };
+                })
+            ]);
+
+            // Flatten and deduplicate
+            const popularMovies = lists[0] || [];
+            const trendingMovies = lists[1] || [];
+            const topRatedMovies = lists[2]?.movies || [];
+            
+            const map = new Map();
+            [...popularMovies, ...trendingMovies, ...topRatedMovies].forEach(m => {
+                if (m && m.id) {
+                    map.set(m.id, m);
                 }
             });
+
+            const movies = Array.from(map.values());
+            console.log(`[SwipeTab] Loaded ${movies.length} unique movies`);
+
+            // ✅ FIX: Filter out corrupted swipe history entries
+            const state = store.getState();
+            const swipeHistory = state.swipeHistory || [];
             
-            document.dispatchEvent(event);
-            console.log('[SwipeCard] Event dispatched successfully');
+            // Create Set safely - filter out invalid swipes first
+            const swipedMovieIds = new Set();
+            swipeHistory.forEach(swipe => {
+                if (swipe && swipe.movie && swipe.movie.id) {
+                    swipedMovieIds.add(String(swipe.movie.id));
+                } else {
+                    console.warn('[SwipeTab] Skipping invalid swipe entry:', swipe);
+                }
+            });
+
+            // Filter movies safely
+            this.movieQueue = movies.filter(movie => {
+                if (!movie || !movie.id) {
+                    console.warn('[SwipeTab] Skipping invalid movie:', movie);
+                    return false;
+                }
+                return !swipedMovieIds.has(String(movie.id));
+            });
             
-            if (card && card.parentNode) {
-                card.remove();
-                console.log('[SwipeCard] Card removed from DOM');
+            console.log(`[SwipeTab] ${this.movieQueue.length} movies after filtering swiped`);
+
+            if (this.movieQueue.length < 10 && attempt <= 3) {
+                console.log(`[SwipeTab] Need more movies, retrying (${this.movieQueue.length} < 10)...`);
+                this.isLoading = false;
+                setTimeout(() => this.loadMoviesWithRetry(attempt + 1), 1000);
+                return;
             }
             
-            this.actionInProgress = false;
-        }, 400);
+            console.log(`[SwipeTab] ✅ Movie queue ready with ${this.movieQueue.length} movies`);
+
+        } catch (err) {
+            console.error("[SwipeTab] Load failed:", err);
+            
+            if (attempt <= 3) {
+                // ✅ FIX: Changed showToast to notify.info
+                notify.info(`Loading movies... (attempt ${attempt}/3)`);
+                this.isLoading = false;
+                setTimeout(() => this.loadMoviesWithRetry(attempt + 1), 1500);
+            } else {
+                // ✅ FIX: Changed showToast to notify.error
+                notify.error("Failed to load movies. Please refresh the page.");
+                
+                const container = this.container?.querySelector("#swipe-container");
+                if (container) {
+                    container.innerHTML = `
+                        <div style="color: rgba(255,255,255,0.8); text-align: center; padding: 2rem;">
+                            <div style="font-size: 3rem; margin-bottom: 1rem;">⚠️</div>
+                            <h3 style="color: white; margin-bottom: 1rem;">Unable to Load Movies</h3>
+                            <p style="color: rgba(255,255,255,0.6); margin-bottom: 1.5rem;">
+                                ${err.message || 'Unknown error'}
+                            </p>
+                            <button onclick="location.reload()" style="padding: 0.75rem 1.5rem; background: linear-gradient(135deg, #ff2e63, #d90062); border: none; border-radius: 0.75rem; color: white; font-weight: 700; cursor: pointer;">
+                                Reload App
+                            </button>
+                        </div>
+                    `;
+                }
+            }
+        } finally {
+            this.isLoading = false;
+        }
     }
 
-    // ✅ FIX: Added helper method for toast notifications
-    showSwipeToast(movieTitle, action) {
-        const messages = {
-            love: `❤️ Loved "${movieTitle}"!`,
-            like: `👍 Liked "${movieTitle}"`,
-            maybe: `❓ Maybe watch "${movieTitle}"`,
-            pass: `✕ Passed on "${movieTitle}"`
+    showNextCard() {
+        const container = this.container?.querySelector("#swipe-container");
+        const completed = this.container?.querySelector("#swipe-completed");
+
+        if (!container) {
+            console.warn('[SwipeTab] Container not found');
+            return;
+        }
+
+        if (this.movieQueue.length === 0) {
+            console.log('[SwipeTab] No more movies - showing completed state');
+            container.innerHTML = "";
+            if (completed) {
+                completed.style.display = "flex";
+            }
+            // ✅ FIX: Changed showConfetti to celebrate.center
+            celebrate.center();
+            return;
+        }
+
+        if (completed) {
+            completed.style.display = "none";
+        }
+
+        const movie = this.movieQueue.shift();
+        console.log('[SwipeTab] Showing movie:', movie.title);
+        
+        container.innerHTML = "";
+        this.currentCard = new SwipeCard(container, movie);
+    }
+
+    attachListeners() {
+        const ACTION_MAP = {
+            "swipe-pass": "pass",
+            "swipe-maybe": "maybe",
+            "swipe-like": "like",
+            "swipe-love": "love"
         };
 
-        const types = {
-            love: 'success',
-            like: 'success',
-            maybe: 'warning',
-            pass: 'error'
+        Object.entries(ACTION_MAP).forEach(([id, action]) => {
+            const btn = this.container?.querySelector(`#${id}`);
+            if (btn) {
+                btn.addEventListener("click", () => this.handleButtonAction(action));
+            }
+        });
+
+        this.swipeHandler = () => {
+            console.log('[SwipeTab] Swipe action detected, showing next card after delay');
+            setTimeout(() => this.showNextCard(), 400);
         };
+        document.addEventListener("swipe-action", this.swipeHandler);
 
-        const message = messages[action] || `Swiped on "${movieTitle}"`;
-        const type = types[action] || 'info';
+        const gotoLibrary = this.container?.querySelector("#goto-library");
+        if (gotoLibrary) {
+            gotoLibrary.addEventListener("click", () => {
+                console.log('[SwipeTab] Navigating to library');
+                document.dispatchEvent(new CustomEvent("navigate-tab", { 
+                    detail: { tab: "library" } 
+                }));
+            });
+        }
+    }
 
-        notify[type](message, 3000);
+    handleButtonAction(action) {
+        console.log('[SwipeTab] Button action:', action);
+        if (this.currentCard) {
+            this.currentCard.handleAction(action);
+        }
     }
 
     destroy() {
-        if (this.cleanup) this.cleanup();
-        if (this.element && this.element.parentNode) {
-            this.element.remove();
+        console.log('[SwipeTab] Destroying...');
+        
+        if (this.currentCard) {
+            this.currentCard.destroy();
+            this.currentCard = null;
         }
+        
+        if (this.swipeHandler) {
+            document.removeEventListener("swipe-action", this.swipeHandler);
+            this.swipeHandler = null;
+        }
+        
+        console.log('[SwipeTab] Destroyed');
     }
 }
