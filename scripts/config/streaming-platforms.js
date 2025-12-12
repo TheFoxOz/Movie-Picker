@@ -84,3 +84,4 @@ export function getPlatformIcon(platformName) {
     const platform = STREAMING_PLATFORMS.find(p => p.id === platformName);
     return platform ? platform.icon : '▶️';
 }
+
