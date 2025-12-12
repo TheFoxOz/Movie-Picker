@@ -85,15 +85,16 @@ export class HomeTab {
 
             this.recommendedMovies = await this.getRecommendations();
 
+            // ✅ FIX: Don't filter by platform since TMDB doesn't provide that data
+            // Just show popular movies for now
             this.platformMovies = {};
             const popularMovies = await tmdbService.getPopularMovies(1);
             const allMovies = this.filterMovies(popularMovies);
 
-            enabledPlatforms.forEach(platform => {
-                this.platformMovies[platform] = allMovies
-                    .filter(m => m.platform === platform)
-                    .slice(0, 10);
-            });
+            // Show popular movies under first enabled platform as placeholder
+            if (enabledPlatforms.length > 0) {
+                this.platformMovies[enabledPlatforms[0]] = allMovies.slice(0, 10);
+            }
 
             console.log('[Home] Content loaded successfully');
 
@@ -105,12 +106,9 @@ export class HomeTab {
     }
 
     filterMovies(movies) {
-        const enabledPlatforms = Object.keys(this.preferences.platforms)
-            .filter(p => this.preferences.platforms[p]);
-
-        let filtered = movies.filter(movie => 
-            enabledPlatforms.includes(movie.platform)
-        );
+        // ✅ FIX: TMDB movies don't have platform property, so don't filter by it
+        // Just return movies as-is (platform filtering would need additional API calls)
+        let filtered = [...movies];
 
         if (this.preferences.triggerWarnings.enabled) {
             filtered = filtered.filter(movie => {
@@ -325,7 +323,7 @@ export class HomeTab {
                             ${movie.title}
                         </h3>
                         <p style="font-size: 0.6875rem; color: rgba(255,255,255,0.7); margin: 0.25rem 0 0 0;">
-                            ${movie.year || movie.releaseDate?.split('-')[0] || ''}${movie.platform ? ` • ${movie.platform}` : ''}
+                            ${movie.releaseDate?.split('-')[0] || ''}
                         </p>
                     </div>
                 </div>
