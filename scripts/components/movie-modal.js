@@ -164,7 +164,24 @@ class MovieModal {
     
     getTemplate() {
         const movie = this.currentMovie;
-        const posterUrl = movie.poster_path || movie.backdrop_path || 'https://placehold.co/400x600/1a1a2e/ffffff?text=' + encodeURIComponent(movie.title);
+        
+        // ✅ FIX: Construct full poster URL
+        const posterUrl = movie.posterURL || 
+                         (movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : null) ||
+                         (movie.backdrop_path ? `https://image.tmdb.org/t/p/w1280${movie.backdrop_path}` : null) ||
+                         'https://placehold.co/400x600/1a1a2e/ffffff?text=' + encodeURIComponent(movie.title);
+        
+        // ✅ FIX: Extract year from releaseDate
+        const year = movie.releaseDate?.split('-')[0] || movie.release_date?.split('-')[0] || 'N/A';
+        
+        // ✅ FIX: Get first genre from genres array
+        const genre = movie.genres?.[0] || 'Movie';
+        
+        // ✅ FIX: Format runtime
+        const runtime = movie.runtime ? `${movie.runtime} min` : 'N/A';
+        
+        // ✅ FIX: Use overview not synopsis
+        const description = movie.overview || movie.synopsis || 'No description available.';
         
         // Platform icon and color
         const platformStyles = {
@@ -240,12 +257,12 @@ class MovieModal {
                         </div>
                     </div>
                 ` : `
-                    <div style="width: 100%; aspect-ratio: 16/9; background: ${platformStyle.color}; position: relative; overflow: hidden;">
+                    <div style="width: 100%; aspect-ratio: 16/9; background: #000; position: relative; overflow: hidden;">
                         <img 
                             src="${posterUrl}" 
                             alt="${movie.title}"
                             style="width: 100%; height: 100%; object-fit: cover;"
-                            onerror="this.style.display='none'"
+                            onerror="this.parentElement.innerHTML='<div style=\\'display:flex;align-items:center;justify-content:center;height:100%;color:rgba(255,255,255,0.5);\\'>No image available</div>'"
                         >
                         <div style="position: absolute; inset: 0; background: linear-gradient(0deg, rgba(0, 0, 0, 0.8), transparent 50%); display: flex; align-items: center; justify-content: center;">
                             <div style="text-align: center; color: rgba(255, 255, 255, 0.6);">
@@ -261,7 +278,7 @@ class MovieModal {
                 <!-- Synopsis -->
                 <div style="padding: 1.5rem 2rem;">
                     <p style="color: rgba(255, 255, 255, 0.85); line-height: 1.7; margin: 0; font-size: 0.9375rem;">
-                        ${movie.synopsis || 'No description available.'}
+                        ${description}
                     </p>
                 </div>
                 
@@ -276,7 +293,7 @@ class MovieModal {
                                 ${platformStyle.icon}
                             </span>
                             <span style="color: white; font-weight: 600;">
-                                ${movie.platform || 'N/A'}
+                                ${movie.platform || 'Cinema'}
                             </span>
                         </div>
                     </div>
@@ -286,7 +303,7 @@ class MovieModal {
                             Year
                         </div>
                         <div style="color: white; font-weight: 600;">
-                            ${movie.year || 'N/A'}
+                            ${year}
                         </div>
                     </div>
                     
@@ -295,7 +312,7 @@ class MovieModal {
                             Genre
                         </div>
                         <div style="color: white; font-weight: 600;">
-                            ${movie.genre || 'N/A'}
+                            ${genre}
                         </div>
                     </div>
                     
@@ -304,7 +321,7 @@ class MovieModal {
                             Runtime
                         </div>
                         <div style="color: white; font-weight: 600;">
-                            ${movie.runtime || 'N/A'}
+                            ${runtime}
                         </div>
                     </div>
                 </div>
