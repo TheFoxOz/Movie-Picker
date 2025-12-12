@@ -47,3 +47,4 @@ try {
 // If you still need to set it, it's passed during getFirestore initialization options, not via db.settings().
 
 console.log('[Firebase] Initialized successfully');
+
