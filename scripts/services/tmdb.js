@@ -2,6 +2,7 @@
  * TMDB Service - Movie Database API Integration
  * ✅ INTEGRATED: trigger-warning-service.js for categorized warnings
  * ✅ INTEGRATED: user-profile-revised.js for region/preference filtering
+ * ✅ FIXED: Added proper error handling for DoesTheDogDie service
  */
 
 import { doesTheDogDieService } from './does-the-dog-die.js';
@@ -72,7 +73,7 @@ class TMDBService {
         return `${this.imageBaseURL}/${size}${path}`;
     }
 
-    // ✅ UPDATED: Fetch trigger warnings with categorization and user filtering
+    // ✅ FIXED: Proper error handling for DoesTheDogDie service
     async fetchTriggerWarnings(movie) {
         if (!movie || !movie.id) {
             console.warn('[TMDB] No movie ID provided for trigger warnings');
@@ -87,6 +88,20 @@ class TMDBService {
         try {
             console.log(`[TMDB] Fetching trigger warnings for: ${movie.title}`);
             
+            // ✅ FIX: Check if service exists and has the method
+            if (!doesTheDogDieService) {
+                console.warn('[TMDB] DoesTheDogDie service not available');
+                this.cache.triggerWarnings.set(movie.id, []);
+                return [];
+            }
+
+            // ✅ FIX: Check if the method exists before calling it
+            if (typeof doesTheDogDieService.getContentWarnings !== 'function') {
+                console.warn('[TMDB] DoesTheDogDie service method not available');
+                this.cache.triggerWarnings.set(movie.id, []);
+                return [];
+            }
+            
             // Get raw warnings from DoesTheDogDie service
             const rawWarnings = await doesTheDogDieService.getContentWarnings(movie.id);
             
@@ -96,39 +111,43 @@ class TMDBService {
                 return [];
             }
 
-            // ✅ NEW: Use trigger warning service to categorize
-            const categorizedWarnings = await triggerWarningService.getWarnings(movie.id);
-            
-            if (!categorizedWarnings || !categorizedWarnings.categories) {
-                // Fallback to raw warnings if service fails
-                console.warn('[TMDB] Trigger warning service failed, using raw warnings');
-                this.cache.triggerWarnings.set(movie.id, rawWarnings);
-                return rawWarnings;
+            // ✅ NEW: Use trigger warning service to categorize (if available)
+            if (triggerWarningService && typeof triggerWarningService.getWarnings === 'function') {
+                const categorizedWarnings = await triggerWarningService.getWarnings(movie.id);
+                
+                if (categorizedWarnings && categorizedWarnings.categories) {
+                    // Filter by user preferences
+                    const userProfile = userProfileService.getProfile();
+                    const enabledCategories = userProfile.triggerWarnings.enabledCategories;
+                    const showAllWarnings = userProfile.triggerWarnings.showAllWarnings;
+
+                    const filteredWarnings = triggerWarningService.filterByUserPreferences(
+                        categorizedWarnings,
+                        enabledCategories,
+                        showAllWarnings
+                    );
+
+                    console.log(`[TMDB] ✅ Processed ${filteredWarnings.categories.length} categorized warnings`);
+                    
+                    // Cache the filtered warnings
+                    this.cache.triggerWarnings.set(movie.id, filteredWarnings.categories);
+                    
+                    // Add to movie object
+                    movie.triggerWarnings = filteredWarnings.categories;
+                    movie.triggerWarningCount = filteredWarnings.totalWarnings;
+                    movie.hasTriggerWarnings = filteredWarnings.totalWarnings > 0;
+
+                    return filteredWarnings.categories;
+                }
             }
 
-            // ✅ NEW: Filter by user preferences
-            const userProfile = userProfileService.getProfile();
-            const enabledCategories = userProfile.triggerWarnings.enabledCategories;
-            const showAllWarnings = userProfile.triggerWarnings.showAllWarnings;
-
-            const filteredWarnings = triggerWarningService.filterByUserPreferences(
-                categorizedWarnings,
-                enabledCategories,
-                showAllWarnings
-            );
-
-            console.log(`[TMDB] ✅ Processed ${filteredWarnings.categories.length} categorized warnings`);
-            console.log(`[TMDB] Total items: ${filteredWarnings.totalWarnings}`);
-
-            // Cache the filtered warnings
-            this.cache.triggerWarnings.set(movie.id, filteredWarnings.categories);
-            
-            // Add to movie object
-            movie.triggerWarnings = filteredWarnings.categories;
-            movie.triggerWarningCount = filteredWarnings.totalWarnings;
-            movie.hasTriggerWarnings = filteredWarnings.totalWarnings > 0;
-
-            return filteredWarnings.categories;
+            // Fallback to raw warnings if categorization not available
+            console.warn('[TMDB] Using raw warnings (categorization not available)');
+            this.cache.triggerWarnings.set(movie.id, rawWarnings);
+            movie.triggerWarnings = rawWarnings;
+            movie.triggerWarningCount = rawWarnings.length;
+            movie.hasTriggerWarnings = rawWarnings.length > 0;
+            return rawWarnings;
 
         } catch (error) {
             console.error('[TMDB] ❌ Failed to fetch trigger warnings:', error);
