@@ -87,9 +87,21 @@ export class MatchesTab {
         const userMovieMap = new Map(userSwipes.map(s => [s.movie.id, s]));
         
         friendSwipes.forEach(friendSwipe => {
+            // ✅ FIX: Add null check for friendSwipe.movie
+            if (!friendSwipe || !friendSwipe.movie || !friendSwipe.movie.id) {
+                console.warn('[Matches] Invalid friend swipe data:', friendSwipe);
+                return;
+            }
+            
             const userSwipe = userMovieMap.get(friendSwipe.movie.id);
             
             if (userSwipe) {
+                // ✅ FIX: Add null check for userSwipe.movie
+                if (!userSwipe.movie || !userSwipe.movie.id) {
+                    console.warn('[Matches] Invalid user swipe data:', userSwipe);
+                    return;
+                }
+                
                 const userScore = this.getScore(userSwipe.action);
                 const friendScore = this.getScore(friendSwipe.action);
                 const totalScore = userScore + friendScore;
@@ -260,7 +272,15 @@ export class MatchesTab {
 
     renderFriendCard(friend) {
         const userSwipes = store.getState().swipeHistory || [];
-        const matches = this.calculateMatches(userSwipes, friend.swipeHistory);
+        
+        // ✅ FIX: Add error handling for calculateMatches
+        let matches = [];
+        try {
+            matches = this.calculateMatches(userSwipes, friend.swipeHistory || []);
+        } catch (error) {
+            console.error('[Matches] Error calculating matches for friend:', friend.name, error);
+            matches = [];
+        }
         
         return `
             <div class="friend-card" data-friend-id="${friend.id}" style="padding: 1.25rem; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: 1rem; cursor: pointer; transition: all 0.3s;">
@@ -291,7 +311,23 @@ export class MatchesTab {
 
     renderMatchesView() {
         const userSwipes = store.getState().swipeHistory || [];
-        const allMatches = this.calculateMatches(userSwipes, this.selectedFriend.swipeHistory);
+        
+        // ✅ FIX: Add error handling and null checks
+        let allMatches = [];
+        try {
+            if (!this.selectedFriend || !this.selectedFriend.swipeHistory) {
+                console.warn('[Matches] Invalid selected friend data');
+                this.selectedFriend = null;
+                this.renderFriendsList();
+                return;
+            }
+            
+            allMatches = this.calculateMatches(userSwipes, this.selectedFriend.swipeHistory);
+        } catch (error) {
+            console.error('[Matches] Error calculating matches:', error);
+            allMatches = [];
+        }
+        
         this.matchedMovies = this.filterMatches(allMatches);
 
         this.container.innerHTML = `
