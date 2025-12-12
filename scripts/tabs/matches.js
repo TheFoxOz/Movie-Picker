@@ -84,24 +84,18 @@ export class MatchesTab {
 
     calculateMatches(userSwipes, friendSwipes) {
         const matches = [];
-        const userMovieMap = new Map(userSwipes.map(s => [s.movie.id, s]));
         
-        friendSwipes.forEach(friendSwipe => {
-            // ✅ FIX: Add null check for friendSwipe.movie
-            if (!friendSwipe || !friendSwipe.movie || !friendSwipe.movie.id) {
-                console.warn('[Matches] Invalid friend swipe data:', friendSwipe);
-                return;
-            }
-            
+        // ✅ FIX: Filter out invalid swipes BEFORE creating the Map
+        const validUserSwipes = userSwipes.filter(s => s && s.movie && s.movie.id);
+        const userMovieMap = new Map(validUserSwipes.map(s => [s.movie.id, s]));
+        
+        // ✅ FIX: Filter out invalid friend swipes
+        const validFriendSwipes = friendSwipes.filter(s => s && s.movie && s.movie.id);
+        
+        validFriendSwipes.forEach(friendSwipe => {
             const userSwipe = userMovieMap.get(friendSwipe.movie.id);
             
             if (userSwipe) {
-                // ✅ FIX: Add null check for userSwipe.movie
-                if (!userSwipe.movie || !userSwipe.movie.id) {
-                    console.warn('[Matches] Invalid user swipe data:', userSwipe);
-                    return;
-                }
-                
                 const userScore = this.getScore(userSwipe.action);
                 const friendScore = this.getScore(friendSwipe.action);
                 const totalScore = userScore + friendScore;
