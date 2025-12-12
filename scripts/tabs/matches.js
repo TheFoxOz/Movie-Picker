@@ -31,10 +31,8 @@ export class MatchesTab {
         const preferences = store.getState().preferences || {};
         this.friends = preferences.friends || [];
         
-        // Mock friends for demo (remove this in production)
-        if (this.friends.length === 0) {
-            this.friends = this.getMockFriends();
-        }
+        // ✅ FIX: Removed mock friends - use only real data
+        // Users will see empty state until they add real friends
     }
 
     getMockFriends() {
