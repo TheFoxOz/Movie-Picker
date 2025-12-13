@@ -1,6 +1,7 @@
 /**
  * Profile Tab - User Settings & Preferences
- * ✅ REDESIGNED: Better styling, toggles, TMDB regions only, dark/light mode
+ * ✅ FIXED: Trigger warning box sizing issue
+ * ✅ FIXED: Dark mode toggle logic (unchecked = light mode)
  */
 
 import { authService } from '../services/auth-service.js';
@@ -83,7 +84,7 @@ export class ProfileTab {
         this.injectToggleStyles();
     }
 
-    // ✅ NEW: Dark/Light Mode Section
+    // ✅ FIXED: Correct dark mode toggle logic (checked = dark, unchecked = light)
     renderThemeSection() {
         const isDark = this.currentTheme === 'dark';
         
@@ -99,7 +100,7 @@ export class ProfileTab {
                         </p>
                     </div>
                     <label class="toggle-switch">
-                        <input type="checkbox" id="theme-toggle" ${isDark ? '' : 'checked'}>
+                        <input type="checkbox" id="theme-toggle" ${isDark ? 'checked' : ''}>
                         <span class="toggle-slider"></span>
                     </label>
                 </div>
@@ -143,7 +144,6 @@ export class ProfileTab {
         `;
     }
 
-    // ✅ UPDATED: Smaller platform cards with toggle switches
     renderPlatformsSection(profile) {
         const platformsHTML = STREAMING_PLATFORMS.map(platform => {
             const isSelected = profile.selectedPlatforms.includes(platform.id);
@@ -185,7 +185,7 @@ export class ProfileTab {
         `;
     }
 
-    // ✅ UPDATED: 2-column layout with toggle switches
+    // ✅ FIXED: Proper width calculation to prevent text overflow
     renderTriggerWarningsSection(profile) {
         const categoriesHTML = TRIGGER_CATEGORIES.map(category => {
             const isEnabled = profile.triggerWarnings.enabledCategories.includes(category.id);
@@ -194,22 +194,23 @@ export class ProfileTab {
                     display: flex;
                     align-items: center;
                     justify-content: space-between;
-                    padding: 0.75rem 1rem;
+                    padding: 0.75rem 0.875rem;
                     background: rgba(255, 255, 255, 0.05);
                     border: 1px solid rgba(255, 255, 255, 0.1);
                     border-radius: 0.75rem;
                     cursor: pointer;
                     transition: all 0.2s;
+                    gap: 0.625rem;
                 ">
-                    <div style="flex: 1; min-width: 0;">
-                        <div style="font-weight: 600; color: white; margin-bottom: 0.125rem; font-size: 0.875rem;">
+                    <div style="flex: 1; min-width: 0; overflow: hidden;">
+                        <div style="font-weight: 600; color: white; margin-bottom: 0.125rem; font-size: 0.8125rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
                             ${category.name}
                         </div>
-                        <div style="color: rgba(255, 255, 255, 0.5); font-size: 0.6875rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                        <div style="color: rgba(255, 255, 255, 0.5); font-size: 0.6875rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
                             ${category.description}
                         </div>
                     </div>
-                    <label class="toggle-switch" onclick="event.stopPropagation()" style="margin-left: 0.75rem;">
+                    <label class="toggle-switch" onclick="event.stopPropagation()" style="flex-shrink: 0;">
                         <input type="checkbox" class="trigger-checkbox" data-category="${category.id}" ${isEnabled ? 'checked' : ''}>
                         <span class="toggle-slider"></span>
                     </label>
@@ -227,12 +228,12 @@ export class ProfileTab {
                 </p>
                 
                 <!-- Show All Toggle -->
-                <div style="margin-bottom: 1rem; padding: 0.875rem; background: rgba(255, 255, 255, 0.05); border-radius: 0.75rem; display: flex; align-items: center; justify-content: space-between;">
-                    <div>
+                <div style="margin-bottom: 1rem; padding: 0.875rem; background: rgba(255, 255, 255, 0.05); border-radius: 0.75rem; display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;">
+                    <div style="flex: 1; min-width: 0;">
                         <div style="color: white; font-weight: 600; font-size: 0.875rem;">Show All Warnings</div>
                         <div style="color: rgba(255, 255, 255, 0.5); font-size: 0.75rem;">Display regardless of selection</div>
                     </div>
-                    <label class="toggle-switch">
+                    <label class="toggle-switch" style="flex-shrink: 0;">
                         <input type="checkbox" id="show-all-warnings" ${profile.triggerWarnings.showAllWarnings ? 'checked' : ''}>
                         <span class="toggle-slider"></span>
                     </label>
@@ -246,7 +247,6 @@ export class ProfileTab {
         `;
     }
 
-    // ✅ UPDATED: Removed export/import/clear cache, kept logout
     renderAccountSection() {
         return `
             <div class="settings-section" style="background: rgba(255, 255, 255, 0.05); border-radius: 1rem; padding: 1.5rem; margin-bottom: 1.5rem;">
@@ -283,7 +283,6 @@ export class ProfileTab {
         `;
     }
 
-    // ✅ NEW: Inject toggle switch styles
     injectToggleStyles() {
         if (document.getElementById('profile-toggle-styles')) return;
 
@@ -367,15 +366,21 @@ export class ProfileTab {
     }
 
     attachEventListeners() {
-        // ✅ NEW: Theme toggle
+        // ✅ FIXED: Correct theme toggle logic (checked = dark, unchecked = light)
         const themeToggle = document.getElementById('theme-toggle');
         if (themeToggle) {
             themeToggle.addEventListener('change', (e) => {
-                this.currentTheme = e.target.checked ? 'light' : 'dark';
+                this.currentTheme = e.target.checked ? 'dark' : 'light';
                 localStorage.setItem('app-theme', this.currentTheme);
                 this.showToast(`Switched to ${this.currentTheme} mode`);
-                // Note: Actual theme implementation would go in main.js
                 console.log('[Profile] Theme changed to:', this.currentTheme);
+                
+                // Update the emoji and text
+                const section = themeToggle.closest('.settings-section');
+                if (section) {
+                    section.outerHTML = this.renderThemeSection();
+                    this.attachEventListeners();
+                }
             });
         }
 
@@ -389,7 +394,7 @@ export class ProfileTab {
             });
         }
 
-        // ✅ UPDATED: Platform checkboxes
+        // Platform checkboxes
         const platformCheckboxes = document.querySelectorAll('.platform-checkbox');
         platformCheckboxes.forEach(checkbox => {
             checkbox.addEventListener('change', (e) => {
@@ -402,7 +407,7 @@ export class ProfileTab {
             });
         });
 
-        // ✅ UPDATED: Trigger warning checkboxes
+        // Trigger warning checkboxes
         const triggerCheckboxes = document.querySelectorAll('.trigger-checkbox');
         triggerCheckboxes.forEach(checkbox => {
             checkbox.addEventListener('change', (e) => {
