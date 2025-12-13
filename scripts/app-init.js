@@ -1,6 +1,7 @@
 /**
  * App Initialization - FIXED VERSION
- * Only imports services that actually exist
+ * ✅ Properly coordinates auth state with onboarding flow
+ * ✅ Waits for auth before deciding whether to show onboarding
  */
 
 import { onboardingFlow } from './components/onboarding-flow.js';
@@ -23,10 +24,15 @@ class MoviePickerApp {
             triggerWarnings: null,
             userProfile: null
         };
+        this.authInitialized = false;
     }
 
     async init() {
         console.log('[App] Initializing Movie Picker App...');
+        
+        // ✅ CRITICAL: Wait for auth state to be determined first
+        await this.waitForAuthState();
+        
         this.initializeUserProfile();
         await this.initializeEnhancedServices();
 
@@ -40,17 +46,102 @@ class MoviePickerApp {
         };
 
         this.setupDOM();
-        const needsOnboarding = await onboardingFlow.start();
-
-        if (!needsOnboarding) {
-            this.showApp();
-        } else {
-            const handleNavigation = (e) => {
+        
+        // ✅ FIXED: Only check onboarding if user is authenticated
+        const user = authService.getCurrentUser();
+        
+        if (!user) {
+            console.log('[App] No user authenticated, staying on login page');
+            // Don't initialize the app UI yet, wait for login
+            return;
+        }
+        
+        console.log('[App] User authenticated:', user.email || 'anonymous');
+        
+        // Check if user needs onboarding
+        const needsOnboarding = await this.checkNeedsOnboarding(user);
+        
+        if (needsOnboarding) {
+            console.log('[App] User needs onboarding, starting onboarding flow');
+            const result = await onboardingFlow.start();
+            
+            if (!result) {
+                // Onboarding was skipped or completed
                 this.showApp();
-                this.navigateToTab(e.detail);
-                window.removeEventListener('navigate-to-tab', handleNavigation);
-            };
-            window.addEventListener('navigate-to-tab', handleNavigation);
+            } else {
+                // Wait for onboarding completion event
+                const handleNavigation = (e) => {
+                    this.showApp();
+                    this.navigateToTab(e.detail);
+                    window.removeEventListener('navigate-to-tab', handleNavigation);
+                };
+                window.addEventListener('navigate-to-tab', handleNavigation);
+            }
+        } else {
+            console.log('[App] User already onboarded, showing app');
+            this.showApp();
+        }
+    }
+
+    // ✅ NEW: Wait for auth state to be determined
+    async waitForAuthState() {
+        return new Promise((resolve) => {
+            // If user is already set, resolve immediately
+            if (authService.getCurrentUser() !== null || this.authInitialized) {
+                console.log('[App] Auth state already determined');
+                resolve();
+                return;
+            }
+            
+            // Otherwise wait for auth state change
+            console.log('[App] Waiting for auth state...');
+            let timeout;
+            
+            const unsubscribe = store.subscribe((state) => {
+                if (state.isAuthenticated !== undefined) {
+                    console.log('[App] Auth state determined:', state.isAuthenticated);
+                    clearTimeout(timeout);
+                    this.authInitialized = true;
+                    unsubscribe();
+                    resolve();
+                }
+            });
+            
+            // Timeout after 2 seconds if no auth state change
+            timeout = setTimeout(() => {
+                console.log('[App] Auth state timeout, proceeding anyway');
+                this.authInitialized = true;
+                unsubscribe();
+                resolve();
+            }, 2000);
+        });
+    }
+
+    // ✅ NEW: Check if user needs onboarding
+    async checkNeedsOnboarding(user) {
+        try {
+            // Import Firestore functions
+            const { doc, getDoc } = await import('firebase/firestore');
+            const { db } = await import('./services/firebase-config.js');
+            
+            const userRef = doc(db, 'users', user.uid);
+            const userDoc = await getDoc(userRef);
+            
+            if (!userDoc.exists()) {
+                console.log('[App] User doc does not exist, needs onboarding');
+                return true;
+            }
+            
+            const userData = userDoc.data();
+            const needsOnboarding = !userData.onboardingCompleted;
+            
+            console.log('[App] Onboarding status:', userData.onboardingCompleted ? 'Complete' : 'Incomplete');
+            return needsOnboarding;
+            
+        } catch (error) {
+            console.error('[App] Error checking onboarding status:', error);
+            // Default to showing onboarding on error
+            return true;
         }
     }
 
@@ -134,7 +225,7 @@ class MoviePickerApp {
     createBottomNav() {
         const nav = document.createElement('nav');
         nav.id = 'bottom-nav';
-        nav.style.cssText = 'position: fixed; bottom: 0; left: 0; right: 0; background: rgba(17, 17, 27, 0.95); backdrop-filter: blur(10px); border-top: 1px solid rgba(255, 255, 255, 0.1); padding: 0.5rem; z-index: 1000;';
+        nav.style.cssText = 'position: fixed; bottom: 0; left: 0; right: 0; background: rgba(17, 17, 27, 0.95); backdrop-filter: blur(10px); border-top: 1px solid rgba(255, 255, 255, 0.1); padding: 0.5rem; z-index: 1000; display: none;';
         nav.innerHTML = `
             <div style="display: flex; justify-content: space-around; max-width: 600px; margin: 0 auto;">
                 ${this.renderNavButton('home', '🏠', 'Home')}
@@ -198,6 +289,7 @@ class MoviePickerApp {
     }
 
     showApp() {
+        console.log('[App] Showing main app interface');
         if (this.container) this.container.style.display = 'block';
         if (this.bottomNav) this.bottomNav.style.display = 'flex';
         const header = document.getElementById('app-header');
@@ -230,4 +322,3 @@ if (document.readyState === 'loading') {
 }
 
 export { MoviePickerApp };
-
