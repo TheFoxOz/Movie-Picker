@@ -1,19 +1,12 @@
 /**
- * Swipe Tab Component – COMPLETE FIXED VERSION WITH PLATFORM DISPLAY
- * ✅ Fix #3: Always renders HTML structure, never blank
- * ✅ Removed hasLoaded flag that caused issues
- * ✅ Proper movie loading and card management
- * ✅ FIX: Corrected notification and confetti imports
- * ✅ FIX: Corrected tmdbService import (not getTMDBService)
- * ✅ NEW: Added platform filtering (Watch Providers API)
- * ✅ NEW: Added trigger warning blocking
- * ✅ CRITICAL FIX: Properly sets movie.platform after fetching data
+ * Swipe Tab Component – NO CINEMA-ONLY MOVIES
+ * ✅ Only shows movies available on user's enabled streaming platforms
+ * ✅ Filters out "Cinema", "Coming Soon", and "Not Available" movies
  */
 
 import { store } from "../state/store.js";
 import { SwipeCard } from "../components/swipe-card.js";
 import { tmdbService } from "../services/tmdb.js";
-// ✅ FIX: Changed to correct imports
 import { notify } from "../utils/notifications.js";
 import { celebrate } from "../utils/confetti.js";
 
@@ -30,7 +23,6 @@ export class SwipeTab {
         console.log('[SwipeTab] Rendering...');
         this.container = container;
 
-        // ✅ FIX #3: ALWAYS render HTML structure (no early return, no hasLoaded check)
         container.innerHTML = `
             <div style="position: relative; width: 100%; height: calc(100vh - 5rem); display: flex; flex-direction: column; padding-bottom: 7rem;">
                 
@@ -100,7 +92,6 @@ export class SwipeTab {
         console.log('[SwipeTab] HTML structure rendered');
         this.injectButtonStyles();
         
-        // Load movies separately (always runs, no hasLoaded check)
         if (this.movieQueue.length === 0) {
             console.log('[SwipeTab] Movie queue empty, loading movies...');
             await this.loadMoviesWithRetry();
@@ -205,7 +196,6 @@ export class SwipeTab {
         try {
             console.log(`[SwipeTab] Loading movies (attempt ${attempt})...`);
             
-            // ✅ FIX: Changed from getTMDBService() to tmdbService
             const tmdb = tmdbService;
             
             if (!tmdb) {
@@ -227,7 +217,6 @@ export class SwipeTab {
                 })
             ]);
 
-            // Flatten and deduplicate
             const popularMovies = lists[0] || [];
             const trendingMovies = lists[1] || [];
             const topRatedMovies = lists[2]?.movies || [];
@@ -242,29 +231,47 @@ export class SwipeTab {
             let movies = Array.from(map.values());
             console.log(`[SwipeTab] Loaded ${movies.length} unique movies`);
 
-            // ✅ NEW: Enrich movies with platform availability data
+            // Enrich movies with platform availability data
             console.log('[SwipeTab] Fetching platform data for movies...');
             movies = await this.enrichWithPlatformData(movies);
 
-            // ✅ NEW: Apply platform filtering
+            // ✅ NEW: Filter out cinema-only movies FIRST
+            const beforeCinemaFilter = movies.length;
+            movies = movies.filter(movie => {
+                // Keep if movie has at least one streaming platform
+                if (movie.availableOn && movie.availableOn.length > 0) {
+                    return true;
+                }
+                
+                // Remove if cinema-only, coming soon, or not available
+                const platform = movie.platform;
+                if (platform === 'Cinema' || platform === 'Coming Soon' || platform === 'Not Available') {
+                    console.log(`[SwipeTab] Filtering out cinema-only movie: ${movie.title}`);
+                    return false;
+                }
+                
+                return true;
+            });
+            console.log(`[SwipeTab] Cinema filter: ${beforeCinemaFilter} → ${movies.length} movies`);
+
+            // Apply platform filtering
             if (tmdb.filterByUserPlatforms) {
                 const beforePlatformFilter = movies.length;
                 movies = tmdb.filterByUserPlatforms(movies);
                 console.log(`[SwipeTab] Platform filter: ${beforePlatformFilter} → ${movies.length} movies`);
             }
 
-            // ✅ NEW: Apply trigger warning blocking
+            // Apply trigger warning blocking
             if (tmdb.filterBlockedMovies) {
                 const beforeTriggerFilter = movies.length;
                 movies = tmdb.filterBlockedMovies(movies);
                 console.log(`[SwipeTab] Trigger filter: ${beforeTriggerFilter} → ${movies.length} movies`);
             }
 
-            // ✅ FIX: Filter out corrupted swipe history entries
+            // Filter out already swiped movies
             const state = store.getState();
             const swipeHistory = state.swipeHistory || [];
             
-            // Create Set safely - filter out invalid swipes first
             const swipedMovieIds = new Set();
             swipeHistory.forEach(swipe => {
                 if (swipe && swipe.movie && swipe.movie.id) {
@@ -274,7 +281,6 @@ export class SwipeTab {
                 }
             });
 
-            // Filter movies safely
             this.movieQueue = movies.filter(movie => {
                 if (!movie || !movie.id) {
                     console.warn('[SwipeTab] Skipping invalid movie:', movie);
@@ -298,12 +304,10 @@ export class SwipeTab {
             console.error("[SwipeTab] Load failed:", err);
             
             if (attempt <= 3) {
-                // ✅ FIX: Changed showToast to notify.info
                 notify.info(`Loading movies... (attempt ${attempt}/3)`);
                 this.isLoading = false;
                 setTimeout(() => this.loadMoviesWithRetry(attempt + 1), 1500);
             } else {
-                // ✅ FIX: Changed showToast to notify.error
                 notify.error("Failed to load movies. Please refresh the page.");
                 
                 const container = this.container?.querySelector("#swipe-container");
@@ -327,7 +331,6 @@ export class SwipeTab {
         }
     }
 
-    // ✅ CRITICAL FIX: Properly sets movie.platform after fetching watch providers
     async enrichWithPlatformData(movies, options = { maxConcurrent: 5, delay: 50 }) {
         if (!movies || movies.length === 0) {
             return movies;
@@ -337,7 +340,6 @@ export class SwipeTab {
         
         const { maxConcurrent, delay } = options;
         
-        // Batch process to avoid rate limits
         for (let i = 0; i < movies.length; i += maxConcurrent) {
             const batch = movies.slice(i, i + maxConcurrent);
             
@@ -346,11 +348,10 @@ export class SwipeTab {
                     if (tmdbService.getWatchProviders) {
                         movie.availableOn = await tmdbService.getWatchProviders(movie.id);
                         
-                        // ✅ CRITICAL FIX: Set platform field based on availability
+                        // Set platform field based on availability
                         if (movie.availableOn && movie.availableOn.length > 0) {
-                            movie.platform = movie.availableOn[0]; // First available platform
+                            movie.platform = movie.availableOn[0];
                         } else {
-                            // ✅ Better fallback for unreleased/cinema-only movies
                             const year = movie.releaseDate?.split('-')[0] || movie.year;
                             const currentYear = new Date().getFullYear();
                             
@@ -367,7 +368,6 @@ export class SwipeTab {
                 })
             );
             
-            // Rate limiting delay
             if (i + maxConcurrent < movies.length) {
                 await new Promise(resolve => setTimeout(resolve, delay));
             }
@@ -392,7 +392,6 @@ export class SwipeTab {
             if (completed) {
                 completed.style.display = "flex";
             }
-            // ✅ FIX: Changed showConfetti to celebrate.center
             celebrate.center();
             return;
         }
