@@ -5,6 +5,7 @@
  * FIXED: Proper event dispatching for card advancing
  * ✅ FIX: Corrected confetti and notification imports
  * ✅ FIX: Changed getTMDBService to tmdbService
+ * ✅ CRITICAL FIX: Proper poster URL construction with fallbacks
  */
 
 import { store } from '../state/store.js';
@@ -67,7 +68,31 @@ export class SwipeCard {
     }
 
     render() {
-        const poster = this.movie.poster_path || 'https://placehold.co/300x450/111/fff?text=No+Image';
+        // ✅ CRITICAL FIX: Construct full poster URL with multiple fallbacks
+        const poster = this.movie.posterURL || 
+                      (this.movie.poster_path ? `https://image.tmdb.org/t/p/w500${this.movie.poster_path}` : null) ||
+                      this.movie.backdropURL ||
+                      (this.movie.backdrop_path ? `https://image.tmdb.org/t/p/w1280${this.movie.backdrop_path}` : null) ||
+                      'https://placehold.co/400x600/1a1a2e/ffffff?text=' + encodeURIComponent(this.movie.title || 'Movie');
+
+        // ✅ FIX: Extract year from releaseDate with fallbacks
+        const year = this.movie.releaseDate?.split('-')[0] || 
+                    this.movie.release_date?.split('-')[0] || 
+                    this.movie.year || 
+                    'N/A';
+        
+        // ✅ FIX: Get first genre with fallback
+        const genre = (Array.isArray(this.movie.genres) && this.movie.genres.length > 0)
+            ? (typeof this.movie.genres[0] === 'string' ? this.movie.genres[0] : this.movie.genres[0]?.name)
+            : 'Movie';
+        
+        // ✅ FIX: Use overview or synopsis
+        const description = this.movie.overview || this.movie.synopsis || 'No description available.';
+        
+        // ✅ FIX: Platform with fallback
+        const platform = this.movie.platform || 
+                        (this.movie.availableOn && this.movie.availableOn.length > 0 ? this.movie.availableOn[0] : null) ||
+                        'Not Available';
 
         this.element = document.createElement('div');
         this.element.className = 'swipe-card';
@@ -102,14 +127,17 @@ export class SwipeCard {
 
                 <!-- Poster (with overflow hidden for clean edges) -->
                 <div style="position: relative; height: 520px; background: #000; border-radius: 1.5rem; overflow: hidden;">
-                    <img src="${poster}" alt="${this.movie.title}" style="width: 100%; height: 100%; object-fit: cover;">
+                    <img src="${poster}" 
+                         alt="${this.movie.title}" 
+                         style="width: 100%; height: 100%; object-fit: cover;"
+                         onerror="this.src='https://placehold.co/400x600/1a1a2e/ffffff?text=${encodeURIComponent(this.movie.title || 'Movie')}'">
                     
                     <!-- Gradient overlay -->
                     <div style="position: absolute; inset: 0; background: linear-gradient(0deg, rgba(0,0,0,0.8) 0%, transparent 40%);"></div>
                     
                     <!-- Platform badge -->
                     <div style="position: absolute; top: 1rem; right: 1rem; padding: 0.5rem 1rem; background: rgba(0,0,0,0.7); backdrop-filter: blur(10px); border-radius: 1rem; border: 1px solid rgba(255,255,255,0.1);">
-                        <span style="color: white; font-weight: 700; font-size: 0.875rem;">${this.movie.platform || 'Cinema'}</span>
+                        <span style="color: white; font-weight: 700; font-size: 0.875rem;">${platform}</span>
                     </div>
 
                     <!-- Trigger Warning Badge (will be added dynamically if warnings exist) -->
@@ -121,10 +149,10 @@ export class SwipeCard {
                         ${this.movie.title}
                     </h2>
                     <p style="color: rgba(255,255,255,0.7); font-size: 1rem; margin: 0 0 1rem 0;">
-                        ${this.movie.year} • ${this.movie.genre || 'Movie'}
+                        ${year} • ${genre}
                     </p>
                     <p style="color: rgba(255,255,255,0.9); line-height: 1.6; margin: 0;">
-                        ${this.movie.synopsis || 'No description available.'}
+                        ${description}
                     </p>
                 </div>
             </div>
@@ -373,5 +401,3 @@ export class SwipeCard {
         }
     }
 }
-
-
