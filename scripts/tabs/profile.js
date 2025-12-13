@@ -1,7 +1,6 @@
 /**
  * Profile Tab - User Settings & Preferences
- * ✅ FIXED: Trigger warning box sizing issue
- * ✅ FIXED: Dark mode toggle logic (unchecked = light mode)
+ * ✅ COMPACT VERSION: Half-size trigger warning boxes with smaller text
  */
 
 import { authService } from '../services/auth-service.js';
@@ -84,7 +83,6 @@ export class ProfileTab {
         this.injectToggleStyles();
     }
 
-    // ✅ FIXED: Correct dark mode toggle logic (checked = dark, unchecked = light)
     renderThemeSection() {
         const isDark = this.currentTheme === 'dark';
         
@@ -185,7 +183,7 @@ export class ProfileTab {
         `;
     }
 
-    // ✅ FIXED: Proper width calculation to prevent text overflow
+    // ✅ COMPACT VERSION: Half the size with smaller text
     renderTriggerWarningsSection(profile) {
         const categoriesHTML = TRIGGER_CATEGORIES.map(category => {
             const isEnabled = profile.triggerWarnings.enabledCategories.includes(category.id);
@@ -194,25 +192,26 @@ export class ProfileTab {
                     display: flex;
                     align-items: center;
                     justify-content: space-between;
-                    padding: 0.75rem 0.875rem;
+                    padding: 0.5rem 0.625rem;
                     background: rgba(255, 255, 255, 0.05);
                     border: 1px solid rgba(255, 255, 255, 0.1);
-                    border-radius: 0.75rem;
+                    border-radius: 0.5rem;
                     cursor: pointer;
                     transition: all 0.2s;
-                    gap: 0.625rem;
+                    gap: 0.5rem;
+                    min-height: 42px;
                 ">
                     <div style="flex: 1; min-width: 0; overflow: hidden;">
-                        <div style="font-weight: 600; color: white; margin-bottom: 0.125rem; font-size: 0.8125rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                        <div style="font-weight: 600; color: white; font-size: 0.75rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.2;">
                             ${category.name}
                         </div>
-                        <div style="color: rgba(255, 255, 255, 0.5); font-size: 0.6875rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                        <div style="color: rgba(255, 255, 255, 0.4); font-size: 0.625rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 0.125rem; line-height: 1.2;">
                             ${category.description}
                         </div>
                     </div>
-                    <label class="toggle-switch" onclick="event.stopPropagation()" style="flex-shrink: 0;">
+                    <label class="toggle-switch-small" onclick="event.stopPropagation()" style="flex-shrink: 0;">
                         <input type="checkbox" class="trigger-checkbox" data-category="${category.id}" ${isEnabled ? 'checked' : ''}>
-                        <span class="toggle-slider"></span>
+                        <span class="toggle-slider-small"></span>
                     </label>
                 </div>
             `;
@@ -228,10 +227,10 @@ export class ProfileTab {
                 </p>
                 
                 <!-- Show All Toggle -->
-                <div style="margin-bottom: 1rem; padding: 0.875rem; background: rgba(255, 255, 255, 0.05); border-radius: 0.75rem; display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;">
+                <div style="margin-bottom: 0.875rem; padding: 0.625rem 0.75rem; background: rgba(255, 255, 255, 0.05); border-radius: 0.625rem; display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;">
                     <div style="flex: 1; min-width: 0;">
-                        <div style="color: white; font-weight: 600; font-size: 0.875rem;">Show All Warnings</div>
-                        <div style="color: rgba(255, 255, 255, 0.5); font-size: 0.75rem;">Display regardless of selection</div>
+                        <div style="color: white; font-weight: 600; font-size: 0.8125rem;">Show All Warnings</div>
+                        <div style="color: rgba(255, 255, 255, 0.5); font-size: 0.6875rem;">Display regardless of selection</div>
                     </div>
                     <label class="toggle-switch" style="flex-shrink: 0;">
                         <input type="checkbox" id="show-all-warnings" ${profile.triggerWarnings.showAllWarnings ? 'checked' : ''}>
@@ -239,8 +238,8 @@ export class ProfileTab {
                     </label>
                 </div>
 
-                <!-- Categories in 2 columns -->
-                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem;">
+                <!-- Categories in 2 columns - COMPACT -->
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem;">
                     ${categoriesHTML}
                 </div>
             </div>
@@ -289,7 +288,7 @@ export class ProfileTab {
         const style = document.createElement('style');
         style.id = 'profile-toggle-styles';
         style.textContent = `
-            /* Toggle Switch */
+            /* Regular Toggle Switch (for platforms and show all) */
             .toggle-switch {
                 position: relative;
                 display: inline-block;
@@ -336,7 +335,54 @@ export class ProfileTab {
                 transform: translateX(20px);
             }
 
-            /* Hover effects for toggle items */
+            /* ✅ COMPACT Toggle Switch (for trigger warnings) */
+            .toggle-switch-small {
+                position: relative;
+                display: inline-block;
+                width: 36px;
+                height: 20px;
+                flex-shrink: 0;
+            }
+
+            .toggle-switch-small input {
+                opacity: 0;
+                width: 0;
+                height: 0;
+            }
+
+            .toggle-slider-small {
+                position: absolute;
+                cursor: pointer;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(255, 255, 255, 0.2);
+                transition: 0.3s;
+                border-radius: 20px;
+            }
+
+            .toggle-slider-small:before {
+                position: absolute;
+                content: "";
+                height: 14px;
+                width: 14px;
+                left: 3px;
+                bottom: 3px;
+                background: white;
+                transition: 0.3s;
+                border-radius: 50%;
+            }
+
+            input:checked + .toggle-slider-small {
+                background: linear-gradient(135deg, #ff2e63, #d90062);
+            }
+
+            input:checked + .toggle-slider-small:before {
+                transform: translateX(16px);
+            }
+
+            /* Hover effects */
             .platform-toggle-item:hover,
             .trigger-toggle-item:hover {
                 background: rgba(255, 255, 255, 0.08);
@@ -355,7 +401,6 @@ export class ProfileTab {
                 box-shadow: 0 0 0 3px rgba(255, 46, 99, 0.2);
             }
 
-            /* Option styling for better visibility */
             #region-select option {
                 background: #1a1a2e;
                 color: white;
@@ -366,7 +411,7 @@ export class ProfileTab {
     }
 
     attachEventListeners() {
-        // ✅ FIXED: Correct theme toggle logic (checked = dark, unchecked = light)
+        // Theme toggle
         const themeToggle = document.getElementById('theme-toggle');
         if (themeToggle) {
             themeToggle.addEventListener('change', (e) => {
@@ -375,7 +420,6 @@ export class ProfileTab {
                 this.showToast(`Switched to ${this.currentTheme} mode`);
                 console.log('[Profile] Theme changed to:', this.currentTheme);
                 
-                // Update the emoji and text
                 const section = themeToggle.closest('.settings-section');
                 if (section) {
                     section.outerHTML = this.renderThemeSection();
