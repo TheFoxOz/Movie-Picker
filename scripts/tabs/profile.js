@@ -1,6 +1,6 @@
 /**
  * Profile Tab - User Settings & Preferences
- * ✅ COMPACT VERSION: Half-size trigger warning boxes with smaller text
+ * ✅ ULTRA-COMPACT: Trigger warnings properly constrained to match parent width
  */
 
 import { authService } from '../services/auth-service.js';
@@ -183,7 +183,7 @@ export class ProfileTab {
         `;
     }
 
-    // ✅ COMPACT VERSION: Half the size with smaller text
+    // ✅ ULTRA-COMPACT: Proper width constraints to prevent overflow
     renderTriggerWarningsSection(profile) {
         const categoriesHTML = TRIGGER_CATEGORIES.map(category => {
             const isEnabled = profile.triggerWarnings.enabledCategories.includes(category.id);
@@ -200,12 +200,35 @@ export class ProfileTab {
                     transition: all 0.2s;
                     gap: 0.5rem;
                     min-height: 42px;
+                    max-width: 100%;
+                    box-sizing: border-box;
                 ">
-                    <div style="flex: 1; min-width: 0; overflow: hidden;">
-                        <div style="font-weight: 600; color: white; font-size: 0.75rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.2;">
+                    <div style="
+                        flex: 1;
+                        min-width: 0;
+                        max-width: calc(100% - 44px);
+                        overflow: hidden;
+                    ">
+                        <div style="
+                            font-weight: 600;
+                            color: white;
+                            font-size: 0.6875rem;
+                            white-space: nowrap;
+                            overflow: hidden;
+                            text-overflow: ellipsis;
+                            line-height: 1.2;
+                        ">
                             ${category.name}
                         </div>
-                        <div style="color: rgba(255, 255, 255, 0.4); font-size: 0.625rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 0.125rem; line-height: 1.2;">
+                        <div style="
+                            color: rgba(255, 255, 255, 0.4);
+                            font-size: 0.5625rem;
+                            white-space: nowrap;
+                            overflow: hidden;
+                            text-overflow: ellipsis;
+                            margin-top: 0.125rem;
+                            line-height: 1.2;
+                        ">
                             ${category.description}
                         </div>
                     </div>
@@ -238,8 +261,13 @@ export class ProfileTab {
                     </label>
                 </div>
 
-                <!-- Categories in 2 columns - COMPACT -->
-                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem;">
+                <!-- Categories in 2 columns - ULTRA COMPACT -->
+                <div style="
+                    display: grid;
+                    grid-template-columns: repeat(2, minmax(0, 1fr));
+                    gap: 0.5rem;
+                    max-width: 100%;
+                ">
                     ${categoriesHTML}
                 </div>
             </div>
@@ -335,7 +363,7 @@ export class ProfileTab {
                 transform: translateX(20px);
             }
 
-            /* ✅ COMPACT Toggle Switch (for trigger warnings) */
+            /* ✅ ULTRA-COMPACT Toggle Switch (for trigger warnings) */
             .toggle-switch-small {
                 position: relative;
                 display: inline-block;
