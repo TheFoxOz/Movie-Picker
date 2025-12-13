@@ -32,6 +32,10 @@ export class LibraryTab {
         this.currentFilter = 'all';
         this.currentGenre = 'all';
         this.currentPlatform = 'all';
+        // ✅ NEW: Additional filter states
+        this.currentRating = 'all';
+        this.currentRuntime = 'all';
+        this.hideTriggerWarnings = false;
         this.searchQuery = '';
         this.isLoading = false;
         this.currentPage = 1;
@@ -89,6 +93,10 @@ export class LibraryTab {
                     if (m && m.id) map.set(m.id, m);
                 });
                 this.allMovies = Array.from(map.values());
+                
+                // ✅ NEW: Enrich initial movies with platform data
+                console.log('[Library] Enriching initial movies with platform data...');
+                await this.enrichWithPlatformData(this.allMovies);
             }
 
             console.log(`[Library] Loading Discover page ${page}...`);
@@ -112,6 +120,13 @@ export class LibraryTab {
 
             const existingIds = new Set(this.allMovies.map(m => m.id));
             const filtered = newMovies.filter(m => !existingIds.has(m.id));
+            
+            // ✅ NEW: Enrich new movies with platform data before adding
+            if (filtered.length > 0) {
+                console.log(`[Library] Enriching ${filtered.length} new movies with platform data...`);
+                await this.enrichWithPlatformData(filtered);
+            }
+            
             this.allMovies.push(...filtered);
 
             this.filteredMovies = this.filterMoviesByPreferences(this.allMovies);
@@ -125,6 +140,39 @@ export class LibraryTab {
         } finally {
             this.isLoading = false;
         }
+    }
+
+    // ✅ NEW: Enrich movies with platform availability data
+    async enrichWithPlatformData(movies, options = { maxConcurrent: 5, delay: 50 }) {
+        if (!movies || movies.length === 0) {
+            return movies;
+        }
+
+        const { maxConcurrent, delay } = options;
+        
+        // Batch process to avoid rate limits
+        for (let i = 0; i < movies.length; i += maxConcurrent) {
+            const batch = movies.slice(i, i + maxConcurrent);
+            
+            await Promise.all(
+                batch.map(async (movie) => {
+                    if (tmdbService.getWatchProviders) {
+                        movie.availableOn = await tmdbService.getWatchProviders(movie.id);
+                        // Set primary platform for display
+                        movie.platform = movie.availableOn && movie.availableOn.length > 0 
+                            ? movie.availableOn[0] 
+                            : 'Not Available';
+                    }
+                })
+            );
+            
+            // Rate limiting delay
+            if (i + maxConcurrent < movies.length) {
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+        }
+        
+        return movies;
     }
 
     setupInfiniteScroll() {
@@ -240,6 +288,39 @@ export class LibraryTab {
                     </div>
                 </div>
 
+                <!-- ✅ NEW: Age Rating Filter -->
+                <div style="margin-bottom:1rem;">
+                    <h3 style="font-size:0.875rem;font-weight:700;color:rgba(255,255,255,0.7);text-transform:uppercase;margin:0 0 0.5rem 0;">Age Rating</h3>
+                    <div style="display:flex;gap:0.5rem;overflow-x:auto;padding-bottom:0.5rem;">
+                        <button class="rating-btn" data-rating="all" style="${this.getButtonStyle(this.currentRating==='all','linear-gradient(135deg,#06b6d4,#0891b2)')}">All Ratings</button>
+                        <button class="rating-btn" data-rating="G" style="${this.getButtonStyle(this.currentRating==='G','linear-gradient(135deg,#06b6d4,#0891b2)')}">G</button>
+                        <button class="rating-btn" data-rating="PG" style="${this.getButtonStyle(this.currentRating==='PG','linear-gradient(135deg,#06b6d4,#0891b2)')}">PG</button>
+                        <button class="rating-btn" data-rating="PG-13" style="${this.getButtonStyle(this.currentRating==='PG-13','linear-gradient(135deg,#06b6d4,#0891b2)')}">PG-13</button>
+                        <button class="rating-btn" data-rating="R" style="${this.getButtonStyle(this.currentRating==='R','linear-gradient(135deg,#06b6d4,#0891b2)')}">R</button>
+                        <button class="rating-btn" data-rating="NC-17" style="${this.getButtonStyle(this.currentRating==='NC-17','linear-gradient(135deg,#06b6d4,#0891b2)')}">NC-17</button>
+                    </div>
+                </div>
+
+                <!-- ✅ NEW: Runtime Filter -->
+                <div style="margin-bottom:1rem;">
+                    <h3 style="font-size:0.875rem;font-weight:700;color:rgba(255,255,255,0.7);text-transform:uppercase;margin:0 0 0.5rem 0;">Runtime</h3>
+                    <div style="display:flex;gap:0.5rem;overflow-x:auto;padding-bottom:0.5rem;">
+                        <button class="runtime-btn" data-runtime="all" style="${this.getButtonStyle(this.currentRuntime==='all','linear-gradient(135deg,#f97316,#ea580c)')}">Any Length</button>
+                        <button class="runtime-btn" data-runtime="short" style="${this.getButtonStyle(this.currentRuntime==='short','linear-gradient(135deg,#f97316,#ea580c)')}">< 90 min</button>
+                        <button class="runtime-btn" data-runtime="medium" style="${this.getButtonStyle(this.currentRuntime==='medium','linear-gradient(135deg,#f97316,#ea580c)')}">90-120 min</button>
+                        <button class="runtime-btn" data-runtime="long" style="${this.getButtonStyle(this.currentRuntime==='long','linear-gradient(135deg,#f97316,#ea580c)')}">120-150 min</button>
+                        <button class="runtime-btn" data-runtime="epic" style="${this.getButtonStyle(this.currentRuntime==='epic','linear-gradient(135deg,#f97316,#ea580c)')}">150+ min</button>
+                    </div>
+                </div>
+
+                <!-- ✅ NEW: Trigger Warning Filter Toggle -->
+                <div style="margin-bottom:1.5rem;">
+                    <h3 style="font-size:0.875rem;font-weight:700;color:rgba(255,255,255,0.7);text-transform:uppercase;margin:0 0 0.5rem 0;">Content Filtering</h3>
+                    <button id="toggle-trigger-filter" style="${this.getButtonStyle(this.hideTriggerWarnings, 'linear-gradient(135deg,#ef4444,#dc2626)')}">
+                        ${this.hideTriggerWarnings ? '⚠️ Hiding Movies with Trigger Warnings' : 'Show All Movies (Including Warnings)'}
+                    </button>
+                </div>
+
                 <div style="margin-bottom:1rem;padding:0.75rem 1rem;background:rgba(255,255,255,0.05);border-radius:0.75rem;">
                     <p style="color:rgba(255,255,255,0.7);font-size:0.875rem;margin:0;">
                         Showing ${this.filteredMovies.length.toLocaleString()} movies
@@ -276,6 +357,7 @@ export class LibraryTab {
     renderMoviesGrid() {
         let moviesToShow = [...this.allMovies];
 
+        // Existing filters
         if (this.currentFilter !== 'all') {
             const swiped = store.getState().swipeHistory || [];
             const ids = swiped.filter(s => s.action === this.currentFilter).map(s => String(s.movie.id));
@@ -286,8 +368,42 @@ export class LibraryTab {
             moviesToShow = moviesToShow.filter(m => (m.genre_ids || m.genreIds)?.includes(genreId));
         }
         if (this.currentPlatform !== 'all') {
-            moviesToShow = moviesToShow.filter(m => m.platform === this.currentPlatform);
+            moviesToShow = moviesToShow.filter(m => {
+                // Check both platform field and availableOn array
+                if (m.platform === this.currentPlatform) return true;
+                if (m.availableOn && m.availableOn.includes(this.currentPlatform)) return true;
+                return false;
+            });
         }
+        
+        // ✅ NEW: Age rating filter
+        if (this.currentRating !== 'all') {
+            moviesToShow = moviesToShow.filter(m => m.certification === this.currentRating);
+        }
+        
+        // ✅ NEW: Runtime filter
+        if (this.currentRuntime !== 'all') {
+            moviesToShow = moviesToShow.filter(m => {
+                const runtime = m.runtime || 0;
+                switch(this.currentRuntime) {
+                    case 'short': return runtime > 0 && runtime < 90;
+                    case 'medium': return runtime >= 90 && runtime < 120;
+                    case 'long': return runtime >= 120 && runtime < 150;
+                    case 'epic': return runtime >= 150;
+                    default: return true;
+                }
+            });
+        }
+        
+        // ✅ NEW: Trigger warning filter
+        if (this.hideTriggerWarnings) {
+            if (tmdbService.filterBlockedMovies) {
+                const beforeFilter = moviesToShow.length;
+                moviesToShow = tmdbService.filterBlockedMovies(moviesToShow);
+                console.log(`[Library] Trigger filter: ${beforeFilter} → ${moviesToShow.length} movies`);
+            }
+        }
+        
         if (this.searchQuery) {
             const q = this.searchQuery.toLowerCase();
             moviesToShow = moviesToShow.filter(m =>
@@ -327,7 +443,7 @@ export class LibraryTab {
                             ${movie.title}
                         </h3>
                         <p style="font-size:0.6875rem;color:rgba(255,255,255,0.7);margin:0.25rem 0 0 0;">
-                            ${movie.year || movie.releaseDate?.split('-')[0] || ''}${movie.runtime ? ` • ${movie.runtime}` : ''}
+                            ${movie.year || movie.releaseDate?.split('-')[0] || ''}${movie.runtime ? ` • ${movie.runtime}min` : ''}
                         </p>
                     </div>
                 </div>
@@ -383,6 +499,32 @@ export class LibraryTab {
             });
         });
 
+        // ✅ NEW: Age rating filter listeners
+        this.container.querySelectorAll('.rating-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                this.currentRating = btn.dataset.rating;
+                this.renderContent();
+            });
+        });
+
+        // ✅ NEW: Runtime filter listeners
+        this.container.querySelectorAll('.runtime-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                this.currentRuntime = btn.dataset.runtime;
+                this.renderContent();
+            });
+        });
+
+        // ✅ NEW: Trigger warning toggle listener
+        const triggerToggle = this.container.querySelector('#toggle-trigger-filter');
+        if (triggerToggle) {
+            triggerToggle.addEventListener('click', () => {
+                this.hideTriggerWarnings = !this.hideTriggerWarnings;
+                console.log(`[Library] Trigger filter toggled: ${this.hideTriggerWarnings}`);
+                this.renderContent();
+            });
+        }
+
         this.container.querySelectorAll('.library-movie-card').forEach(card => {
             card.addEventListener('mouseover', () => card.style.transform = 'scale(1.05)');
             card.addEventListener('mouseout', () => card.style.transform = 'scale(1)');
@@ -415,7 +557,10 @@ export class LibraryTab {
             
             const existingIds = new Set(this.allMovies.map(m => m.id));
             const newMovies = searchResults.filter(m => !existingIds.has(m.id));
+            
             if (newMovies.length > 0) {
+                // ✅ NEW: Enrich search results with platform data
+                await this.enrichWithPlatformData(newMovies);
                 this.allMovies.push(...newMovies);
             }
             
@@ -441,4 +586,3 @@ export class LibraryTab {
         }
     }
 }
-
