@@ -1,5 +1,5 @@
 /**
- * Swipe Tab Component – COMPLETE FIXED VERSION WITH FILTERING
+ * Swipe Tab Component – COMPLETE FIXED VERSION WITH PLATFORM DISPLAY
  * ✅ Fix #3: Always renders HTML structure, never blank
  * ✅ Removed hasLoaded flag that caused issues
  * ✅ Proper movie loading and card management
@@ -7,6 +7,7 @@
  * ✅ FIX: Corrected tmdbService import (not getTMDBService)
  * ✅ NEW: Added platform filtering (Watch Providers API)
  * ✅ NEW: Added trigger warning blocking
+ * ✅ CRITICAL FIX: Properly sets movie.platform after fetching data
  */
 
 import { store } from "../state/store.js";
@@ -326,7 +327,7 @@ export class SwipeTab {
         }
     }
 
-    // ✅ NEW: Enrich movies with platform availability data
+    // ✅ CRITICAL FIX: Properly sets movie.platform after fetching watch providers
     async enrichWithPlatformData(movies, options = { maxConcurrent: 5, delay: 50 }) {
         if (!movies || movies.length === 0) {
             return movies;
@@ -344,8 +345,24 @@ export class SwipeTab {
                 batch.map(async (movie) => {
                     if (tmdbService.getWatchProviders) {
                         movie.availableOn = await tmdbService.getWatchProviders(movie.id);
+                        
+                        // ✅ CRITICAL FIX: Set platform field based on availability
+                        if (movie.availableOn && movie.availableOn.length > 0) {
+                            movie.platform = movie.availableOn[0]; // First available platform
+                        } else {
+                            // ✅ Better fallback for unreleased/cinema-only movies
+                            const year = movie.releaseDate?.split('-')[0] || movie.year;
+                            const currentYear = new Date().getFullYear();
+                            
+                            if (year && parseInt(year) > currentYear) {
+                                movie.platform = 'Coming Soon';
+                            } else {
+                                movie.platform = 'Cinema';
+                            }
+                        }
                     } else {
                         movie.availableOn = [];
+                        movie.platform = 'Not Available';
                     }
                 })
             );
