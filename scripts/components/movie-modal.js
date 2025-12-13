@@ -1,6 +1,7 @@
 /**
  * Movie Modal Component with Trigger Warnings
  * Shows detailed movie information with TRAILER and DDD warnings
+ * ✅ FIXED: Fetches full movie details including trailer
  */
 
 import { tmdbService } from '../services/tmdb.js';
@@ -25,27 +26,47 @@ class MovieModal {
     }
     
     async show(movie) {
-        this.currentMovie = movie;
-        this.trailerKey = null;
+        console.log('[MovieModal] Showing movie:', movie.title);
         
-        // Fetch trailer from TMDB
-        if (movie.id) {
-            try {
-                const trailerKey = await tmdbService.getMovieTrailer(movie.id);
-                this.trailerKey = trailerKey;
+        // ✅ FIX: Fetch FULL movie details including trailer, runtime, cast
+        try {
+            const fullDetails = await tmdbService.getMovieDetails(movie.id);
+            
+            if (fullDetails) {
+                console.log('[MovieModal] ✅ Got full details');
+                this.currentMovie = fullDetails;
                 
-                if (ENV.APP.debug) {
-                    console.log('[MovieModal] Trailer key:', trailerKey);
+                // ✅ Extract trailer key from videos
+                if (fullDetails.trailer && fullDetails.trailer.key) {
+                    this.trailerKey = fullDetails.trailer.key;
+                    console.log('[MovieModal] ✅ Found trailer:', this.trailerKey);
+                } else {
+                    console.log('[MovieModal] No trailer available');
+                    this.trailerKey = null;
                 }
-            } catch (error) {
-                console.error('[MovieModal] Failed to fetch trailer:', error);
+                
+                // ✅ Fetch platform data if not already present
+                if (!fullDetails.availableOn || fullDetails.availableOn.length === 0) {
+                    fullDetails.availableOn = await tmdbService.getWatchProviders(movie.id);
+                    fullDetails.platform = fullDetails.availableOn && fullDetails.availableOn.length > 0
+                        ? fullDetails.availableOn[0]
+                        : 'Not Available';
+                }
+            } else {
+                console.warn('[MovieModal] Using basic movie data (no full details)');
+                this.currentMovie = movie;
+                this.trailerKey = null;
             }
+        } catch (error) {
+            console.error('[MovieModal] Failed to get details:', error);
+            this.currentMovie = movie;
+            this.trailerKey = null;
         }
 
         // Fetch trigger warnings if not loaded
-        if (!movie.warningsLoaded) {
-            if (tmdbService) {
-                tmdbService.fetchTriggerWarnings(movie);
+        if (!this.currentMovie.warningsLoaded && !this.currentMovie.triggerWarnings) {
+            if (tmdbService && tmdbService.fetchTriggerWarnings) {
+                tmdbService.fetchTriggerWarnings(this.currentMovie);
             }
         }
         
@@ -112,16 +133,18 @@ class MovieModal {
                     <div style="padding:1rem;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:0.75rem;">
                         <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem;">
                             <span style="color:#ef4444;font-size:1.25rem;">⚠️</span>
-                            <strong style="color:#ef4444;font-size:0.9375rem;">${warning.name}</strong>
+                            <strong style="color:#ef4444;font-size:0.9375rem;">${warning.name || warning.category || 'Warning'}</strong>
                         </div>
                         ${warning.description ? `
                             <p style="color:rgba(255,255,255,0.7);font-size:0.875rem;margin:0 0 0.5rem 0;line-height:1.5;">
                                 ${warning.description}
                             </p>
                         ` : ''}
-                        <p style="color:rgba(255,255,255,0.4);font-size:0.75rem;margin:0;">
-                            ${warning.yesVotes} people confirmed this content
-                        </p>
+                        ${warning.yesVotes ? `
+                            <p style="color:rgba(255,255,255,0.4);font-size:0.75rem;margin:0;">
+                                ${warning.yesVotes} people confirmed this content
+                            </p>
+                        ` : ''}
                     </div>
                 `).join('')}
             </div>
@@ -165,23 +188,37 @@ class MovieModal {
     getTemplate() {
         const movie = this.currentMovie;
         
-        // ✅ FIX: Construct full poster URL
+        // ✅ FIX: Construct full poster URL with multiple fallbacks
         const posterUrl = movie.posterURL || 
                          (movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : null) ||
+                         movie.backdropURL ||
                          (movie.backdrop_path ? `https://image.tmdb.org/t/p/w1280${movie.backdrop_path}` : null) ||
-                         'https://placehold.co/400x600/1a1a2e/ffffff?text=' + encodeURIComponent(movie.title);
+                         'https://placehold.co/400x600/1a1a2e/ffffff?text=' + encodeURIComponent(movie.title || 'Movie');
         
-        // ✅ FIX: Extract year from releaseDate
-        const year = movie.releaseDate?.split('-')[0] || movie.release_date?.split('-')[0] || 'N/A';
+        // ✅ FIX: Extract year from releaseDate with fallbacks
+        const year = movie.releaseDate?.split('-')[0] || 
+                     movie.release_date?.split('-')[0] || 
+                     movie.year || 
+                     'N/A';
         
-        // ✅ FIX: Get first genre from genres array
-        const genre = movie.genres?.[0] || 'Movie';
+        // ✅ FIX: Get first genre from genres array with fallback
+        const genre = (Array.isArray(movie.genres) && movie.genres.length > 0)
+            ? (typeof movie.genres[0] === 'string' ? movie.genres[0] : movie.genres[0]?.name)
+            : 'Movie';
         
         // ✅ FIX: Format runtime
         const runtime = movie.runtime ? `${movie.runtime} min` : 'N/A';
         
         // ✅ FIX: Use overview not synopsis
         const description = movie.overview || movie.synopsis || 'No description available.';
+        
+        // ✅ FIX: Format cast properly
+        const cast = movie.cast && Array.isArray(movie.cast)
+            ? movie.cast.slice(0, 6).map(actor => {
+                if (typeof actor === 'string') return actor;
+                return actor.name || actor.character || 'Unknown';
+            })
+            : [];
         
         // Platform icon and color
         const platformStyles = {
@@ -190,7 +227,9 @@ class MovieModal {
             'Prime Video': { icon: 'P', color: '#00A8E1' },
             'Disney+': { icon: 'D', color: '#113CCF' },
             'HBO Max': { icon: 'M', color: '#B200FF' },
-            'Apple TV+': { icon: 'A', color: '#000000' }
+            'Apple TV+': { icon: 'A', color: '#000000' },
+            'Peacock': { icon: 'P', color: '#0057B8' },
+            'Paramount+': { icon: 'P', color: '#0064FF' }
         };
         const platformStyle = platformStyles[movie.platform] || { icon: '▶', color: '#6366f1' };
         
@@ -293,7 +332,7 @@ class MovieModal {
                                 ${platformStyle.icon}
                             </span>
                             <span style="color: white; font-weight: 600;">
-                                ${movie.platform || 'Cinema'}
+                                ${movie.platform || 'Not Available'}
                             </span>
                         </div>
                     </div>
@@ -327,13 +366,13 @@ class MovieModal {
                 </div>
                 
                 <!-- Cast -->
-                ${movie.cast && movie.cast.length > 0 ? `
+                ${cast.length > 0 ? `
                     <div style="padding: 0 2rem 2rem;">
                         <div style="font-size: 0.75rem; color: rgba(255, 255, 255, 0.5); text-transform: uppercase; font-weight: 600; letter-spacing: 0.05em; margin-bottom: 1rem;">
                             Cast
                         </div>
                         <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
-                            ${movie.cast.slice(0, 6).map(actor => `
+                            ${cast.map(actor => `
                                 <span style="padding: 0.5rem 1rem; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 0.75rem; color: rgba(255, 255, 255, 0.9); font-size: 0.875rem;">
                                     ${actor}
                                 </span>
