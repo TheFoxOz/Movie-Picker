@@ -1,6 +1,6 @@
 /**
  * Profile Tab - User Settings & Preferences
- * ✅ INTEGRATED: user-profile-revised.js for centralized preference management
+ * ✅ REDESIGNED: Better styling, toggles, TMDB regions only, dark/light mode
  */
 
 import { authService } from '../services/auth-service.js';
@@ -8,9 +8,38 @@ import { userProfileService } from '../services/user-profile-revised.js';
 import { STREAMING_PLATFORMS } from '../config/streaming-platforms.js';
 import { TRIGGER_CATEGORIES } from '../config/trigger-categories.js';
 
+// ✅ TMDB-supported regions only
+const TMDB_REGIONS = [
+    { code: 'US', name: 'United States', flag: '🇺🇸' },
+    { code: 'GB', name: 'United Kingdom', flag: '🇬🇧' },
+    { code: 'CA', name: 'Canada', flag: '🇨🇦' },
+    { code: 'AU', name: 'Australia', flag: '🇦🇺' },
+    { code: 'DE', name: 'Germany', flag: '🇩🇪' },
+    { code: 'FR', name: 'France', flag: '🇫🇷' },
+    { code: 'ES', name: 'Spain', flag: '🇪🇸' },
+    { code: 'IT', name: 'Italy', flag: '🇮🇹' },
+    { code: 'JP', name: 'Japan', flag: '🇯🇵' },
+    { code: 'KR', name: 'South Korea', flag: '🇰🇷' },
+    { code: 'BR', name: 'Brazil', flag: '🇧🇷' },
+    { code: 'MX', name: 'Mexico', flag: '🇲🇽' },
+    { code: 'IN', name: 'India', flag: '🇮🇳' },
+    { code: 'NL', name: 'Netherlands', flag: '🇳🇱' },
+    { code: 'SE', name: 'Sweden', flag: '🇸🇪' },
+    { code: 'NO', name: 'Norway', flag: '🇳🇴' },
+    { code: 'DK', name: 'Denmark', flag: '🇩🇰' },
+    { code: 'FI', name: 'Finland', flag: '🇫🇮' },
+    { code: 'PL', name: 'Poland', flag: '🇵🇱' },
+    { code: 'RU', name: 'Russia', flag: '🇷🇺' },
+    { code: 'AR', name: 'Argentina', flag: '🇦🇷' },
+    { code: 'CL', name: 'Chile', flag: '🇨🇱' },
+    { code: 'CO', name: 'Colombia', flag: '🇨🇴' },
+    { code: 'PE', name: 'Peru', flag: '🇵🇪' }
+];
+
 export class ProfileTab {
     constructor() {
         this.container = null;
+        this.currentTheme = localStorage.getItem('app-theme') || 'dark';
     }
 
     async render(container) {
@@ -28,7 +57,8 @@ export class ProfileTab {
         console.log('[ProfileTab] Rendering profile for:', user.email);
         
         this.container.innerHTML = `
-            <div class="profile-container" style="padding: 1.5rem; max-width: 600px; margin: 0 auto;">
+            <div class="profile-container" style="padding: 1.5rem 1rem 6rem; max-width: 600px; margin: 0 auto;">
+                <!-- User Info -->
                 <div style="text-align: center; margin-bottom: 2rem;">
                     <div style="width: 80px; height: 80px; background: linear-gradient(135deg, #ff2e63, #d90062); border-radius: 50%; margin: 0 auto 1rem; display: flex; align-items: center; justify-content: center; font-size: 2rem; color: white;">
                         ${this.getInitials(user.displayName || user.email)}
@@ -41,147 +71,204 @@ export class ProfileTab {
                     </p>
                 </div>
 
+                ${this.renderThemeSection()}
                 ${this.renderRegionSection(profile)}
                 ${this.renderPlatformsSection(profile)}
                 ${this.renderTriggerWarningsSection(profile)}
-                ${this.renderAccountSection(profile)}
+                ${this.renderAccountSection()}
             </div>
         `;
 
         this.attachEventListeners();
+        this.injectToggleStyles();
+    }
+
+    // ✅ NEW: Dark/Light Mode Section
+    renderThemeSection() {
+        const isDark = this.currentTheme === 'dark';
+        
+        return `
+            <div class="settings-section" style="background: rgba(255, 255, 255, 0.05); border-radius: 1rem; padding: 1.5rem; margin-bottom: 1.5rem;">
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                    <div>
+                        <h2 style="font-size: 1.125rem; font-weight: 700; color: white; margin: 0 0 0.25rem 0; display: flex; align-items: center; gap: 0.5rem;">
+                            ${isDark ? '🌙' : '☀️'} Theme
+                        </h2>
+                        <p style="color: rgba(255, 255, 255, 0.6); font-size: 0.875rem; margin: 0;">
+                            ${isDark ? 'Dark Mode' : 'Light Mode'}
+                        </p>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="theme-toggle" ${isDark ? '' : 'checked'}>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+            </div>
+        `;
     }
 
     renderRegionSection(profile) {
+        const regionsHTML = TMDB_REGIONS.map(region => 
+            `<option value="${region.code}" ${profile.region === region.code ? 'selected' : ''} style="background: #1a1a2e; color: white;">
+                ${region.flag} ${region.name}
+            </option>`
+        ).join('');
+
         return `
             <div class="settings-section" style="background: rgba(255, 255, 255, 0.05); border-radius: 1rem; padding: 1.5rem; margin-bottom: 1.5rem;">
-                <h2 style="font-size: 1.125rem; font-weight: 700; color: white; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                <h2 style="font-size: 1.125rem; font-weight: 700; color: white; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
                     🌍 Region
                 </h2>
                 <p style="color: rgba(255, 255, 255, 0.6); font-size: 0.875rem; margin-bottom: 1rem;">
-                    Your region affects movie availability and recommendations
+                    Affects movie availability and streaming options
                 </p>
                 <select 
                     id="region-select" 
-                    style="width: 100%; padding: 0.75rem; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 0.5rem; color: white; font-size: 0.875rem;"
+                    style="
+                        width: 100%;
+                        padding: 0.875rem;
+                        background: rgba(255, 255, 255, 0.1);
+                        border: 1px solid rgba(255, 255, 255, 0.2);
+                        border-radius: 0.75rem;
+                        color: white;
+                        font-size: 0.9375rem;
+                        font-weight: 600;
+                        cursor: pointer;
+                        transition: all 0.2s;
+                    "
                 >
-                    <option value="US" ${profile.region === 'US' ? 'selected' : ''}>🇺🇸 United States</option>
-                    <option value="GB" ${profile.region === 'GB' ? 'selected' : ''}>🇬🇧 United Kingdom</option>
-                    <option value="CA" ${profile.region === 'CA' ? 'selected' : ''}>🇨🇦 Canada</option>
-                    <option value="AU" ${profile.region === 'AU' ? 'selected' : ''}>🇦🇺 Australia</option>
-                    <option value="DE" ${profile.region === 'DE' ? 'selected' : ''}>🇩🇪 Germany</option>
-                    <option value="FR" ${profile.region === 'FR' ? 'selected' : ''}>🇫🇷 France</option>
-                    <option value="ES" ${profile.region === 'ES' ? 'selected' : ''}>🇪🇸 Spain</option>
-                    <option value="IT" ${profile.region === 'IT' ? 'selected' : ''}>🇮🇹 Italy</option>
-                    <option value="JP" ${profile.region === 'JP' ? 'selected' : ''}>🇯🇵 Japan</option>
-                    <option value="KR" ${profile.region === 'KR' ? 'selected' : ''}>🇰🇷 South Korea</option>
-                    <option value="BR" ${profile.region === 'BR' ? 'selected' : ''}>🇧🇷 Brazil</option>
-                    <option value="MX" ${profile.region === 'MX' ? 'selected' : ''}>🇲🇽 Mexico</option>
-                    <option value="IN" ${profile.region === 'IN' ? 'selected' : ''}>🇮🇳 India</option>
+                    ${regionsHTML}
                 </select>
             </div>
         `;
     }
 
+    // ✅ UPDATED: Smaller platform cards with toggle switches
     renderPlatformsSection(profile) {
         const platformsHTML = STREAMING_PLATFORMS.map(platform => {
             const isSelected = profile.selectedPlatforms.includes(platform.id);
             return `
-                <button 
-                    class="platform-btn" 
-                    data-platform="${platform.id}"
-                    style="padding: 0.75rem 1rem; background: ${isSelected ? 'linear-gradient(135deg, #ff2e63, #d90062)' : 'rgba(255, 255, 255, 0.1)'}; border: 1px solid ${isSelected ? '#ff2e63' : 'rgba(255, 255, 255, 0.2)'}; border-radius: 0.5rem; color: white; font-weight: 600; cursor: pointer; transition: all 0.3s; display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem;"
-                >
-                    ${isSelected ? '✓' : ''} ${platform.name}
-                </button>
+                <div class="platform-toggle-item" data-platform="${platform.id}" style="
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    padding: 0.75rem 1rem;
+                    background: rgba(255, 255, 255, 0.05);
+                    border: 1px solid rgba(255, 255, 255, 0.1);
+                    border-radius: 0.75rem;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                ">
+                    <span style="color: white; font-weight: 600; font-size: 0.875rem;">
+                        ${platform.name}
+                    </span>
+                    <label class="toggle-switch" onclick="event.stopPropagation()">
+                        <input type="checkbox" class="platform-checkbox" data-platform="${platform.id}" ${isSelected ? 'checked' : ''}>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
             `;
         }).join('');
 
         return `
             <div class="settings-section" style="background: rgba(255, 255, 255, 0.05); border-radius: 1rem; padding: 1.5rem; margin-bottom: 1.5rem;">
-                <h2 style="font-size: 1.125rem; font-weight: 700; color: white; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                <h2 style="font-size: 1.125rem; font-weight: 700; color: white; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
                     📺 Streaming Platforms
                 </h2>
                 <p style="color: rgba(255, 255, 255, 0.6); font-size: 0.875rem; margin-bottom: 1rem;">
-                    Select your subscriptions for personalized recommendations
+                    Your active subscriptions (${profile.selectedPlatforms.length} selected)
                 </p>
-                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.75rem;">
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem;">
                     ${platformsHTML}
                 </div>
-                <p style="color: rgba(255, 255, 255, 0.4); font-size: 0.75rem; margin-top: 1rem;">
-                    Selected: ${profile.selectedPlatforms.length} platforms
-                </p>
             </div>
         `;
     }
 
+    // ✅ UPDATED: 2-column layout with toggle switches
     renderTriggerWarningsSection(profile) {
         const categoriesHTML = TRIGGER_CATEGORIES.map(category => {
             const isEnabled = profile.triggerWarnings.enabledCategories.includes(category.id);
             return `
-                <div 
-                    class="trigger-category" 
-                    data-category="${category.id}"
-                    style="padding: 1rem; background: rgba(255, 255, 255, 0.05); border: 2px solid ${isEnabled ? '#ff2e63' : 'rgba(255, 255, 255, 0.1)'}; border-radius: 0.75rem; cursor: pointer; transition: all 0.3s;"
-                >
-                    <div style="display: flex; align-items: start; gap: 0.75rem;">
-                        <div style="flex-shrink: 0; width: 24px; height: 24px; background: ${isEnabled ? '#ff2e63' : 'rgba(255, 255, 255, 0.1)'}; border-radius: 0.25rem; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 0.875rem;">
-                            ${isEnabled ? '✓' : ''}
+                <div class="trigger-toggle-item" data-category="${category.id}" style="
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    padding: 0.75rem 1rem;
+                    background: rgba(255, 255, 255, 0.05);
+                    border: 1px solid rgba(255, 255, 255, 0.1);
+                    border-radius: 0.75rem;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                ">
+                    <div style="flex: 1; min-width: 0;">
+                        <div style="font-weight: 600; color: white; margin-bottom: 0.125rem; font-size: 0.875rem;">
+                            ${category.name}
                         </div>
-                        <div style="flex: 1;">
-                            <div style="font-weight: 600; color: white; margin-bottom: 0.25rem; font-size: 0.875rem;">
-                                ${category.name}
-                            </div>
-                            <div style="color: rgba(255, 255, 255, 0.5); font-size: 0.75rem;">
-                                ${category.description}
-                            </div>
+                        <div style="color: rgba(255, 255, 255, 0.5); font-size: 0.6875rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                            ${category.description}
                         </div>
                     </div>
+                    <label class="toggle-switch" onclick="event.stopPropagation()" style="margin-left: 0.75rem;">
+                        <input type="checkbox" class="trigger-checkbox" data-category="${category.id}" ${isEnabled ? 'checked' : ''}>
+                        <span class="toggle-slider"></span>
+                    </label>
                 </div>
             `;
         }).join('');
 
         return `
             <div class="settings-section" style="background: rgba(255, 255, 255, 0.05); border-radius: 1rem; padding: 1.5rem; margin-bottom: 1.5rem;">
-                <h2 style="font-size: 1.125rem; font-weight: 700; color: white; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                <h2 style="font-size: 1.125rem; font-weight: 700; color: white; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
                     ⚠️ Trigger Warnings
                 </h2>
                 <p style="color: rgba(255, 255, 255, 0.6); font-size: 0.875rem; margin-bottom: 1rem;">
-                    Choose which content warnings you want to see
+                    Filter content by warnings (${profile.triggerWarnings.enabledCategories.length} active)
                 </p>
                 
-                <div style="margin-bottom: 1.5rem; padding: 1rem; background: rgba(255, 255, 255, 0.05); border-radius: 0.75rem;">
-                    <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer;">
-                        <input type="checkbox" id="show-all-warnings" ${profile.triggerWarnings.showAllWarnings ? 'checked' : ''} style="width: 20px; height: 20px; cursor: pointer;" />
-                        <div>
-                            <div style="color: white; font-weight: 600; font-size: 0.875rem;">Show All Warnings</div>
-                            <div style="color: rgba(255, 255, 255, 0.5); font-size: 0.75rem;">Display all trigger warnings regardless of category selection</div>
-                        </div>
+                <!-- Show All Toggle -->
+                <div style="margin-bottom: 1rem; padding: 0.875rem; background: rgba(255, 255, 255, 0.05); border-radius: 0.75rem; display: flex; align-items: center; justify-content: space-between;">
+                    <div>
+                        <div style="color: white; font-weight: 600; font-size: 0.875rem;">Show All Warnings</div>
+                        <div style="color: rgba(255, 255, 255, 0.5); font-size: 0.75rem;">Display regardless of selection</div>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="show-all-warnings" ${profile.triggerWarnings.showAllWarnings ? 'checked' : ''}>
+                        <span class="toggle-slider"></span>
                     </label>
                 </div>
 
-                <div style="display: grid; gap: 0.75rem;">
+                <!-- Categories in 2 columns -->
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem;">
                     ${categoriesHTML}
                 </div>
-
-                <p style="color: rgba(255, 255, 255, 0.4); font-size: 0.75rem; margin-top: 1rem;">
-                    Active categories: ${profile.triggerWarnings.enabledCategories.length}/${TRIGGER_CATEGORIES.length}
-                </p>
             </div>
         `;
     }
 
-    renderAccountSection(profile) {
+    // ✅ UPDATED: Removed export/import/clear cache, kept logout
+    renderAccountSection() {
         return `
             <div class="settings-section" style="background: rgba(255, 255, 255, 0.05); border-radius: 1rem; padding: 1.5rem; margin-bottom: 1.5rem;">
-                <h2 style="font-size: 1.125rem; font-weight: 700; color: white; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">⚙️ Account</h2>
-                
-                <button id="export-settings-btn" style="width: 100%; padding: 0.75rem; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 0.5rem; color: white; font-weight: 600; cursor: pointer; margin-bottom: 0.75rem; transition: all 0.3s;">📥 Export Settings</button>
+                <h2 style="font-size: 1.125rem; font-weight: 700; color: white; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                    ⚙️ Account
+                </h2>
 
-                <button id="import-settings-btn" style="width: 100%; padding: 0.75rem; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 0.5rem; color: white; font-weight: 600; cursor: pointer; margin-bottom: 0.75rem; transition: all 0.3s;">📤 Import Settings</button>
-
-                <button id="clear-cache-btn" style="width: 100%; padding: 0.75rem; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 0.5rem; color: white; font-weight: 600; cursor: pointer; margin-bottom: 0.75rem; transition: all 0.3s;">🗑️ Clear Cache</button>
-
-                <button id="logout-btn" style="width: 100%; padding: 0.75rem; background: linear-gradient(135deg, #ff2e63, #d90062); border: none; border-radius: 0.5rem; color: white; font-weight: 700; cursor: pointer; transition: all 0.3s;">🚪 Sign Out</button>
+                <button id="logout-btn" style="
+                    width: 100%;
+                    padding: 1rem;
+                    background: linear-gradient(135deg, #ff2e63, #d90062);
+                    border: none;
+                    border-radius: 0.75rem;
+                    color: white;
+                    font-weight: 700;
+                    font-size: 0.9375rem;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                    box-shadow: 0 4px 12px rgba(255, 46, 99, 0.3);
+                " onmouseover="this.style.transform='scale(1.02)'; this.style.boxShadow='0 6px 16px rgba(255, 46, 99, 0.4)'" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 4px 12px rgba(255, 46, 99, 0.3)'">
+                    🚪 Sign Out
+                </button>
             </div>
         `;
     }
@@ -196,101 +283,160 @@ export class ProfileTab {
         `;
     }
 
+    // ✅ NEW: Inject toggle switch styles
+    injectToggleStyles() {
+        if (document.getElementById('profile-toggle-styles')) return;
+
+        const style = document.createElement('style');
+        style.id = 'profile-toggle-styles';
+        style.textContent = `
+            /* Toggle Switch */
+            .toggle-switch {
+                position: relative;
+                display: inline-block;
+                width: 48px;
+                height: 28px;
+                flex-shrink: 0;
+            }
+
+            .toggle-switch input {
+                opacity: 0;
+                width: 0;
+                height: 0;
+            }
+
+            .toggle-slider {
+                position: absolute;
+                cursor: pointer;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(255, 255, 255, 0.2);
+                transition: 0.3s;
+                border-radius: 28px;
+            }
+
+            .toggle-slider:before {
+                position: absolute;
+                content: "";
+                height: 20px;
+                width: 20px;
+                left: 4px;
+                bottom: 4px;
+                background: white;
+                transition: 0.3s;
+                border-radius: 50%;
+            }
+
+            input:checked + .toggle-slider {
+                background: linear-gradient(135deg, #ff2e63, #d90062);
+            }
+
+            input:checked + .toggle-slider:before {
+                transform: translateX(20px);
+            }
+
+            /* Hover effects for toggle items */
+            .platform-toggle-item:hover,
+            .trigger-toggle-item:hover {
+                background: rgba(255, 255, 255, 0.08);
+                border-color: rgba(255, 255, 255, 0.2);
+            }
+
+            /* Region select styling */
+            #region-select:hover {
+                background: rgba(255, 255, 255, 0.15);
+                border-color: rgba(255, 255, 255, 0.3);
+            }
+
+            #region-select:focus {
+                outline: none;
+                border-color: #ff2e63;
+                box-shadow: 0 0 0 3px rgba(255, 46, 99, 0.2);
+            }
+
+            /* Option styling for better visibility */
+            #region-select option {
+                background: #1a1a2e;
+                color: white;
+                padding: 0.5rem;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
     attachEventListeners() {
+        // ✅ NEW: Theme toggle
+        const themeToggle = document.getElementById('theme-toggle');
+        if (themeToggle) {
+            themeToggle.addEventListener('change', (e) => {
+                this.currentTheme = e.target.checked ? 'light' : 'dark';
+                localStorage.setItem('app-theme', this.currentTheme);
+                this.showToast(`Switched to ${this.currentTheme} mode`);
+                // Note: Actual theme implementation would go in main.js
+                console.log('[Profile] Theme changed to:', this.currentTheme);
+            });
+        }
+
+        // Region select
         const regionSelect = document.getElementById('region-select');
         if (regionSelect) {
             regionSelect.addEventListener('change', (e) => {
                 userProfileService.updateRegion(e.target.value);
-                this.showToast(`Region updated to ${e.target.value}`);
+                const selectedRegion = TMDB_REGIONS.find(r => r.code === e.target.value);
+                this.showToast(`Region updated to ${selectedRegion?.name || e.target.value}`);
             });
         }
 
-        const platformBtns = document.querySelectorAll('.platform-btn');
-        platformBtns.forEach(btn => {
-            btn.addEventListener('click', () => {
-                userProfileService.togglePlatform(btn.dataset.platform);
-                const profile = userProfileService.getProfile();
-                const section = btn.closest('.settings-section');
-                section.outerHTML = this.renderPlatformsSection(profile);
-                this.attachEventListeners();
+        // ✅ UPDATED: Platform checkboxes
+        const platformCheckboxes = document.querySelectorAll('.platform-checkbox');
+        platformCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', (e) => {
+                const platformId = e.target.dataset.platform;
+                userProfileService.togglePlatform(platformId);
+                
+                const platform = STREAMING_PLATFORMS.find(p => p.id === platformId);
+                const isEnabled = e.target.checked;
+                this.showToast(`${platform?.name || platformId} ${isEnabled ? 'enabled' : 'disabled'}`);
             });
         });
 
-        const categoryDivs = document.querySelectorAll('.trigger-category');
-        categoryDivs.forEach(div => {
-            div.addEventListener('click', () => {
-                const categoryId = parseInt(div.dataset.category);
-                const profile = userProfileService.getProfile();
+        // ✅ UPDATED: Trigger warning checkboxes
+        const triggerCheckboxes = document.querySelectorAll('.trigger-checkbox');
+        triggerCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', (e) => {
+                const categoryId = parseInt(e.target.dataset.category);
+                const isEnabled = e.target.checked;
                 
-                if (profile.triggerWarnings.enabledCategories.includes(categoryId)) {
-                    userProfileService.disableTriggerCategory(categoryId);
-                } else {
+                if (isEnabled) {
                     userProfileService.enableTriggerCategory(categoryId);
+                } else {
+                    userProfileService.disableTriggerCategory(categoryId);
                 }
                 
-                const updatedProfile = userProfileService.getProfile();
-                const section = div.closest('.settings-section');
-                section.outerHTML = this.renderTriggerWarningsSection(updatedProfile);
-                this.attachEventListeners();
+                const category = TRIGGER_CATEGORIES.find(c => c.id === categoryId);
+                this.showToast(`${category?.name || 'Category'} ${isEnabled ? 'enabled' : 'disabled'}`);
             });
         });
 
+        // Show all warnings toggle
         const showAllCheckbox = document.getElementById('show-all-warnings');
         if (showAllCheckbox) {
             showAllCheckbox.addEventListener('change', (e) => {
                 userProfileService.setShowAllWarnings(e.target.checked);
-                this.showToast(e.target.checked ? 'Showing all warnings' : 'Showing selected categories only');
+                this.showToast(e.target.checked ? 'Showing all warnings' : 'Showing selected categories');
             });
         }
 
-        const exportBtn = document.getElementById('export-settings-btn');
-        if (exportBtn) {
-            exportBtn.addEventListener('click', () => {
-                const settings = userProfileService.exportSettings();
-                this.downloadJSON(settings, 'movie-picker-settings.json');
-                this.showToast('Settings exported successfully');
-            });
-        }
-
-        const importBtn = document.getElementById('import-settings-btn');
-        if (importBtn) {
-            importBtn.addEventListener('click', () => {
-                const input = document.createElement('input');
-                input.type = 'file';
-                input.accept = '.json';
-                input.onchange = async (e) => {
-                    const file = e.target.files[0];
-                    if (file) {
-                        try {
-                            const text = await file.text();
-                            const settings = JSON.parse(text);
-                            userProfileService.importSettings(settings);
-                            this.showToast('Settings imported successfully');
-                            this.render(this.container);
-                        } catch (error) {
-                            console.error('[ProfileTab] Import failed:', error);
-                            this.showToast('Failed to import settings', true);
-                        }
-                    }
-                };
-                input.click();
-            });
-        }
-
-        const clearCacheBtn = document.getElementById('clear-cache-btn');
-        if (clearCacheBtn) {
-            clearCacheBtn.addEventListener('click', () => {
-                localStorage.clear();
-                this.showToast('Cache cleared successfully');
-            });
-        }
-
+        // Logout button
         const logoutBtn = document.getElementById('logout-btn');
         if (logoutBtn) {
             logoutBtn.addEventListener('click', async () => {
                 try {
                     await authService.signOut();
-                    window.location.reload();
+                    this.showToast('Signed out successfully');
+                    setTimeout(() => window.location.reload(), 1000);
                 } catch (error) {
                     console.error('[ProfileTab] Logout failed:', error);
                     this.showToast('Failed to sign out', true);
@@ -304,27 +450,46 @@ export class ProfileTab {
         return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
     }
 
-    downloadJSON(data, filename) {
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        a.click();
-        URL.revokeObjectURL(url);
-    }
-
     showToast(message, isError = false) {
         const toast = document.createElement('div');
         toast.textContent = message;
-        toast.style.cssText = `position: fixed; bottom: 6rem; left: 50%; transform: translateX(-50%); padding: 0.75rem 1.5rem; background: ${isError ? '#dc2626' : '#10b981'}; color: white; border-radius: 0.5rem; font-weight: 600; font-size: 0.875rem; z-index: 10000; animation: slideUp 0.3s ease-out;`;
+        toast.style.cssText = `
+            position: fixed;
+            bottom: 7rem;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 0.875rem 1.5rem;
+            background: ${isError ? '#dc2626' : '#10b981'};
+            color: white;
+            border-radius: 0.75rem;
+            font-weight: 600;
+            font-size: 0.875rem;
+            z-index: 10000;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            animation: slideUp 0.3s ease-out;
+        `;
+        
+        const keyframes = document.createElement('style');
+        keyframes.textContent = `
+            @keyframes slideUp {
+                from { opacity: 0; transform: translateX(-50%) translateY(20px); }
+                to { opacity: 1; transform: translateX(-50%) translateY(0); }
+            }
+            @keyframes slideDown {
+                from { opacity: 1; transform: translateX(-50%) translateY(0); }
+                to { opacity: 0; transform: translateX(-50%) translateY(20px); }
+            }
+        `;
+        document.head.appendChild(keyframes);
         
         document.body.appendChild(toast);
         
         setTimeout(() => {
             toast.style.animation = 'slideDown 0.3s ease-in';
-            setTimeout(() => toast.remove(), 300);
-        }, 2000);
+            setTimeout(() => {
+                toast.remove();
+                keyframes.remove();
+            }, 300);
+        }, 2500);
     }
 }
-
