@@ -101,7 +101,7 @@ export class HomeTab {
             const favoriteGenres = this.getUserFavoriteGenres();
             console.log('[Home] User favorite genres:', favoriteGenres);
 
-            // ✅ NEW: Load Trending
+            // Load Trending
             console.log('[Home] Loading trending movies...');
             let trending = await tmdbService.getTrendingMovies('week');
             trending = await this.enrichWithPlatformData(trending);
@@ -110,7 +110,7 @@ export class HomeTab {
                 movies: this.filterMovies(trending).slice(0, 20)
             };
 
-            // ✅ NEW: Load genre-specific sections based on user preferences
+            // Load genre-specific sections based on user preferences
             if (favoriteGenres.length > 0) {
                 // Load sections for user's favorite genres
                 for (const genreId of favoriteGenres.slice(0, 3)) { // Top 3 favorite genres
@@ -156,7 +156,7 @@ export class HomeTab {
                 }
             }
 
-            // ✅ NEW: Top Rated section
+            // Top Rated section
             console.log('[Home] Loading top rated movies...');
             let topRated = await tmdbService.discoverMovies({
                 sortBy: 'vote_average.desc',
@@ -170,7 +170,7 @@ export class HomeTab {
                 movies: this.filterMovies(topRated).slice(0, 20)
             };
 
-            // ✅ NEW: Popular Movies section
+            // Popular Movies section
             console.log('[Home] Loading popular movies...');
             let popular = await tmdbService.getPopularMovies(1);
             popular = await this.enrichWithPlatformData(popular);
@@ -189,7 +189,6 @@ export class HomeTab {
         }
     }
 
-    // ✅ NEW: Get user's favorite genres from swipe history
     getUserFavoriteGenres() {
         const swipeHistory = store.getState().swipeHistory || [];
         
@@ -222,7 +221,6 @@ export class HomeTab {
             .map(([genreId]) => parseInt(genreId));
     }
 
-    // ✅ NEW: Get emoji for genre
     getGenreEmoji(genreId) {
         const emojis = {
             28: '💥',  // Action
@@ -261,8 +259,23 @@ export class HomeTab {
                 batch.map(async (movie) => {
                     if (tmdbService.getWatchProviders) {
                         movie.availableOn = await tmdbService.getWatchProviders(movie.id);
+                        
+                        // ✅ NEW: Set platform field
+                        if (movie.availableOn && movie.availableOn.length > 0) {
+                            movie.platform = movie.availableOn[0];
+                        } else {
+                            const year = movie.releaseDate?.split('-')[0] || movie.year;
+                            const currentYear = new Date().getFullYear();
+                            
+                            if (year && parseInt(year) > currentYear) {
+                                movie.platform = 'Coming Soon';
+                            } else {
+                                movie.platform = 'Cinema';
+                            }
+                        }
                     } else {
                         movie.availableOn = [];
+                        movie.platform = 'Not Available';
                     }
                 })
             );
@@ -275,6 +288,7 @@ export class HomeTab {
         return movies;
     }
 
+    // ✅ UPDATED: Filter out cinema-only movies, only show streaming platform content
     filterMovies(movies) {
         if (!movies || movies.length === 0) {
             return [];
@@ -282,15 +296,44 @@ export class HomeTab {
 
         let filtered = [...movies];
 
+        // ✅ NEW: Remove cinema-only movies (must have streaming platform)
+        filtered = filtered.filter(movie => {
+            // Keep if movie has at least one streaming platform
+            if (movie.availableOn && movie.availableOn.length > 0) {
+                return true;
+            }
+            
+            // Remove if cinema-only, coming soon, or not available
+            const platform = movie.platform;
+            if (platform === 'Cinema' || platform === 'Coming Soon' || platform === 'Not Available') {
+                console.log(`[Home] Filtering out cinema-only movie: ${movie.title}`);
+                return false;
+            }
+            
+            return true;
+        });
+
+        console.log(`[Home] Cinema filter: ${movies.length} → ${filtered.length} movies`);
+
         // Filter by user's selected platforms
         if (tmdbService.filterByUserPlatforms) {
+            const beforePlatformFilter = filtered.length;
             filtered = tmdbService.filterByUserPlatforms(filtered);
+            
+            if (filtered.length < beforePlatformFilter) {
+                console.log(`[Home] Platform filter: ${beforePlatformFilter} → ${filtered.length} movies`);
+            }
         }
 
         // Filter by trigger warnings
         if (this.preferences.triggerWarnings.enabled) {
             if (tmdbService.filterBlockedMovies) {
+                const beforeTriggerFilter = filtered.length;
                 filtered = tmdbService.filterBlockedMovies(filtered);
+                
+                if (filtered.length < beforeTriggerFilter) {
+                    console.log(`[Home] Trigger filter: ${beforeTriggerFilter} → ${filtered.length} movies`);
+                }
             }
         }
 
@@ -381,7 +424,7 @@ export class HomeTab {
                     </h2>
                 </div>
                 
-                <!-- ✅ UPDATED: Horizontal scrolling with SMALLER cards (3-4 visible) -->
+                <!-- Horizontal scrolling with SMALLER cards (3-4 visible) -->
                 <div class="movie-row" style="
                     overflow-x: auto;
                     overflow-y: hidden;
@@ -410,7 +453,6 @@ export class HomeTab {
     }
 
     renderMovieCard(movie) {
-        // ✅ UPDATED: Construct full poster URL with fallbacks
         const posterUrl = movie.posterURL || 
                          (movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : null) ||
                          movie.backdropURL ||
