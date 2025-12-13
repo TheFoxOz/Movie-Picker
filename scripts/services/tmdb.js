@@ -5,11 +5,13 @@
  * ✅ FIXED: Added proper error handling for DoesTheDogDie service
  * ✅ NEW: Added Watch Providers API for platform filtering
  * ✅ NEW: Added platform and trigger blocking methods
+ * ✅ CRITICAL FIX: Robust platform detection from multiple sources
  */
 
 import { doesTheDogDieService } from './does-the-dog-die.js';
 import { triggerWarningService } from './trigger-warning-service.js';
 import { userProfileService } from './user-profile-revised.js';
+import { store } from '../state/store.js';
 
 class TMDBService {
     constructor() {
@@ -90,8 +92,8 @@ class TMDBService {
         }
 
         try {
-            const userProfile = userProfileService.getProfile();
-            const region = userProfile.region || 'US';
+            const userProfile = userProfileService?.getProfile();
+            const region = userProfile?.region || 'US';
 
             const response = await fetch(
                 `${this.baseURL}/movie/${movieId}/watch/providers?api_key=${this.apiKey}`
@@ -155,24 +157,73 @@ class TMDBService {
         }
     }
 
-    // ✅ NEW: Filter movies by user's selected platforms
+    // ✅ CRITICAL FIX: Robust platform filtering that checks multiple sources
     filterByUserPlatforms(movies) {
         if (!movies || movies.length === 0) {
             return [];
         }
 
-        const userProfile = userProfileService.getProfile();
-        const selectedPlatforms = userProfile.streamingPlatforms || [];
+        let selectedPlatforms = [];
         
-        // If no platforms selected, show all movies
+        // ✅ Strategy 1: Try userProfileService
+        try {
+            const userProfile = userProfileService?.getProfile();
+            if (userProfile) {
+                selectedPlatforms = userProfile.streamingPlatforms || 
+                                   userProfile.selectedPlatforms || 
+                                   [];
+            }
+        } catch (error) {
+            console.warn('[TMDB] UserProfileService not available:', error);
+        }
+        
+        // ✅ Strategy 2: Try store.getState()
         if (!selectedPlatforms || selectedPlatforms.length === 0) {
-            console.log('[TMDB] No platform filtering (no platforms selected)');
+            try {
+                const state = store.getState();
+                const prefs = state.preferences || {};
+                
+                selectedPlatforms = prefs.streamingPlatforms || 
+                                   prefs.selectedPlatforms || 
+                                   [];
+                
+                // ✅ Strategy 3: Check if platforms is an object {Netflix: true, Hulu: false}
+                if (!Array.isArray(selectedPlatforms) && typeof prefs.platforms === 'object') {
+                    selectedPlatforms = Object.keys(prefs.platforms).filter(p => prefs.platforms[p]);
+                }
+            } catch (error) {
+                console.warn('[TMDB] Store not available:', error);
+            }
+        }
+        
+        // ✅ Strategy 4: Try localStorage directly
+        if (!selectedPlatforms || selectedPlatforms.length === 0) {
+            try {
+                const prefs = JSON.parse(localStorage.getItem('moviePickerPreferences') || '{}');
+                
+                selectedPlatforms = prefs.streamingPlatforms || 
+                                   prefs.selectedPlatforms || 
+                                   [];
+                
+                // Check object format
+                if (!Array.isArray(selectedPlatforms) && typeof prefs.platforms === 'object') {
+                    selectedPlatforms = Object.keys(prefs.platforms).filter(p => prefs.platforms[p]);
+                }
+            } catch (error) {
+                console.warn('[TMDB] LocalStorage not available:', error);
+            }
+        }
+        
+        // If no platforms selected, show ALL movies (don't filter)
+        if (!selectedPlatforms || selectedPlatforms.length === 0) {
+            console.log('[TMDB] No platform filtering (no platforms selected) - showing all movies');
             return movies;
         }
 
+        console.log('[TMDB] Filtering by platforms:', selectedPlatforms);
+
         const filtered = movies.filter(movie => {
-            // If movie doesn't have platform data yet, include it
-            // (platform data will be fetched separately)
+            // If movie doesn't have platform data yet, include it (will be filtered later)
             if (!movie.availableOn || movie.availableOn.length === 0) {
                 return true;
             }
@@ -195,8 +246,8 @@ class TMDBService {
             return false; // No warnings, not blocked
         }
 
-        const userProfile = userProfileService.getProfile();
-        const enabledCategories = userProfile.triggerWarnings?.enabledCategories || [];
+        const userProfile = userProfileService?.getProfile();
+        const enabledCategories = userProfile?.triggerWarnings?.enabledCategories || [];
         
         // If no categories enabled, don't block anything
         if (enabledCategories.length === 0) {
@@ -295,9 +346,9 @@ class TMDBService {
                 
                 if (categorizedWarnings && categorizedWarnings.categories) {
                     // Filter by user preferences
-                    const userProfile = userProfileService.getProfile();
-                    const enabledCategories = userProfile.triggerWarnings.enabledCategories;
-                    const showAllWarnings = userProfile.triggerWarnings.showAllWarnings;
+                    const userProfile = userProfileService?.getProfile();
+                    const enabledCategories = userProfile?.triggerWarnings?.enabledCategories || [];
+                    const showAllWarnings = userProfile?.triggerWarnings?.showAllWarnings !== false;
 
                     const filteredWarnings = triggerWarningService.filterByUserPreferences(
                         categorizedWarnings,
@@ -336,7 +387,7 @@ class TMDBService {
 
     // ✅ UPDATED: Discover movies with region filtering
     async discoverMovies(options = {}) {
-        const userProfile = userProfileService.getProfile();
+        const userProfile = userProfileService?.getProfile();
         
         const params = new URLSearchParams({
             api_key: this.apiKey,
@@ -346,8 +397,8 @@ class TMDBService {
             include_adult: false,
             include_video: false,
             // ✅ NEW: Use user's region for proper localization
-            region: userProfile.region || 'US',
-            watch_region: userProfile.region || 'US'
+            region: userProfile?.region || 'US',
+            watch_region: userProfile?.region || 'US'
         });
 
         // Add optional filters
@@ -386,14 +437,14 @@ class TMDBService {
 
     // ✅ UPDATED: Get popular movies with region filtering
     async getPopularMovies(page = 1) {
-        const userProfile = userProfileService.getProfile();
+        const userProfile = userProfileService?.getProfile();
         
         const params = new URLSearchParams({
             api_key: this.apiKey,
             language: 'en-US',
             page: page,
             // ✅ NEW: Use user's region
-            region: userProfile.region || 'US'
+            region: userProfile?.region || 'US'
         });
 
         try {
@@ -413,13 +464,13 @@ class TMDBService {
 
     // ✅ UPDATED: Get trending movies with region filtering
     async getTrendingMovies(timeWindow = 'week') {
-        const userProfile = userProfileService.getProfile();
+        const userProfile = userProfileService?.getProfile();
         
         const params = new URLSearchParams({
             api_key: this.apiKey,
             language: 'en-US',
             // ✅ NEW: Use user's region
-            region: userProfile.region || 'US'
+            region: userProfile?.region || 'US'
         });
 
         try {
@@ -465,7 +516,7 @@ class TMDBService {
     }
 
     async searchMovies(query, page = 1) {
-        const userProfile = userProfileService.getProfile();
+        const userProfile = userProfileService?.getProfile();
         
         const params = new URLSearchParams({
             api_key: this.apiKey,
@@ -474,7 +525,7 @@ class TMDBService {
             page: page,
             include_adult: false,
             // ✅ NEW: Use user's region
-            region: userProfile.region || 'US'
+            region: userProfile?.region || 'US'
         });
 
         try {
@@ -536,6 +587,7 @@ class TMDBService {
             recommendations: movie.recommendations?.results,
             // ✅ NEW: Platform availability (to be populated separately)
             availableOn: [],
+            platform: 'Loading...', // Will be updated when watch providers fetched
             // Trigger warnings (will be populated separately)
             triggerWarnings: [],
             hasTriggerWarnings: false,
@@ -580,6 +632,10 @@ class TMDBService {
             await Promise.all(
                 batch.map(async (movie) => {
                     movie.availableOn = await this.getWatchProviders(movie.id);
+                    // Set primary platform
+                    movie.platform = movie.availableOn && movie.availableOn.length > 0
+                        ? movie.availableOn[0]
+                        : 'Not Available';
                 })
             );
             
