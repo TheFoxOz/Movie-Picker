@@ -77,28 +77,38 @@ export class HomeTab {
 
             console.log('[Home] Loading content...');
 
-            // ✅ FIX: Load different content for each section
-            const trending = await tmdbService.getTrendingMovies('week');
+            // ✅ UPDATED: Load trending and fetch platform data
+            let trending = await tmdbService.getTrendingMovies('week');
+            
+            // ✅ NEW: Fetch watch providers for trending movies
+            console.log('[Home] Fetching platform data for trending movies...');
+            trending = await this.enrichWithPlatformData(trending);
+            
+            // ✅ UPDATED: Apply ALL filters (platform + triggers)
             this.trendingMovies = this.filterMovies(trending);
 
             // Get recommendations (uses swipe history)
             this.recommendedMovies = await this.getRecommendations();
 
-            // ✅ FIX: Load DIFFERENT popular movies for platforms section
-            const popularMovies = await tmdbService.getPopularMovies(1);
+            // ✅ UPDATED: Load popular movies and enrich with platform data
+            let popularMovies = await tmdbService.getPopularMovies(1);
             const topRatedResult = await tmdbService.discoverMovies({ 
                 sortBy: 'vote_average.desc', 
                 minVotes: 1000, 
                 page: 1 
             });
-            const topRatedMovies = topRatedResult.movies || topRatedResult;
+            let topRatedMovies = topRatedResult.movies || topRatedResult;
+            
+            // ✅ NEW: Fetch platform data for popular/top rated
+            console.log('[Home] Fetching platform data for popular movies...');
+            const allMovies = [...popularMovies, ...topRatedMovies];
+            const enrichedMovies = await this.enrichWithPlatformData(allMovies);
             
             // Combine and dedupe
-            const allMovies = [...popularMovies, ...topRatedMovies];
             const uniqueMovies = [];
             const seen = new Set();
             
-            allMovies.forEach(movie => {
+            enrichedMovies.forEach(movie => {
                 if (movie && movie.id && !seen.has(movie.id)) {
                     seen.add(movie.id);
                     uniqueMovies.push(movie);
@@ -121,19 +131,78 @@ export class HomeTab {
         }
     }
 
+    // ✅ NEW: Enrich movies with platform availability data
+    async enrichWithPlatformData(movies, options = { maxConcurrent: 5, delay: 50 }) {
+        if (!movies || movies.length === 0) {
+            return movies;
+        }
+
+        console.log(`[Home] Enriching ${movies.length} movies with platform data...`);
+        
+        const { maxConcurrent, delay } = options;
+        
+        // Batch process to avoid rate limits
+        for (let i = 0; i < movies.length; i += maxConcurrent) {
+            const batch = movies.slice(i, i + maxConcurrent);
+            
+            await Promise.all(
+                batch.map(async (movie) => {
+                    if (tmdbService.getWatchProviders) {
+                        movie.availableOn = await tmdbService.getWatchProviders(movie.id);
+                    } else {
+                        movie.availableOn = [];
+                    }
+                })
+            );
+            
+            // Rate limiting delay
+            if (i + maxConcurrent < movies.length) {
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+        }
+        
+        console.log(`[Home] ✅ Platform data fetched for ${movies.length} movies`);
+        return movies;
+    }
+
+    // ✅ UPDATED: Now filters by BOTH platforms AND triggers
     filterMovies(movies) {
-        // ✅ FIX: TMDB movies don't have platform property, so don't filter by it
-        // Just return movies as-is (platform filtering would need additional API calls)
+        if (!movies || movies.length === 0) {
+            return [];
+        }
+
         let filtered = [...movies];
 
+        // ✅ NEW: Filter by user's selected platforms (if tmdbService has the method)
+        if (tmdbService.filterByUserPlatforms) {
+            const beforePlatformFilter = filtered.length;
+            filtered = tmdbService.filterByUserPlatforms(filtered);
+            
+            if (filtered.length < beforePlatformFilter) {
+                console.log(`[Home] Platform filter: ${beforePlatformFilter} → ${filtered.length} movies`);
+            }
+        }
+
+        // ✅ UPDATED: Filter by trigger warnings (if enabled)
         if (this.preferences.triggerWarnings.enabled) {
-            filtered = filtered.filter(movie => {
-                if (movie.triggerWarnings && movie.triggerWarnings.length > 0) {
-                    console.log(`[Home] Blocking ${movie.title} (has ${movie.triggerWarnings.length} warnings)`);
-                    return false;
+            // Use tmdbService method if available, otherwise fall back to manual filter
+            if (tmdbService.filterBlockedMovies) {
+                const beforeTriggerFilter = filtered.length;
+                filtered = tmdbService.filterBlockedMovies(filtered);
+                
+                if (filtered.length < beforeTriggerFilter) {
+                    console.log(`[Home] Trigger filter: ${beforeTriggerFilter} → ${filtered.length} movies`);
                 }
-                return true;
-            });
+            } else {
+                // Fallback to manual filtering
+                filtered = filtered.filter(movie => {
+                    if (movie.triggerWarnings && movie.triggerWarnings.length > 0) {
+                        console.log(`[Home] Blocking ${movie.title} (has ${movie.triggerWarnings.length} warnings)`);
+                        return false;
+                    }
+                    return true;
+                });
+            }
         }
 
         return filtered;
@@ -152,7 +221,9 @@ export class HomeTab {
             .map(s => s.movie);
 
         if (lovedMovies.length === 0 && likedMovies.length === 0) {
-            const popular = await tmdbService.getPopularMovies(1);
+            // ✅ UPDATED: Enrich popular movies with platform data
+            let popular = await tmdbService.getPopularMovies(1);
+            popular = await this.enrichWithPlatformData(popular.slice(0, 10));
             return this.filterMovies(popular);
         }
 
@@ -195,6 +266,9 @@ export class HomeTab {
             }
         }
 
+        // ✅ UPDATED: Enrich recommendations with platform data
+        const enrichedRecs = await this.enrichWithPlatformData(recommendations);
+
         // ✅ FIX: Safely create swipedIds Set with null checks
         const swipedIds = new Set(
             swipeHistory
@@ -203,7 +277,7 @@ export class HomeTab {
         );
         
         // ✅ FIX: Add null checks when filtering unique movies
-        const unique = recommendations.filter((movie, index, self) => 
+        const unique = enrichedRecs.filter((movie, index, self) => 
             movie && movie.id &&
             self.findIndex(m => m && m.id === movie.id) === index &&
             !swipedIds.has(movie.id)
@@ -339,6 +413,11 @@ export class HomeTab {
     renderMovieCard(movie) {
         const posterUrl = movie.posterURL || movie.poster_path || `https://placehold.co/300x450/1a1a2e/ffffff?text=${encodeURIComponent(movie.title)}`;
         const hasWarnings = movie.triggerWarnings && movie.triggerWarnings.length > 0;
+        
+        // ✅ NEW: Show platform badge if available
+        const platform = movie.availableOn && movie.availableOn.length > 0 
+            ? movie.availableOn[0] 
+            : null;
 
         return `
             <div class="home-movie-card" data-movie-id="${movie.id}" style="position: relative;">
@@ -363,7 +442,7 @@ export class HomeTab {
                             ${movie.title}
                         </h3>
                         <p style="font-size: 0.6875rem; color: rgba(255,255,255,0.7); margin: 0.25rem 0 0 0;">
-                            ${movie.releaseDate?.split('-')[0] || ''}
+                            ${movie.releaseDate?.split('-')[0] || ''}${platform ? ` • ${this.getPlatformEmoji(platform)}` : ''}
                         </p>
                     </div>
                 </div>
