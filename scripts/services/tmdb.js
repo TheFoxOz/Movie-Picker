@@ -3,6 +3,8 @@
  * ✅ INTEGRATED: trigger-warning-service.js for categorized warnings
  * ✅ INTEGRATED: user-profile-revised.js for region/preference filtering
  * ✅ FIXED: Added proper error handling for DoesTheDogDie service
+ * ✅ NEW: Added Watch Providers API for platform filtering
+ * ✅ NEW: Added platform and trigger blocking methods
  */
 
 import { doesTheDogDieService } from './does-the-dog-die.js';
@@ -17,7 +19,9 @@ class TMDBService {
         this.cache = {
             movies: new Map(),
             genres: new Map(),
-            triggerWarnings: new Map()
+            triggerWarnings: new Map(),
+            // ✅ NEW: Cache for watch providers
+            watchProviders: new Map()
         };
         this.genreList = [];
         this.isInitialized = false;
@@ -71,6 +75,180 @@ class TMDBService {
     getImageURL(path, size = 'w500') {
         if (!path) return null;
         return `${this.imageBaseURL}/${size}${path}`;
+    }
+
+    // ✅ NEW: Fetch watch providers (streaming platforms) for a movie
+    async getWatchProviders(movieId) {
+        if (!movieId) {
+            console.warn('[TMDB] No movie ID provided for watch providers');
+            return [];
+        }
+
+        // Check cache first
+        if (this.cache.watchProviders.has(movieId)) {
+            return this.cache.watchProviders.get(movieId);
+        }
+
+        try {
+            const userProfile = userProfileService.getProfile();
+            const region = userProfile.region || 'US';
+
+            const response = await fetch(
+                `${this.baseURL}/movie/${movieId}/watch/providers?api_key=${this.apiKey}`
+            );
+            
+            if (!response.ok) {
+                console.warn(`[TMDB] Watch providers API error: ${response.status}`);
+                this.cache.watchProviders.set(movieId, []);
+                return [];
+            }
+
+            const data = await response.json();
+            const providers = data.results?.[region];
+            
+            if (!providers) {
+                console.log(`[TMDB] No watch providers for movie ${movieId} in ${region}`);
+                this.cache.watchProviders.set(movieId, []);
+                return [];
+            }
+
+            // Combine all provider types (streaming, rent, buy)
+            const allProviders = [
+                ...(providers.flatrate || []),
+                ...(providers.rent || []),
+                ...(providers.buy || [])
+            ];
+
+            // Map TMDB provider IDs to our platform names
+            const providerMap = {
+                8: 'Netflix',
+                15: 'Hulu',
+                9: 'Prime Video',
+                337: 'Disney+',
+                384: 'HBO Max',
+                350: 'Apple TV+',
+                387: 'Peacock',
+                386: 'Paramount+',
+                2: 'Apple TV',
+                3: 'Google Play Movies',
+                10: 'Amazon Video'
+            };
+
+            const platformNames = allProviders
+                .map(p => providerMap[p.provider_id])
+                .filter(Boolean);
+
+            // Remove duplicates
+            const uniquePlatforms = [...new Set(platformNames)];
+            
+            console.log(`[TMDB] ✅ Found ${uniquePlatforms.length} platforms for movie ${movieId}`);
+            
+            // Cache the result
+            this.cache.watchProviders.set(movieId, uniquePlatforms);
+            
+            return uniquePlatforms;
+
+        } catch (error) {
+            console.error('[TMDB] ❌ Failed to fetch watch providers:', error);
+            this.cache.watchProviders.set(movieId, []);
+            return [];
+        }
+    }
+
+    // ✅ NEW: Filter movies by user's selected platforms
+    filterByUserPlatforms(movies) {
+        if (!movies || movies.length === 0) {
+            return [];
+        }
+
+        const userProfile = userProfileService.getProfile();
+        const selectedPlatforms = userProfile.streamingPlatforms || [];
+        
+        // If no platforms selected, show all movies
+        if (!selectedPlatforms || selectedPlatforms.length === 0) {
+            console.log('[TMDB] No platform filtering (no platforms selected)');
+            return movies;
+        }
+
+        const filtered = movies.filter(movie => {
+            // If movie doesn't have platform data yet, include it
+            // (platform data will be fetched separately)
+            if (!movie.availableOn || movie.availableOn.length === 0) {
+                return true;
+            }
+            
+            // Check if movie is available on at least one user platform
+            const isAvailable = movie.availableOn.some(platform => 
+                selectedPlatforms.includes(platform)
+            );
+            
+            return isAvailable;
+        });
+
+        console.log(`[TMDB] Platform filtering: ${movies.length} → ${filtered.length} movies`);
+        return filtered;
+    }
+
+    // ✅ NEW: Check if movie should be blocked based on trigger warnings
+    isMovieBlocked(movie) {
+        if (!movie || !movie.triggerWarnings) {
+            return false; // No warnings, not blocked
+        }
+
+        const userProfile = userProfileService.getProfile();
+        const enabledCategories = userProfile.triggerWarnings?.enabledCategories || [];
+        
+        // If no categories enabled, don't block anything
+        if (enabledCategories.length === 0) {
+            return false;
+        }
+
+        // Check if movie has any warnings in enabled (blocked) categories
+        const hasBlockedWarning = movie.triggerWarnings.some(warning => {
+            // Warning might be a string (category name) or object with category property
+            const category = typeof warning === 'string' ? warning : warning.category;
+            return enabledCategories.includes(category);
+        });
+
+        if (hasBlockedWarning) {
+            console.log(`[TMDB] ⚠️ Movie "${movie.title}" blocked due to trigger warnings`);
+        }
+
+        return hasBlockedWarning;
+    }
+
+    // ✅ NEW: Filter out movies with blocked trigger warnings
+    filterBlockedMovies(movies) {
+        if (!movies || movies.length === 0) {
+            return [];
+        }
+
+        const filtered = movies.filter(movie => !this.isMovieBlocked(movie));
+        
+        if (filtered.length < movies.length) {
+            console.log(`[TMDB] Trigger filtering: ${movies.length} → ${filtered.length} movies`);
+        }
+        
+        return filtered;
+    }
+
+    // ✅ NEW: Apply ALL filters (platform + triggers)
+    applyUserFilters(movies) {
+        if (!movies || movies.length === 0) {
+            return [];
+        }
+
+        console.log(`[TMDB] Applying filters to ${movies.length} movies...`);
+        
+        // Apply platform filtering
+        let filtered = this.filterByUserPlatforms(movies);
+        
+        // Apply trigger warning blocking
+        filtered = this.filterBlockedMovies(filtered);
+        
+        console.log(`[TMDB] ✅ After filtering: ${filtered.length} movies remain`);
+        
+        return filtered;
     }
 
     // ✅ FIXED: Proper error handling for DoesTheDogDie service
@@ -356,6 +534,8 @@ class TMDBService {
             // Similar/Recommended
             similar: movie.similar?.results,
             recommendations: movie.recommendations?.results,
+            // ✅ NEW: Platform availability (to be populated separately)
+            availableOn: [],
             // Trigger warnings (will be populated separately)
             triggerWarnings: [],
             hasTriggerWarnings: false,
@@ -388,10 +568,36 @@ class TMDBService {
         return results;
     }
 
+    // ✅ NEW: Batch load watch providers for multiple movies
+    async loadWatchProvidersForMovies(movies, options = {}) {
+        const { maxConcurrent = 5, delay = 50 } = options;
+        
+        console.log(`[TMDB] Loading watch providers for ${movies.length} movies...`);
+        
+        for (let i = 0; i < movies.length; i += maxConcurrent) {
+            const batch = movies.slice(i, i + maxConcurrent);
+            
+            await Promise.all(
+                batch.map(async (movie) => {
+                    movie.availableOn = await this.getWatchProviders(movie.id);
+                })
+            );
+            
+            // Rate limiting delay
+            if (i + maxConcurrent < movies.length) {
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+        }
+        
+        console.log(`[TMDB] ✅ Loaded watch providers for ${movies.length} movies`);
+        return movies;
+    }
+
     // Clear cache
     clearCache() {
         this.cache.movies.clear();
         this.cache.triggerWarnings.clear();
+        this.cache.watchProviders.clear();
         console.log('[TMDB] Cache cleared');
     }
 }
