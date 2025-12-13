@@ -24,13 +24,32 @@ const GENRE_IDS = {
     WESTERN: 37
 };
 
+const GENRE_NAMES = {
+    28: 'Action',
+    12: 'Adventure',
+    16: 'Animation',
+    35: 'Comedy',
+    80: 'Crime',
+    99: 'Documentary',
+    18: 'Drama',
+    10751: 'Family',
+    14: 'Fantasy',
+    36: 'History',
+    27: 'Horror',
+    10402: 'Music',
+    9648: 'Mystery',
+    10749: 'Romance',
+    878: 'Sci-Fi',
+    53: 'Thriller',
+    10752: 'War',
+    37: 'Western'
+};
+
 export class HomeTab {
     constructor() {
         this.container = null;
         this.preferences = null;
-        this.trendingMovies = [];
-        this.recommendedMovies = [];
-        this.platformMovies = {};
+        this.sections = {}; // Will hold all movie sections
         this.isLoading = false;
     }
 
@@ -76,53 +95,92 @@ export class HomeTab {
             }
 
             console.log('[Home] Loading content...');
+            this.sections = {};
 
-            // ✅ UPDATED: Load trending and fetch platform data
+            // Get user's favorite genres from swipe history
+            const favoriteGenres = this.getUserFavoriteGenres();
+            console.log('[Home] User favorite genres:', favoriteGenres);
+
+            // ✅ NEW: Load Trending
+            console.log('[Home] Loading trending movies...');
             let trending = await tmdbService.getTrendingMovies('week');
-            
-            // ✅ NEW: Fetch watch providers for trending movies
-            console.log('[Home] Fetching platform data for trending movies...');
             trending = await this.enrichWithPlatformData(trending);
-            
-            // ✅ UPDATED: Apply ALL filters (platform + triggers)
-            this.trendingMovies = this.filterMovies(trending);
-
-            // Get recommendations (uses swipe history)
-            this.recommendedMovies = await this.getRecommendations();
-
-            // ✅ UPDATED: Load popular movies and enrich with platform data
-            let popularMovies = await tmdbService.getPopularMovies(1);
-            const topRatedResult = await tmdbService.discoverMovies({ 
-                sortBy: 'vote_average.desc', 
-                minVotes: 1000, 
-                page: 1 
-            });
-            let topRatedMovies = topRatedResult.movies || topRatedResult;
-            
-            // ✅ NEW: Fetch platform data for popular/top rated
-            console.log('[Home] Fetching platform data for popular movies...');
-            const allMovies = [...popularMovies, ...topRatedMovies];
-            const enrichedMovies = await this.enrichWithPlatformData(allMovies);
-            
-            // Combine and dedupe
-            const uniqueMovies = [];
-            const seen = new Set();
-            
-            enrichedMovies.forEach(movie => {
-                if (movie && movie.id && !seen.has(movie.id)) {
-                    seen.add(movie.id);
-                    uniqueMovies.push(movie);
-                }
-            });
-
-            this.platformMovies = {
-                'Popular': this.filterMovies(uniqueMovies.slice(0, 20))
+            this.sections['Trending This Week'] = {
+                emoji: '🔥',
+                movies: this.filterMovies(trending).slice(0, 20)
             };
 
-            console.log('[Home] Content loaded successfully');
-            console.log('[Home] Trending:', this.trendingMovies.length);
-            console.log('[Home] Recommended:', this.recommendedMovies.length);
-            console.log('[Home] Popular:', this.platformMovies['Popular']?.length || 0);
+            // ✅ NEW: Load genre-specific sections based on user preferences
+            if (favoriteGenres.length > 0) {
+                // Load sections for user's favorite genres
+                for (const genreId of favoriteGenres.slice(0, 3)) { // Top 3 favorite genres
+                    const genreName = GENRE_NAMES[genreId];
+                    if (genreName) {
+                        console.log(`[Home] Loading ${genreName} movies...`);
+                        let genreMovies = await tmdbService.discoverMovies({
+                            withGenres: genreId,
+                            sortBy: 'popularity.desc',
+                            page: 1
+                        });
+                        genreMovies = genreMovies.movies || genreMovies;
+                        genreMovies = await this.enrichWithPlatformData(genreMovies);
+                        
+                        this.sections[`${genreName} Movies`] = {
+                            emoji: this.getGenreEmoji(genreId),
+                            movies: this.filterMovies(genreMovies).slice(0, 20)
+                        };
+                    }
+                }
+            } else {
+                // Default genre sections for new users
+                const defaultGenres = [
+                    { id: GENRE_IDS.ACTION, name: 'Action' },
+                    { id: GENRE_IDS.COMEDY, name: 'Comedy' },
+                    { id: GENRE_IDS.DRAMA, name: 'Drama' }
+                ];
+
+                for (const { id, name } of defaultGenres) {
+                    console.log(`[Home] Loading ${name} movies...`);
+                    let genreMovies = await tmdbService.discoverMovies({
+                        withGenres: id,
+                        sortBy: 'popularity.desc',
+                        page: 1
+                    });
+                    genreMovies = genreMovies.movies || genreMovies;
+                    genreMovies = await this.enrichWithPlatformData(genreMovies);
+                    
+                    this.sections[`${name} Movies`] = {
+                        emoji: this.getGenreEmoji(id),
+                        movies: this.filterMovies(genreMovies).slice(0, 20)
+                    };
+                }
+            }
+
+            // ✅ NEW: Top Rated section
+            console.log('[Home] Loading top rated movies...');
+            let topRated = await tmdbService.discoverMovies({
+                sortBy: 'vote_average.desc',
+                minVotes: 1000,
+                page: 1
+            });
+            topRated = topRated.movies || topRated;
+            topRated = await this.enrichWithPlatformData(topRated);
+            this.sections['Top Rated'] = {
+                emoji: '⭐',
+                movies: this.filterMovies(topRated).slice(0, 20)
+            };
+
+            // ✅ NEW: Popular Movies section
+            console.log('[Home] Loading popular movies...');
+            let popular = await tmdbService.getPopularMovies(1);
+            popular = await this.enrichWithPlatformData(popular);
+            this.sections['Popular Now'] = {
+                emoji: '🍿',
+                movies: this.filterMovies(popular).slice(0, 20)
+            };
+
+            console.log('[Home] ✅ Content loaded successfully');
+            console.log('[Home] Total sections:', Object.keys(this.sections).length);
 
         } catch (error) {
             console.error('[Home] Error loading content:', error);
@@ -131,17 +189,71 @@ export class HomeTab {
         }
     }
 
-    // ✅ NEW: Enrich movies with platform availability data
+    // ✅ NEW: Get user's favorite genres from swipe history
+    getUserFavoriteGenres() {
+        const swipeHistory = store.getState().swipeHistory || [];
+        
+        const lovedAndLiked = swipeHistory.filter(s => 
+            s && 
+            (s.action === 'love' || s.action === 'like') && 
+            s.movie && 
+            s.movie.id
+        );
+
+        if (lovedAndLiked.length === 0) {
+            return [];
+        }
+
+        // Count genre occurrences
+        const genreCounts = {};
+        lovedAndLiked.forEach(swipe => {
+            const movie = swipe.movie;
+            if (!movie) return;
+            
+            const genreIds = movie.genre_ids || movie.genreIds || [];
+            genreIds.forEach(genreId => {
+                genreCounts[genreId] = (genreCounts[genreId] || 0) + 1;
+            });
+        });
+
+        // Sort by count and return top genres
+        return Object.entries(genreCounts)
+            .sort((a, b) => b[1] - a[1])
+            .map(([genreId]) => parseInt(genreId));
+    }
+
+    // ✅ NEW: Get emoji for genre
+    getGenreEmoji(genreId) {
+        const emojis = {
+            28: '💥',  // Action
+            12: '🗺️',  // Adventure
+            16: '🎨',  // Animation
+            35: '😂',  // Comedy
+            80: '🔫',  // Crime
+            99: '📽️',  // Documentary
+            18: '🎭',  // Drama
+            10751: '👨‍👩‍👧‍👦', // Family
+            14: '🧙',  // Fantasy
+            36: '📜',  // History
+            27: '👻',  // Horror
+            10402: '🎵', // Music
+            9648: '🔍', // Mystery
+            10749: '💕', // Romance
+            878: '🚀', // Sci-Fi
+            53: '😱', // Thriller
+            10752: '⚔️', // War
+            37: '🤠'  // Western
+        };
+        return emojis[genreId] || '🎬';
+    }
+
     async enrichWithPlatformData(movies, options = { maxConcurrent: 5, delay: 50 }) {
         if (!movies || movies.length === 0) {
             return movies;
         }
 
-        console.log(`[Home] Enriching ${movies.length} movies with platform data...`);
-        
         const { maxConcurrent, delay } = options;
         
-        // Batch process to avoid rate limits
         for (let i = 0; i < movies.length; i += maxConcurrent) {
             const batch = movies.slice(i, i + maxConcurrent);
             
@@ -155,17 +267,14 @@ export class HomeTab {
                 })
             );
             
-            // Rate limiting delay
             if (i + maxConcurrent < movies.length) {
                 await new Promise(resolve => setTimeout(resolve, delay));
             }
         }
         
-        console.log(`[Home] ✅ Platform data fetched for ${movies.length} movies`);
         return movies;
     }
 
-    // ✅ UPDATED: Now filters by BOTH platforms AND triggers
     filterMovies(movies) {
         if (!movies || movies.length === 0) {
             return [];
@@ -173,117 +282,19 @@ export class HomeTab {
 
         let filtered = [...movies];
 
-        // ✅ NEW: Filter by user's selected platforms (if tmdbService has the method)
+        // Filter by user's selected platforms
         if (tmdbService.filterByUserPlatforms) {
-            const beforePlatformFilter = filtered.length;
             filtered = tmdbService.filterByUserPlatforms(filtered);
-            
-            if (filtered.length < beforePlatformFilter) {
-                console.log(`[Home] Platform filter: ${beforePlatformFilter} → ${filtered.length} movies`);
-            }
         }
 
-        // ✅ UPDATED: Filter by trigger warnings (if enabled)
+        // Filter by trigger warnings
         if (this.preferences.triggerWarnings.enabled) {
-            // Use tmdbService method if available, otherwise fall back to manual filter
             if (tmdbService.filterBlockedMovies) {
-                const beforeTriggerFilter = filtered.length;
                 filtered = tmdbService.filterBlockedMovies(filtered);
-                
-                if (filtered.length < beforeTriggerFilter) {
-                    console.log(`[Home] Trigger filter: ${beforeTriggerFilter} → ${filtered.length} movies`);
-                }
-            } else {
-                // Fallback to manual filtering
-                filtered = filtered.filter(movie => {
-                    if (movie.triggerWarnings && movie.triggerWarnings.length > 0) {
-                        console.log(`[Home] Blocking ${movie.title} (has ${movie.triggerWarnings.length} warnings)`);
-                        return false;
-                    }
-                    return true;
-                });
             }
         }
 
         return filtered;
-    }
-
-    async getRecommendations() {
-        const swipeHistory = store.getState().swipeHistory || [];
-        
-        // ✅ FIX: Filter out invalid swipes before mapping
-        const lovedMovies = swipeHistory
-            .filter(s => s && s.action === 'love' && s.movie && s.movie.id)
-            .map(s => s.movie);
-        
-        const likedMovies = swipeHistory
-            .filter(s => s && s.action === 'like' && s.movie && s.movie.id)
-            .map(s => s.movie);
-
-        if (lovedMovies.length === 0 && likedMovies.length === 0) {
-            // ✅ UPDATED: Enrich popular movies with platform data
-            let popular = await tmdbService.getPopularMovies(1);
-            popular = await this.enrichWithPlatformData(popular.slice(0, 10));
-            return this.filterMovies(popular);
-        }
-
-        const favoriteMovies = [...lovedMovies, ...likedMovies];
-        const genreCounts = {};
-        
-        // ✅ FIX: Add null check before accessing properties
-        favoriteMovies.forEach(movie => {
-            // Make sure movie exists and has genre data
-            if (!movie) {
-                console.warn('[Home] Invalid movie in favorites');
-                return;
-            }
-            
-            if (movie.genre_ids || movie.genreIds) {
-                const ids = movie.genre_ids || movie.genreIds;
-                ids.forEach(genreId => {
-                    genreCounts[genreId] = (genreCounts[genreId] || 0) + 1;
-                });
-            }
-        });
-
-        const topGenres = Object.entries(genreCounts)
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 3)
-            .map(([genreId]) => parseInt(genreId));
-
-        console.log('[Home] Top genres from history:', topGenres);
-
-        const recommendations = [];
-        for (const genreId of topGenres) {
-            try {
-                const movies = await tmdbService.discoverMovies({ 
-                    withGenres: genreId, 
-                    page: 1 
-                });
-                recommendations.push(...(movies.movies || movies));
-            } catch (err) {
-                console.warn('[Home] Failed to fetch genre:', genreId);
-            }
-        }
-
-        // ✅ UPDATED: Enrich recommendations with platform data
-        const enrichedRecs = await this.enrichWithPlatformData(recommendations);
-
-        // ✅ FIX: Safely create swipedIds Set with null checks
-        const swipedIds = new Set(
-            swipeHistory
-                .filter(s => s && s.movie && s.movie.id)
-                .map(s => s.movie.id)
-        );
-        
-        // ✅ FIX: Add null checks when filtering unique movies
-        const unique = enrichedRecs.filter((movie, index, self) => 
-            movie && movie.id &&
-            self.findIndex(m => m && m.id === movie.id) === index &&
-            !swipedIds.has(movie.id)
-        );
-
-        return this.filterMovies(unique).slice(0, 12);
     }
 
     renderLoading() {
@@ -310,15 +321,17 @@ export class HomeTab {
         this.container.innerHTML = `
             <div style="padding: 1.5rem 1rem 6rem;">
                 
+                <!-- Header -->
                 <div style="margin-bottom: 2rem;">
                     <h1 style="font-size: 1.75rem; font-weight: 800; color: white; margin: 0 0 0.5rem 0;">
                         ${this.getGreeting()}
                     </h1>
                     <p style="color: rgba(255,255,255,0.6); font-size: 0.875rem; margin: 0;">
-                        ${hasHistory ? 'Personalized recommendations based on your taste' : 'Discover trending movies across your platforms'}
+                        ${hasHistory ? 'Personalized for your taste' : 'Discover movies on your platforms'}
                     </p>
                 </div>
 
+                <!-- Warning if no platforms -->
                 ${enabledPlatforms.length === 0 ? `
                     <div style="padding: 1.5rem; background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); border-radius: 1rem; margin-bottom: 2rem;">
                         <div style="display: flex; align-items: center; gap: 0.75rem;">
@@ -333,24 +346,17 @@ export class HomeTab {
                     </div>
                 ` : ''}
 
-                ${this.preferences.triggerWarnings.enabled ? `
-                    <div style="padding: 1rem; background: rgba(251,191,36,0.1); border: 1px solid rgba(251,191,36,0.3); border-radius: 1rem; margin-bottom: 2rem; display: flex; align-items: center; gap: 0.75rem;">
-                        <span style="font-size: 1.25rem;">⚠️</span>
-                        <div style="font-size: 0.875rem; color: rgba(255,255,255,0.8);">
-                            Trigger warning filter is active. Movies with warnings are hidden.
-                        </div>
-                    </div>
-                ` : ''}
-
                 ${enabledPlatforms.length > 0 ? `
-                    ${this.renderSection('🔥 Trending This Week', this.trendingMovies, 'trending')}
-                    ${hasHistory ? this.renderSection('✨ Recommended For You', this.recommendedMovies, 'recommended') : ''}
-                    ${this.renderSection('🍿 Popular Movies', this.platformMovies['Popular'] || [], 'popular')}
+                    <!-- Movie Sections -->
+                    ${Object.entries(this.sections).map(([title, data]) => 
+                        this.renderSection(data.emoji, title, data.movies)
+                    ).join('')}
 
+                    <!-- End Message -->
                     <div style="text-align: center; padding: 3rem 1rem;">
                         <div style="font-size: 3rem; margin-bottom: 0.5rem;">🎬</div>
                         <p style="color: rgba(255,255,255,0.5); margin: 0;">
-                            More content coming soon!
+                            That's all for now! Check back later for more.
                         </p>
                     </div>
                 ` : ''}
@@ -360,33 +366,30 @@ export class HomeTab {
         this.attachListeners();
     }
 
-    renderSection(title, movies, sectionId) {
+    renderSection(emoji, title, movies) {
         if (!movies || movies.length === 0) {
             return '';
         }
 
         return `
-            <div style="margin-bottom: 3rem;">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; padding: 0 1rem;">
-                    <h2 style="font-size: 1.25rem; font-weight: 700; color: white; margin: 0;">
+            <div style="margin-bottom: 2.5rem;">
+                <!-- Section Header -->
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; padding: 0 0.5rem;">
+                    <h2 style="font-size: 1.125rem; font-weight: 700; color: white; margin: 0; display: flex; align-items: center; gap: 0.5rem;">
+                        <span style="font-size: 1.25rem;">${emoji}</span>
                         ${title}
                     </h2>
-                    ${movies.length > 6 ? `
-                        <button class="view-all-btn" data-section="${sectionId}" style="padding: 0.5rem 1rem; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 0.5rem; color: rgba(255,255,255,0.7); font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: all 0.3s;">
-                            View All →
-                        </button>
-                    ` : ''}
                 </div>
                 
-                <!-- Netflix-style horizontal scrolling container -->
-                <div class="movie-row" data-section="${sectionId}" style="
+                <!-- ✅ UPDATED: Horizontal scrolling with SMALLER cards (3-4 visible) -->
+                <div class="movie-row" style="
                     overflow-x: auto;
                     overflow-y: hidden;
                     scroll-behavior: smooth;
                     -webkit-overflow-scrolling: touch;
                     scrollbar-width: none;
                     -ms-overflow-style: none;
-                    padding: 0 1rem;
+                    padding: 0 0.5rem;
                 ">
                     <div style="
                         display: flex;
@@ -401,48 +404,109 @@ export class HomeTab {
                     .movie-row::-webkit-scrollbar {
                         display: none;
                     }
-                    .home-movie-card {
-                        min-width: 140px;
-                        flex-shrink: 0;
-                    }
                 </style>
             </div>
         `;
     }
 
     renderMovieCard(movie) {
-        const posterUrl = movie.posterURL || movie.poster_path || `https://placehold.co/300x450/1a1a2e/ffffff?text=${encodeURIComponent(movie.title)}`;
-        const hasWarnings = movie.triggerWarnings && movie.triggerWarnings.length > 0;
+        // ✅ UPDATED: Construct full poster URL with fallbacks
+        const posterUrl = movie.posterURL || 
+                         (movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : null) ||
+                         movie.backdropURL ||
+                         `https://placehold.co/300x450/1a1a2e/ffffff?text=${encodeURIComponent(movie.title || 'Movie')}`;
         
-        // ✅ NEW: Show platform badge if available
-        const platform = movie.availableOn && movie.availableOn.length > 0 
-            ? movie.availableOn[0] 
-            : null;
+        const hasWarnings = movie.triggerWarnings && movie.triggerWarnings.length > 0;
+        const platform = movie.availableOn && movie.availableOn.length > 0 ? movie.availableOn[0] : null;
+        const year = movie.releaseDate?.split('-')[0] || movie.release_date?.split('-')[0] || '';
 
         return `
-            <div class="home-movie-card" data-movie-id="${movie.id}" style="position: relative;">
-                <div style="position: relative; width: 100%; aspect-ratio: 2/3; border-radius: 0.75rem; overflow: hidden; background: rgba(255,255,255,0.05); box-shadow: 0 4px 16px rgba(0,0,0,0.3); transition: transform 0.3s; cursor: pointer;">
-                    <img src="${posterUrl}" alt="${movie.title}" style="width: 100%; height: 100%; object-fit: cover;"
-                         onerror="this.src='https://placehold.co/300x450/1a1a2e/ffffff?text=${encodeURIComponent(movie.title)}'">
+            <div class="home-movie-card" data-movie-id="${movie.id}" style="
+                min-width: 110px;
+                max-width: 110px;
+                flex-shrink: 0;
+            ">
+                <div style="
+                    position: relative;
+                    width: 100%;
+                    aspect-ratio: 2/3;
+                    border-radius: 0.625rem;
+                    overflow: hidden;
+                    background: rgba(255,255,255,0.05);
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+                    transition: transform 0.2s, box-shadow 0.2s;
+                    cursor: pointer;
+                ">
+                    <img 
+                        src="${posterUrl}" 
+                        alt="${movie.title}" 
+                        style="width: 100%; height: 100%; object-fit: cover;"
+                        onerror="this.src='https://placehold.co/300x450/1a1a2e/ffffff?text=${encodeURIComponent(movie.title || 'Movie')}'"
+                    >
                     
+                    <!-- Rating Badge -->
                     ${movie.vote_average || movie.rating ? `
-                        <div style="position: absolute; top: 0.5rem; right: 0.5rem; padding: 0.25rem 0.5rem; background: rgba(251,191,36,0.9); border-radius: 0.5rem;">
-                            <span style="color: white; font-size: 0.75rem; font-weight: 700;">⭐ ${(movie.vote_average || movie.rating).toFixed(1)}</span>
+                        <div style="
+                            position: absolute;
+                            top: 0.375rem;
+                            right: 0.375rem;
+                            padding: 0.1875rem 0.375rem;
+                            background: rgba(251,191,36,0.95);
+                            backdrop-filter: blur(8px);
+                            border-radius: 0.375rem;
+                            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                        ">
+                            <span style="color: white; font-size: 0.6875rem; font-weight: 700;">
+                                ${(movie.vote_average || movie.rating).toFixed(1)}
+                            </span>
                         </div>
                     ` : ''}
 
+                    <!-- Trigger Warning Badge -->
                     ${hasWarnings ? `
-                        <div style="position: absolute; top: 0.5rem; left: 0.5rem; padding: 0.25rem 0.5rem; background: rgba(239,68,68,0.9); border-radius: 0.5rem;">
-                            <span style="color: white; font-size: 0.75rem; font-weight: 700;">⚠️ ${movie.triggerWarnings.length}</span>
+                        <div style="
+                            position: absolute;
+                            top: 0.375rem;
+                            left: 0.375rem;
+                            padding: 0.1875rem 0.375rem;
+                            background: rgba(239,68,68,0.95);
+                            backdrop-filter: blur(8px);
+                            border-radius: 0.375rem;
+                            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                        ">
+                            <span style="color: white; font-size: 0.6875rem; font-weight: 700;">⚠️</span>
                         </div>
                     ` : ''}
 
-                    <div style="position: absolute; bottom: 0; left: 0; right: 0; padding: 0.75rem 0.5rem; background: linear-gradient(0deg, rgba(0,0,0,0.9), transparent);">
-                        <h3 style="font-size: 0.8125rem; font-weight: 700; color: white; margin: 0; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">
+                    <!-- Movie Info Overlay -->
+                    <div style="
+                        position: absolute;
+                        bottom: 0;
+                        left: 0;
+                        right: 0;
+                        padding: 0.5rem 0.375rem;
+                        background: linear-gradient(0deg, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.7) 50%, transparent 100%);
+                    ">
+                        <h3 style="
+                            font-size: 0.75rem;
+                            font-weight: 700;
+                            color: white;
+                            margin: 0;
+                            line-height: 1.2;
+                            overflow: hidden;
+                            text-overflow: ellipsis;
+                            display: -webkit-box;
+                            -webkit-line-clamp: 2;
+                            -webkit-box-orient: vertical;
+                        ">
                             ${movie.title}
                         </h3>
-                        <p style="font-size: 0.6875rem; color: rgba(255,255,255,0.7); margin: 0.25rem 0 0 0;">
-                            ${movie.releaseDate?.split('-')[0] || ''}${platform ? ` • ${this.getPlatformEmoji(platform)}` : ''}
+                        <p style="
+                            font-size: 0.625rem;
+                            color: rgba(255,255,255,0.7);
+                            margin: 0.25rem 0 0 0;
+                        ">
+                            ${year}${platform ? ` • ${this.getPlatformEmoji(platform)}` : ''}
                         </p>
                     </div>
                 </div>
@@ -457,7 +521,9 @@ export class HomeTab {
             'Prime Video': '🔵',
             'Disney+': '⭐',
             'HBO Max': '🟣',
-            'Apple TV+': '🍎'
+            'Apple TV+': '🍎',
+            'Peacock': '🦚',
+            'Paramount+': '🔷'
         };
         return emojis[platform] || '▶️';
     }
@@ -471,50 +537,37 @@ export class HomeTab {
 
     attachListeners() {
         this.container.querySelectorAll('.home-movie-card').forEach(card => {
+            const cardDiv = card.querySelector('div[style*="cursor: pointer"]');
+            
             card.addEventListener('mouseover', () => {
-                card.querySelector('div[style*="cursor: pointer"]').style.transform = 'scale(1.05)';
+                if (cardDiv) {
+                    cardDiv.style.transform = 'scale(1.05)';
+                    cardDiv.style.boxShadow = '0 8px 20px rgba(0,0,0,0.6)';
+                }
             });
+            
             card.addEventListener('mouseout', () => {
-                card.querySelector('div[style*="cursor: pointer"]').style.transform = 'scale(1)';
+                if (cardDiv) {
+                    cardDiv.style.transform = 'scale(1)';
+                    cardDiv.style.boxShadow = '0 4px 12px rgba(0,0,0,0.4)';
+                }
             });
+            
             card.addEventListener('click', () => {
-                const movieId = card.dataset.movieId;
-                const movie = this.findMovieById(parseInt(movieId));
+                const movieId = parseInt(card.dataset.movieId);
+                const movie = this.findMovieById(movieId);
                 if (movie) {
                     movieModal.show(movie);
                 }
             });
         });
-
-        this.container.querySelectorAll('.view-all-btn').forEach(btn => {
-            btn.addEventListener('mouseover', () => {
-                btn.style.background = 'rgba(255,255,255,0.1)';
-                btn.style.transform = 'scale(1.05)';
-            });
-            btn.addEventListener('mouseout', () => {
-                btn.style.background = 'rgba(255,255,255,0.05)';
-                btn.style.transform = 'scale(1)';
-            });
-            btn.addEventListener('click', () => {
-                const section = btn.dataset.section;
-                console.log(`[Home] View all clicked for section: ${section}`);
-                alert(`View All for ${section} - Coming soon! This will show all movies in this category.`);
-            });
-        });
     }
 
     findMovieById(movieId) {
-        let movie = this.trendingMovies.find(m => m.id === movieId);
-        if (movie) return movie;
-
-        movie = this.recommendedMovies.find(m => m.id === movieId);
-        if (movie) return movie;
-
-        for (const platform in this.platformMovies) {
-            movie = this.platformMovies[platform].find(m => m.id === movieId);
+        for (const sectionData of Object.values(this.sections)) {
+            const movie = sectionData.movies.find(m => m.id === movieId);
             if (movie) return movie;
         }
-
         return null;
     }
 
