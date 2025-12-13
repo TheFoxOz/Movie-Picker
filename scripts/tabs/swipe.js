@@ -1,10 +1,12 @@
 /**
- * Swipe Tab Component – COMPLETE FIXED VERSION
+ * Swipe Tab Component – COMPLETE FIXED VERSION WITH FILTERING
  * ✅ Fix #3: Always renders HTML structure, never blank
  * ✅ Removed hasLoaded flag that caused issues
  * ✅ Proper movie loading and card management
  * ✅ FIX: Corrected notification and confetti imports
  * ✅ FIX: Corrected tmdbService import (not getTMDBService)
+ * ✅ NEW: Added platform filtering (Watch Providers API)
+ * ✅ NEW: Added trigger warning blocking
  */
 
 import { store } from "../state/store.js";
@@ -236,8 +238,26 @@ export class SwipeTab {
                 }
             });
 
-            const movies = Array.from(map.values());
+            let movies = Array.from(map.values());
             console.log(`[SwipeTab] Loaded ${movies.length} unique movies`);
+
+            // ✅ NEW: Enrich movies with platform availability data
+            console.log('[SwipeTab] Fetching platform data for movies...');
+            movies = await this.enrichWithPlatformData(movies);
+
+            // ✅ NEW: Apply platform filtering
+            if (tmdb.filterByUserPlatforms) {
+                const beforePlatformFilter = movies.length;
+                movies = tmdb.filterByUserPlatforms(movies);
+                console.log(`[SwipeTab] Platform filter: ${beforePlatformFilter} → ${movies.length} movies`);
+            }
+
+            // ✅ NEW: Apply trigger warning blocking
+            if (tmdb.filterBlockedMovies) {
+                const beforeTriggerFilter = movies.length;
+                movies = tmdb.filterBlockedMovies(movies);
+                console.log(`[SwipeTab] Trigger filter: ${beforeTriggerFilter} → ${movies.length} movies`);
+            }
 
             // ✅ FIX: Filter out corrupted swipe history entries
             const state = store.getState();
@@ -304,6 +324,40 @@ export class SwipeTab {
         } finally {
             this.isLoading = false;
         }
+    }
+
+    // ✅ NEW: Enrich movies with platform availability data
+    async enrichWithPlatformData(movies, options = { maxConcurrent: 5, delay: 50 }) {
+        if (!movies || movies.length === 0) {
+            return movies;
+        }
+
+        console.log(`[SwipeTab] Enriching ${movies.length} movies with platform data...`);
+        
+        const { maxConcurrent, delay } = options;
+        
+        // Batch process to avoid rate limits
+        for (let i = 0; i < movies.length; i += maxConcurrent) {
+            const batch = movies.slice(i, i + maxConcurrent);
+            
+            await Promise.all(
+                batch.map(async (movie) => {
+                    if (tmdbService.getWatchProviders) {
+                        movie.availableOn = await tmdbService.getWatchProviders(movie.id);
+                    } else {
+                        movie.availableOn = [];
+                    }
+                })
+            );
+            
+            // Rate limiting delay
+            if (i + maxConcurrent < movies.length) {
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+        }
+        
+        console.log(`[SwipeTab] ✅ Platform data fetched for ${movies.length} movies`);
+        return movies;
     }
 
     showNextCard() {
