@@ -1,8 +1,7 @@
 /**
- * Main Application Entry Point
- * Initializes the entire Movie Picker app
+ * Main Application Entry Point - GOOGLE REDIRECT FIX
+ * ✅ Properly waits for Google redirect to complete before initializing app
  */
-
 import { ENV } from './config/env.js';
 import { tmdbService } from './services/tmdb.js';
 import { authService } from './services/auth-service.js';
@@ -27,8 +26,17 @@ async function initializeTMDB() {
 // Initialize Firebase Auth
 async function initializeAuth() {
     try {
-        // Check for redirect result (Google Sign-In)
-        await authService.handleRedirectResult();
+        console.log('[Main] Checking for Google redirect result...');
+        
+        // ✅ CRITICAL: Wait for Google redirect result FIRST
+        const redirectResult = await authService.handleRedirectResult();
+        
+        if (redirectResult) {
+            console.log('[Main] ✅ Google redirect successful, user:', redirectResult.user.email);
+        } else {
+            console.log('[Main] No redirect result (normal page load)');
+        }
+        
         console.log('✅ Auth Service initialized');
     } catch (error) {
         console.error('⚠️ Auth redirect handling failed:', error);
@@ -39,10 +47,14 @@ async function initializeAuth() {
 async function startApp() {
     console.log('🚀 Initializing services...');
     
-    await Promise.all([
-        initializeTMDB(),
-        initializeAuth()
-    ]);
+    // ✅ Initialize auth FIRST and WAIT for it to complete
+    await initializeAuth();
+    
+    // Then initialize TMDB (can happen in parallel now)
+    await initializeTMDB();
+    
+    // ✅ Give auth state a moment to propagate
+    await new Promise(resolve => setTimeout(resolve, 500));
     
     // Import and initialize the main app
     const { MoviePickerApp } = await import('./app-init.js');
