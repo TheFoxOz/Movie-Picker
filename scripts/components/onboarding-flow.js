@@ -1,7 +1,7 @@
 /**
- * Onboarding Flow
- * Handles: Login → Platform Selection → Swipe Tab
- * ENHANCED: Better error messages with helpful links (Fix #2)
+ * Onboarding Flow - FIXED
+ * ✅ Skips login page if user is already authenticated (from index.html login)
+ * ✅ Goes directly to platform selection for authenticated users
  */
 
 import { authService } from '../services/auth-service.js';
@@ -10,13 +10,17 @@ import { ENV } from '../config/env.js';
 
 export class OnboardingFlow {
     constructor() {
-        this.currentStep = 'login'; // login, platforms, complete
+        this.currentStep = 'login';
         this.overlay = null;
     }
 
     async start() {
-        // Check if user is already logged in and onboarded
+        console.log('[Onboarding] Starting onboarding flow...');
+        
+        // ✅ CRITICAL FIX: Check if user is already logged in
         if (authService.isAuthenticated()) {
+            console.log('[Onboarding] User is authenticated');
+            
             const preferences = store.getState().preferences;
             const hasCompletedOnboarding = preferences?.onboardingComplete || false;
             
@@ -24,275 +28,23 @@ export class OnboardingFlow {
                 console.log('[Onboarding] User already onboarded, skipping');
                 return false; // Don't show onboarding
             }
+            
+            // ✅ User is logged in but hasn't completed onboarding
+            // Skip login and go straight to platform selection
+            console.log('[Onboarding] User authenticated but onboarding incomplete, showing platform selection');
+            this.showPlatformSelection();
+            return true;
         }
 
-        // Show onboarding flow
-        this.showLogin();
-        return true;
-    }
-
-    // ✅ FIX #2: Enhanced error display with Firebase Console links
-    showError(message, helpLink = null) {
-        const errorContainer = this.overlay.querySelector('#error-container');
-        if (!errorContainer) return;
-
-        errorContainer.innerHTML = `
-            <div style="padding: 1rem; background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(220, 38, 38, 0.05)); border: 2px solid rgba(239, 68, 68, 0.3); border-radius: 1rem; backdrop-filter: blur(10px); margin-bottom: 1.5rem; animation: slideDown 0.3s ease-out;">
-                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
-                    <svg style="width: 24px; height: 24px; flex-shrink: 0; color: #fca5a5;" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
-                    </svg>
-                    <strong style="color: #fca5a5; font-weight: 700; font-size: 1rem;">Error</strong>
-                </div>
-                <p style="color: rgba(255, 255, 255, 0.9); font-size: 0.95rem; line-height: 1.6; margin: 0; white-space: pre-line;">
-                    ${message}
-                </p>
-                ${helpLink ? `
-                    <a href="${helpLink}" target="_blank" style="display: inline-flex; align-items: center; gap: 0.5rem; margin-top: 1rem; padding: 0.75rem 1.25rem; background: linear-gradient(135deg, #ef4444, #dc2626); color: white; text-decoration: none; border-radius: 0.75rem; font-weight: 600; font-size: 0.9rem; transition: all 0.2s ease;">
-                        Open Firebase Console →
-                    </a>
-                ` : ''}
-            </div>
-            <style>
-                @keyframes slideDown {
-                    from { opacity: 0; transform: translateY(-10px); }
-                    to { opacity: 1; transform: translateY(0); }
-                }
-            </style>
-        `;
-    }
-
-    clearError() {
-        const errorContainer = this.overlay.querySelector('#error-container');
-        if (errorContainer) {
-            errorContainer.innerHTML = '';
-        }
-    }
-
-    showSignup() {
-        this.currentStep = 'signup';
-        
-        this.overlay.innerHTML = `
-            <div style="display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 2rem;">
-                <div style="background: linear-gradient(180deg, #1a1a2e 0%, #0a0a0f 100%); border-radius: 2rem; max-width: 450px; width: 100%; padding: 3rem 2rem; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 20px 60px rgba(0,0,0,0.6);">
-                    
-                    <!-- Back Button -->
-                    <button id="back-to-login-btn" style="padding: 0.5rem 1rem; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 0.5rem; color: rgba(255,255,255,0.8); font-weight: 600; cursor: pointer; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
-                        <span>←</span>
-                        <span>Back</span>
-                    </button>
-
-                    <!-- Logo/Icon -->
-                    <div style="text-align: center; margin-bottom: 2rem;">
-                        <div style="font-size: 4rem; margin-bottom: 1rem;">🎬</div>
-                        <h1 style="font-size: 2rem; font-weight: 800; color: white; margin: 0 0 0.5rem 0;">
-                            Create Account
-                        </h1>
-                        <p style="color: rgba(255,255,255,0.6); font-size: 0.875rem; margin: 0;">
-                            Join Movie Picker and start swiping!
-                        </p>
-                    </div>
-
-                    <!-- Error Container -->
-                    <div id="error-container"></div>
-
-                    <!-- Signup Form -->
-                    <form id="signup-form" style="display: flex; flex-direction: column; gap: 1.25rem;">
-                        
-                        <div>
-                            <label style="display: block; color: rgba(255,255,255,0.8); font-size: 0.875rem; font-weight: 600; margin-bottom: 0.5rem;">
-                                Name
-                            </label>
-                            <input type="text" id="name-input" placeholder="Your name" required
-                                   style="width: 100%; padding: 1rem; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 0.75rem; color: white; font-size: 1rem;">
-                        </div>
-
-                        <div>
-                            <label style="display: block; color: rgba(255,255,255,0.8); font-size: 0.875rem; font-weight: 600; margin-bottom: 0.5rem;">
-                                Email
-                            </label>
-                            <input type="email" id="signup-email-input" placeholder="your@email.com" required
-                                   style="width: 100%; padding: 1rem; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 0.75rem; color: white; font-size: 1rem;">
-                        </div>
-
-                        <div>
-                            <label style="display: block; color: rgba(255,255,255,0.8); font-size: 0.875rem; font-weight: 600; margin-bottom: 0.5rem;">
-                                Password
-                            </label>
-                            <input type="password" id="signup-password-input" placeholder="••••••••" required minlength="6"
-                                   style="width: 100%; padding: 1rem; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 0.75rem; color: white; font-size: 1rem;">
-                            <p style="color: rgba(255,255,255,0.5); font-size: 0.75rem; margin: 0.5rem 0 0 0;">
-                                At least 6 characters
-                            </p>
-                        </div>
-
-                        <button type="submit" id="signup-btn" style="width: 100%; padding: 1.25rem; background: linear-gradient(135deg,#ff2e63,#d90062); border: none; border-radius: 0.75rem; color: white; font-weight: 700; font-size: 1.125rem; cursor: pointer; transition: transform 0.2s; margin-top: 0.5rem;">
-                            Create Account
-                        </button>
-
-                    </form>
-
-                    <!-- Already have account -->
-                    <div style="text-align: center; margin-top: 1.5rem;">
-                        <p style="color: rgba(255,255,255,0.6); font-size: 0.875rem; margin: 0;">
-                            Already have an account? 
-                            <a href="#" id="back-to-login-link" style="color: #ff2e63; font-weight: 600; text-decoration: none;">
-                                Sign In
-                            </a>
-                        </p>
-                    </div>
-
-                </div>
-            </div>
-        `;
-
-        this.attachSignupListeners();
-    }
-
-    attachSignupListeners() {
-        const form = this.overlay.querySelector('#signup-form');
-        const backBtn = this.overlay.querySelector('#back-to-login-btn');
-        const backLink = this.overlay.querySelector('#back-to-login-link');
-
-        // Signup form
-        form?.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            this.clearError();
-            
-            const name = this.overlay.querySelector('#name-input').value;
-            const email = this.overlay.querySelector('#signup-email-input').value;
-            const password = this.overlay.querySelector('#signup-password-input').value;
-            const signupBtn = this.overlay.querySelector('#signup-btn');
-
-            console.log('[Onboarding] Signup attempt:', email);
-            
-            signupBtn.textContent = 'Creating account...';
-            signupBtn.disabled = true;
-
-            try {
-                const { user } = await authService.signUp(email, password, name);
-                console.log('[Onboarding] Signup successful:', user.email);
-                this.showPlatformSelection();
-                
-            } catch (error) {
-                console.error('[Onboarding] Signup error:', error);
-                signupBtn.textContent = 'Create Account';
-                signupBtn.disabled = false;
-                
-                let errorMessage = 'Signup failed. Please try again.';
-                if (error.code === 'auth/email-already-in-use') {
-                    errorMessage = 'This email is already registered. Please sign in instead.';
-                } else if (error.code === 'auth/invalid-email') {
-                    errorMessage = 'Invalid email address.';
-                } else if (error.code === 'auth/weak-password') {
-                    errorMessage = 'Password is too weak. Please use at least 6 characters.';
-                }
-                
-                this.showError(errorMessage);
-            }
-        });
-
-        // Back button
-        backBtn?.addEventListener('click', () => {
-            this.showLogin();
-        });
-
-        // Back link
-        backLink?.addEventListener('click', (e) => {
-            e.preventDefault();
-            this.showLogin();
-        });
-    }
-
-    showLogin() {
-        this.currentStep = 'login';
-        this.createOverlay();
-        
-        this.overlay.innerHTML = `
-            <div style="display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 2rem;">
-                <div style="background: linear-gradient(180deg, #1a1a2e 0%, #0a0a0f 100%); border-radius: 2rem; max-width: 450px; width: 100%; padding: 3rem 2rem; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 20px 60px rgba(0,0,0,0.6);">
-                    
-                    <!-- Logo/Icon -->
-                    <div style="text-align: center; margin-bottom: 2rem;">
-                        <div style="font-size: 4rem; margin-bottom: 1rem;">🎬</div>
-                        <h1 style="font-size: 2rem; font-weight: 800; color: white; margin: 0 0 0.5rem 0;">
-                            Movie Picker
-                        </h1>
-                        <p style="color: rgba(255,255,255,0.6); font-size: 0.875rem; margin: 0;">
-                            Swipe your way to the perfect movie
-                        </p>
-                    </div>
-
-                    <!-- Error Container -->
-                    <div id="error-container"></div>
-
-                    <!-- Login Form -->
-                    <form id="login-form" style="display: flex; flex-direction: column; gap: 1.25rem;">
-                        
-                        <div>
-                            <label style="display: block; color: rgba(255,255,255,0.8); font-size: 0.875rem; font-weight: 600; margin-bottom: 0.5rem;">
-                                Email
-                            </label>
-                            <input type="email" id="email-input" placeholder="your@email.com" required
-                                   style="width: 100%; padding: 1rem; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 0.75rem; color: white; font-size: 1rem;">
-                        </div>
-
-                        <div>
-                            <label style="display: block; color: rgba(255,255,255,0.8); font-size: 0.875rem; font-weight: 600; margin-bottom: 0.5rem;">
-                                Password
-                            </label>
-                            <input type="password" id="password-input" placeholder="••••••••" required
-                                   style="width: 100%; padding: 1rem; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 0.75rem; color: white; font-size: 1rem;">
-                        </div>
-
-                        <button type="submit" id="login-btn" style="width: 100%; padding: 1.25rem; background: linear-gradient(135deg,#ff2e63,#d90062); border: none; border-radius: 0.75rem; color: white; font-weight: 700; font-size: 1.125rem; cursor: pointer; transition: transform 0.2s; margin-top: 0.5rem;">
-                            Sign In
-                        </button>
-
-                    </form>
-
-                    <!-- Divider -->
-                    <div style="display: flex; align-items: center; gap: 1rem; margin: 2rem 0;">
-                        <div style="flex: 1; height: 1px; background: rgba(255,255,255,0.1);"></div>
-                        <span style="color: rgba(255,255,255,0.5); font-size: 0.875rem;">or</span>
-                        <div style="flex: 1; height: 1px; background: rgba(255,255,255,0.1);"></div>
-                    </div>
-
-                    <!-- Social Login -->
-                    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
-                        <button id="google-login-btn" style="width: 100%; padding: 1rem; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 0.75rem; color: white; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.75rem; transition: all 0.2s;">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-                                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-                            </svg>
-                            Continue with Google
-                        </button>
-                        
-                        <button id="guest-login-btn" style="width: 100%; padding: 1rem; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 0.75rem; color: rgba(255,255,255,0.8); font-weight: 600; cursor: pointer; transition: all 0.2s;">
-                            Continue as Guest
-                        </button>
-                    </div>
-
-                    <!-- Sign Up Link -->
-                    <div style="text-align: center; margin-top: 1.5rem;">
-                        <p style="color: rgba(255,255,255,0.6); font-size: 0.875rem; margin: 0;">
-                            Don't have an account? 
-                            <a href="#" id="signup-link" style="color: #ff2e63; font-weight: 600; text-decoration: none;">
-                                Sign Up
-                            </a>
-                        </p>
-                    </div>
-
-                </div>
-            </div>
-        `;
-
-        this.attachLoginListeners();
+        // User not logged in - this shouldn't happen because index.html handles login
+        // But keep this as fallback
+        console.warn('[Onboarding] User not authenticated - this should be handled by index.html login');
+        return false;
     }
 
     showPlatformSelection() {
+        console.log('[Onboarding] Showing platform selection');
+        this.createOverlay();
         this.currentStep = 'platforms';
         
         this.overlay.innerHTML = `
@@ -368,6 +120,8 @@ export class OnboardingFlow {
     }
 
     completeOnboarding() {
+        console.log('[Onboarding] Completing onboarding...');
+        
         // Mark onboarding as complete in Firebase
         const user = authService.getCurrentUser();
         if (user) {
@@ -411,6 +165,7 @@ export class OnboardingFlow {
 
         // Remove overlay after 2 seconds
         setTimeout(() => {
+            console.log('[Onboarding] Removing overlay and navigating to app');
             this.removeOverlay();
             
             // Navigate to swipe tab
@@ -418,134 +173,6 @@ export class OnboardingFlow {
                 detail: 'swipe'
             }));
         }, 2000);
-    }
-
-    attachLoginListeners() {
-        const form = this.overlay.querySelector('#login-form');
-        const googleBtn = this.overlay.querySelector('#google-login-btn');
-        const guestBtn = this.overlay.querySelector('#guest-login-btn');
-        const signupLink = this.overlay.querySelector('#signup-link');
-
-        // Regular login
-        form?.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            this.clearError();
-            
-            const email = this.overlay.querySelector('#email-input').value;
-            const password = this.overlay.querySelector('#password-input').value;
-            const loginBtn = this.overlay.querySelector('#login-btn');
-
-            console.log('[Onboarding] Login attempt:', email);
-            
-            loginBtn.textContent = 'Signing in...';
-            loginBtn.disabled = true;
-
-            try {
-                await authService.signIn(email, password);
-                console.log('[Onboarding] Login successful');
-                this.showPlatformSelection();
-                
-            } catch (error) {
-                console.error('[Onboarding] Login error:', error);
-                loginBtn.textContent = 'Sign In';
-                loginBtn.disabled = false;
-                
-                // Only show error if authentication actually failed
-                if (error.code?.startsWith('auth/')) {
-                    let errorMessage = 'Login failed. Please try again.';
-                    if (error.code === 'auth/user-not-found') {
-                        errorMessage = 'No account found with this email.';
-                    } else if (error.code === 'auth/wrong-password') {
-                        errorMessage = 'Incorrect password.';
-                    } else if (error.code === 'auth/invalid-email') {
-                        errorMessage = 'Invalid email address.';
-                    }
-                    this.showError(errorMessage);
-                } else {
-                    // Non-auth error (like Firestore), continue anyway
-                    console.warn('[Onboarding] Non-auth error, continuing:', error);
-                    this.showPlatformSelection();
-                }
-            }
-        });
-
-        // Google login
-        googleBtn?.addEventListener('mouseover', () => {
-            googleBtn.style.background = 'rgba(255,255,255,0.1)';
-        });
-        googleBtn?.addEventListener('mouseout', () => {
-            googleBtn.style.background = 'rgba(255,255,255,0.05)';
-        });
-        googleBtn?.addEventListener('click', async () => {
-            console.log('[Onboarding] Google login');
-            this.clearError();
-            
-            const originalHTML = googleBtn.innerHTML;
-            googleBtn.innerHTML = '<span style="opacity: 0.6;">Signing in with Google...</span>';
-            googleBtn.disabled = true;
-
-            try {
-                await authService.signInWithGoogle();
-                console.log('[Onboarding] Google login successful');
-                this.showPlatformSelection();
-                
-            } catch (error) {
-                console.error('[Onboarding] Google login error:', error);
-                googleBtn.innerHTML = originalHTML;
-                googleBtn.disabled = false;
-                
-                // ✅ FIX #2: Show enhanced error with help link
-                if (error.type && error.helpLink) {
-                    this.showError(error.message, error.helpLink);
-                } else if (error.code?.startsWith('auth/')) {
-                    this.showError(error.message || 'Google sign-in failed. Please try again.');
-                } else {
-                    // Non-auth error (CORS/network), continue anyway
-                    console.warn('[Onboarding] Non-auth error (CORS/network), continuing anyway');
-                    this.showPlatformSelection();
-                }
-            }
-        });
-
-        // Guest login
-        guestBtn?.addEventListener('mouseover', () => {
-            guestBtn.style.background = 'rgba(255,255,255,0.1)';
-        });
-        guestBtn?.addEventListener('mouseout', () => {
-            guestBtn.style.background = 'rgba(255,255,255,0.05)';
-        });
-        guestBtn?.addEventListener('click', async () => {
-            console.log('[Onboarding] Guest login');
-            this.clearError();
-            
-            guestBtn.textContent = 'Signing in as Guest...';
-            guestBtn.disabled = true;
-
-            try {
-                await authService.signInAnonymously();
-                console.log('[Onboarding] Guest login successful');
-                this.showPlatformSelection();
-                
-            } catch (error) {
-                console.error('[Onboarding] Guest login error:', error);
-                
-                // Check if authentication actually succeeded despite error
-                if (authService.isAuthenticated()) {
-                    console.log('[Onboarding] Auth succeeded despite error, continuing');
-                    this.showPlatformSelection();
-                } else {
-                    guestBtn.textContent = 'Continue as Guest';
-                    guestBtn.disabled = false;
-                    this.showError('Guest sign-in failed. Please try again or use email login.');
-                }
-            }
-        });
-
-        // Sign up link
-        signupLink?.addEventListener('click', (e) => {
-            e.preventDefault();
-            this.showSignup();
-        });
     }
 
     attachPlatformListeners() {
@@ -637,6 +264,7 @@ export class OnboardingFlow {
     }
 
     createOverlay() {
+        console.log('[Onboarding] Creating overlay');
         // Remove existing overlay if any
         this.removeOverlay();
 
@@ -652,9 +280,17 @@ export class OnboardingFlow {
 
         document.body.appendChild(this.overlay);
         document.body.style.overflow = 'hidden';
+        
+        // Hide login page
+        const loginContainer = document.getElementById('login-container');
+        if (loginContainer) {
+            loginContainer.style.display = 'none';
+            console.log('[Onboarding] Login page hidden');
+        }
     }
 
     removeOverlay() {
+        console.log('[Onboarding] Removing overlay');
         const existing = document.getElementById('onboarding-overlay');
         if (existing) {
             existing.remove();
