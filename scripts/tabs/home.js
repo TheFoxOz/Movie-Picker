@@ -288,7 +288,7 @@ export class HomeTab {
         return movies;
     }
 
-    // ✅ UPDATED: Filter out cinema-only movies, only show streaming platform content
+    // ✅ UPDATED: Filter out cinema-only movies, but keep movies without platform data
     filterMovies(movies) {
         if (!movies || movies.length === 0) {
             return [];
@@ -296,20 +296,18 @@ export class HomeTab {
 
         let filtered = [...movies];
 
-        // ✅ NEW: Remove cinema-only movies (must have streaming platform)
+        // ✅ FIXED: Only remove movies explicitly marked as Cinema/Coming Soon
+        // Keep movies without platform data (most TMDB movies don't have this)
         filtered = filtered.filter(movie => {
-            // Keep if movie has at least one streaming platform
-            if (movie.availableOn && movie.availableOn.length > 0) {
-                return true;
-            }
-            
-            // Remove if cinema-only, coming soon, or not available
             const platform = movie.platform;
+            
+            // Only remove if explicitly cinema-only, coming soon, or not available
             if (platform === 'Cinema' || platform === 'Coming Soon' || platform === 'Not Available') {
                 console.log(`[Home] Filtering out cinema-only movie: ${movie.title}`);
                 return false;
             }
             
+            // Keep all other movies (including those without platform data)
             return true;
         });
 
