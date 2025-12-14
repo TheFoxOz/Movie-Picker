@@ -464,8 +464,8 @@ class AuthService {
             });
             console.log('[Auth] Onboarding complete — preferences saved to Firestore');
             
-            // ✅ NEW: Redirect to swipe page after onboarding
-            window.location.hash = '#swipe';
+            // ✅ REMOVED: window.location.hash = '#swipe'
+            // Navigation is handled by onboarding-flow.js via custom event
             
         } catch (err) {
             console.warn('[Auth] Failed to save onboarding:', err.message);
