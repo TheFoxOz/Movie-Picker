@@ -84,6 +84,49 @@ export class HomeTab {
         };
     }
 
+    /**
+     * ✅ NEW: Fetch movies until we have enough that match user's filters
+     * Keeps fetching pages until we have targetCount filtered movies
+     */
+    async fetchUntilEnough(fetchFunction, targetCount = 20, maxPages = 5) {
+        let allMovies = [];
+        let page = 1;
+        
+        console.log(`[Home] Fetching until we have ${targetCount} movies...`);
+        
+        while (allMovies.length < targetCount && page <= maxPages) {
+            console.log(`[Home] Fetching page ${page}...`);
+            
+            // Fetch the page
+            let pageMovies = await fetchFunction(page);
+            pageMovies = pageMovies.movies || pageMovies || [];
+            
+            // Enrich with platform data
+            pageMovies = await this.enrichWithPlatformData(pageMovies);
+            
+            // Filter the movies
+            const filtered = this.filterMovies(pageMovies);
+            
+            console.log(`[Home] Page ${page}: ${pageMovies.length} fetched → ${filtered.length} after filtering`);
+            
+            // Add to our collection
+            allMovies = allMovies.concat(filtered);
+            
+            // If we got no filtered movies, might be pointless to continue
+            if (filtered.length === 0 && page > 2) {
+                console.log(`[Home] No movies found on page ${page}, stopping`);
+                break;
+            }
+            
+            page++;
+        }
+        
+        console.log(`[Home] ✅ Collected ${allMovies.length} movies across ${page - 1} pages`);
+        
+        // Return exactly targetCount movies (or less if we couldn't get enough)
+        return allMovies.slice(0, targetCount);
+    }
+
     async loadContent() {
         if (this.isLoading) return;
         this.isLoading = true;
@@ -101,13 +144,16 @@ export class HomeTab {
             const favoriteGenres = this.getUserFavoriteGenres();
             console.log('[Home] User favorite genres:', favoriteGenres);
 
-            // Load Trending
+            // ✅ IMPROVED: Load Trending - fetch until we have 20
             console.log('[Home] Loading trending movies...');
-            let trending = await tmdbService.getTrendingMovies('week');
-            trending = await this.enrichWithPlatformData(trending);
+            const trending = await this.fetchUntilEnough(
+                (page) => tmdbService.getTrendingMovies('week', page),
+                20,
+                5
+            );
             this.sections['Trending This Week'] = {
                 emoji: '🔥',
-                movies: this.filterMovies(trending).slice(0, 20)
+                movies: trending
             };
 
             // Load genre-specific sections based on user preferences
@@ -117,17 +163,19 @@ export class HomeTab {
                     const genreName = GENRE_NAMES[genreId];
                     if (genreName) {
                         console.log(`[Home] Loading ${genreName} movies...`);
-                        let genreMovies = await tmdbService.discoverMovies({
-                            withGenres: genreId,
-                            sortBy: 'popularity.desc',
-                            page: 1
-                        });
-                        genreMovies = genreMovies.movies || genreMovies;
-                        genreMovies = await this.enrichWithPlatformData(genreMovies);
+                        const genreMovies = await this.fetchUntilEnough(
+                            (page) => tmdbService.discoverMovies({
+                                withGenres: genreId,
+                                sortBy: 'popularity.desc',
+                                page: page
+                            }),
+                            20,
+                            5
+                        );
                         
                         this.sections[`${genreName} Movies`] = {
                             emoji: this.getGenreEmoji(genreId),
-                            movies: this.filterMovies(genreMovies).slice(0, 20)
+                            movies: genreMovies
                         };
                     }
                 }
@@ -141,42 +189,49 @@ export class HomeTab {
 
                 for (const { id, name } of defaultGenres) {
                     console.log(`[Home] Loading ${name} movies...`);
-                    let genreMovies = await tmdbService.discoverMovies({
-                        withGenres: id,
-                        sortBy: 'popularity.desc',
-                        page: 1
-                    });
-                    genreMovies = genreMovies.movies || genreMovies;
-                    genreMovies = await this.enrichWithPlatformData(genreMovies);
+                    const genreMovies = await this.fetchUntilEnough(
+                        (page) => tmdbService.discoverMovies({
+                            withGenres: id,
+                            sortBy: 'popularity.desc',
+                            page: page
+                        }),
+                        20,
+                        5
+                    );
                     
                     this.sections[`${name} Movies`] = {
                         emoji: this.getGenreEmoji(id),
-                        movies: this.filterMovies(genreMovies).slice(0, 20)
+                        movies: genreMovies
                     };
                 }
             }
 
-            // Top Rated section
+            // ✅ IMPROVED: Top Rated section
             console.log('[Home] Loading top rated movies...');
-            let topRated = await tmdbService.discoverMovies({
-                sortBy: 'vote_average.desc',
-                minVotes: 1000,
-                page: 1
-            });
-            topRated = topRated.movies || topRated;
-            topRated = await this.enrichWithPlatformData(topRated);
+            const topRated = await this.fetchUntilEnough(
+                (page) => tmdbService.discoverMovies({
+                    sortBy: 'vote_average.desc',
+                    minVotes: 1000,
+                    page: page
+                }),
+                20,
+                5
+            );
             this.sections['Top Rated'] = {
                 emoji: '⭐',
-                movies: this.filterMovies(topRated).slice(0, 20)
+                movies: topRated
             };
 
-            // Popular Movies section
+            // ✅ IMPROVED: Popular Movies section
             console.log('[Home] Loading popular movies...');
-            let popular = await tmdbService.getPopularMovies(1);
-            popular = await this.enrichWithPlatformData(popular);
+            const popular = await this.fetchUntilEnough(
+                (page) => tmdbService.getPopularMovies(page),
+                20,
+                5
+            );
             this.sections['Popular Now'] = {
                 emoji: '🍿',
-                movies: this.filterMovies(popular).slice(0, 20)
+                movies: popular
             };
 
             console.log('[Home] ✅ Content loaded successfully');
