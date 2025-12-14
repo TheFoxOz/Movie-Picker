@@ -1,7 +1,6 @@
 /**
- * App Initialization - COMPLETE FIX
- * ✅ Shows login page when no user is authenticated
- * ✅ Properly coordinates auth state with onboarding flow
+ * App Initialization - WITH LOGIN BUTTON HANDLERS
+ * ✅ Adds event listeners to login buttons programmatically
  */
 
 import { onboardingFlow } from './components/onboarding-flow.js';
@@ -30,24 +29,21 @@ class MoviePickerApp {
     async init() {
         console.log('[App] Initializing Movie Picker App...');
         
-        // ✅ Setup DOM first (so we have containers to work with)
         this.setupDOM();
+        this.setupLoginHandlers(); // ✅ NEW: Setup login button handlers
         
-        // ✅ Wait for auth state to be determined
         await this.waitForAuthState();
         
         const user = authService.getCurrentUser();
         
         if (!user) {
             console.log('[App] No user authenticated, showing login page');
-            // ✅ NEW: Make sure login page is visible
             this.showLoginPage();
             return;
         }
         
         console.log('[App] User authenticated:', user.email || 'anonymous');
         
-        // User is authenticated, continue with app initialization
         this.initializeUserProfile();
         await this.initializeEnhancedServices();
 
@@ -60,7 +56,6 @@ class MoviePickerApp {
             profile: new ProfileTab()
         };
         
-        // Check if user needs onboarding
         const needsOnboarding = await this.checkNeedsOnboarding(user);
         
         if (needsOnboarding) {
@@ -83,11 +78,125 @@ class MoviePickerApp {
         }
     }
 
-    // ✅ NEW: Show login page
+    // ✅ NEW: Setup login button event listeners
+    setupLoginHandlers() {
+        console.log('[App] Setting up login button handlers...');
+        
+        // Wait for DOM to be ready
+        const setupHandlers = () => {
+            // Google Sign-In
+            const googleBtn = document.getElementById('google-signin-btn');
+            if (googleBtn) {
+                googleBtn.addEventListener('click', async () => {
+                    try {
+                        console.log('[Login] Google sign-in clicked');
+                        googleBtn.textContent = 'Redirecting to Google...';
+                        googleBtn.disabled = true;
+                        
+                        await authService.signInWithGoogle();
+                    } catch (error) {
+                        console.error('[Login] Google sign-in failed:', error);
+                        googleBtn.textContent = 'Continue with Google';
+                        googleBtn.disabled = false;
+                        alert('Google sign-in failed. Please try again.');
+                    }
+                });
+                console.log('[App] ✅ Google button handler attached');
+            }
+
+            // Guest Sign-In
+            const guestBtn = document.getElementById('guest-signin-btn');
+            if (guestBtn) {
+                guestBtn.addEventListener('click', async () => {
+                    try {
+                        console.log('[Login] Guest sign-in clicked');
+                        guestBtn.textContent = 'Signing in as guest...';
+                        guestBtn.disabled = true;
+                        
+                        await authService.signInAnonymously();
+                        // Redirect handled by auth service
+                    } catch (error) {
+                        console.error('[Login] Guest sign-in failed:', error);
+                        guestBtn.textContent = 'Continue as Guest';
+                        guestBtn.disabled = false;
+                        alert('Guest sign-in failed. Please try again.');
+                    }
+                });
+                console.log('[App] ✅ Guest button handler attached');
+            }
+
+            // Email/Password Sign-In
+            const signinBtn = document.getElementById('signin-btn');
+            if (signinBtn) {
+                signinBtn.addEventListener('click', async () => {
+                    const email = document.getElementById('login-email')?.value;
+                    const password = document.getElementById('login-password')?.value;
+                    
+                    if (!email || !password) {
+                        alert('Please enter email and password');
+                        return;
+                    }
+
+                    try {
+                        console.log('[Login] Email sign-in clicked');
+                        signinBtn.textContent = 'Signing in...';
+                        signinBtn.disabled = true;
+                        
+                        await authService.signIn(email, password);
+                        // Redirect handled by auth service
+                    } catch (error) {
+                        console.error('[Login] Email sign-in failed:', error);
+                        signinBtn.textContent = 'Sign In';
+                        signinBtn.disabled = false;
+                    }
+                });
+                console.log('[App] ✅ Email signin button handler attached');
+            }
+
+            // Enter key support for password field
+            const passwordField = document.getElementById('login-password');
+            if (passwordField) {
+                passwordField.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        document.getElementById('signin-btn')?.click();
+                    }
+                });
+            }
+
+            // Sign up link
+            const signupLink = document.getElementById('signup-link');
+            if (signupLink) {
+                signupLink.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    alert('Sign up functionality coming soon! Please use Google or Guest login.');
+                });
+            }
+        };
+
+        // Try to setup handlers now
+        setupHandlers();
+        
+        // Also setup after a delay (in case DOM isn't ready)
+        setTimeout(setupHandlers, 500);
+    }
+
     showLoginPage() {
         console.log('[App] Showing login page');
         
-        // Hide app container and bottom nav
+        const loginContainers = [
+            document.getElementById('login-container'),
+            document.querySelector('.login-container'),
+            document.querySelector('[data-login]')
+        ].filter(Boolean);
+        
+        loginContainers.forEach(container => {
+            container.style.display = 'block';
+            container.style.visibility = 'visible';
+            container.style.opacity = '1';
+            container.style.position = 'relative';
+            container.style.zIndex = '9999';
+        });
+        
         if (this.container) {
             this.container.style.display = 'none';
         }
@@ -95,27 +204,22 @@ class MoviePickerApp {
             this.bottomNav.style.display = 'none';
         }
         
-        // Show login container (assuming it exists in your HTML)
-        const loginContainer = document.getElementById('login-container') || 
-                              document.querySelector('.login-container') ||
-                              document.querySelector('[data-login]');
-        
-        if (loginContainer) {
-            loginContainer.style.display = 'block';
-            console.log('[App] ✅ Login container visible');
-        } else {
-            console.warn('[App] ⚠️ No login container found in DOM!');
-            console.warn('[App] Expected: #login-container or .login-container or [data-login]');
-            
-            // The login form should be in your index.html
-            // If it's not visible, check your HTML structure
+        const header = document.getElementById('app-header');
+        if (header) {
+            header.style.display = 'none';
         }
         
-        // Hide any onboarding elements
-        const onboardingContainer = document.getElementById('onboarding-container') ||
-                                   document.querySelector('.onboarding-container');
-        if (onboardingContainer) {
-            onboardingContainer.style.display = 'none';
+        const onboarding = document.getElementById('onboarding-container');
+        if (onboarding) {
+            onboarding.style.display = 'none';
+        }
+        
+        if (loginContainers.length > 0) {
+            console.log('[App] ✅ Login container visible');
+            // Re-setup handlers to make sure they're attached
+            setTimeout(() => this.setupLoginHandlers(), 100);
+        } else {
+            console.error('[App] ❌ No login container found!');
         }
     }
 
@@ -240,7 +344,6 @@ class MoviePickerApp {
         this.container = document.getElementById('app-container') || this.createAppContainer();
         this.bottomNav = document.getElementById('bottom-nav') || this.createBottomNav();
         
-        // ✅ Initially hide app container and bottom nav
         this.container.style.display = 'none';
         this.bottomNav.style.display = 'none';
         
@@ -325,15 +428,16 @@ class MoviePickerApp {
     showApp() {
         console.log('[App] Showing main app interface');
         
-        // ✅ Hide login page
-        const loginContainer = document.getElementById('login-container') || 
-                              document.querySelector('.login-container') ||
-                              document.querySelector('[data-login]');
-        if (loginContainer) {
-            loginContainer.style.display = 'none';
-        }
+        const loginContainers = [
+            document.getElementById('login-container'),
+            document.querySelector('.login-container'),
+            document.querySelector('[data-login]')
+        ].filter(Boolean);
         
-        // ✅ Show app
+        loginContainers.forEach(container => {
+            container.style.display = 'none';
+        });
+        
         if (this.container) this.container.style.display = 'block';
         if (this.bottomNav) this.bottomNav.style.display = 'flex';
         const header = document.getElementById('app-header');
