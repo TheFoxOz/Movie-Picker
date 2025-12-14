@@ -1,16 +1,14 @@
 /**
- * DoesTheDogDie.com API Service
+ * DoesTheDogDie.com API Service - VERCEL PROXY VERSION
+ * ✅ Uses Vercel serverless function to bypass CORS
+ * ✅ No more unreliable CORS proxies
  * Fetches trigger warnings for movies
- * ✅ FIX #2: API key now loaded from ENV (no hardcoded keys)
  */
 
 import { ENV } from '../config/env.js';
 
-// ✅ FIX #2: Load from ENV instead of hardcoded
-const DDD_API_KEY = ENV.DTD_API_KEY;
-const DDD_BASE_URL = 'https://www.doesthedogdie.com';
-// CORS proxy to bypass browser restrictions
-const CORS_PROXY = 'https://corsproxy.io/?';
+// ✅ Use Vercel serverless function as proxy (instead of corsproxy.io)
+const API_BASE = '/api/trigger-warnings';
 
 class DoesTheDogDieService {
     constructor() {
@@ -34,19 +32,12 @@ class DoesTheDogDieService {
                 console.log(`[DDD] Searching for: ${title}`);
             }
             
-            const url = `${DDD_BASE_URL}/dddsearch?q=${encodeURIComponent(title)}`;
-            const response = await fetch(
-                `${CORS_PROXY}${encodeURIComponent(url)}`,
-                {
-                    headers: {
-                        'Accept': 'application/json',
-                        'X-API-KEY': DDD_API_KEY
-                    }
-                }
-            );
+            // ✅ CHANGED: Use Vercel proxy endpoint instead of CORS proxy
+            const url = `${API_BASE}?action=search-title&title=${encodeURIComponent(title)}`;
+            const response = await fetch(url);
 
             if (!response.ok) {
-                console.warn(`[DDD] Search failed for: ${title}`);
+                console.warn(`[DDD] Search failed for: ${title} (${response.status})`);
                 return null;
             }
 
@@ -84,19 +75,12 @@ class DoesTheDogDieService {
                 console.log(`[DDD] Searching by IMDB: ${imdbId}`);
             }
             
-            const url = `${DDD_BASE_URL}/dddsearch?imdb=${imdbId}`;
-            const response = await fetch(
-                `${CORS_PROXY}${encodeURIComponent(url)}`,
-                {
-                    headers: {
-                        'Accept': 'application/json',
-                        'X-API-KEY': DDD_API_KEY
-                    }
-                }
-            );
+            // ✅ CHANGED: Use Vercel proxy endpoint
+            const url = `${API_BASE}?action=search-imdb&imdbId=${imdbId}`;
+            const response = await fetch(url);
 
             if (!response.ok) {
-                console.warn(`[DDD] Search failed for IMDB: ${imdbId}`);
+                console.warn(`[DDD] Search failed for IMDB: ${imdbId} (${response.status})`);
                 return null;
             }
 
@@ -134,19 +118,12 @@ class DoesTheDogDieService {
                 console.log(`[DDD] Fetching warnings for ID: ${dddId}`);
             }
             
-            const url = `${DDD_BASE_URL}/media/${dddId}`;
-            const response = await fetch(
-                `${CORS_PROXY}${encodeURIComponent(url)}`,
-                {
-                    headers: {
-                        'Accept': 'application/json',
-                        'X-API-KEY': DDD_API_KEY
-                    }
-                }
-            );
+            // ✅ CHANGED: Use Vercel proxy endpoint
+            const url = `${API_BASE}?action=get-warnings&dddId=${dddId}`;
+            const response = await fetch(url);
 
             if (!response.ok) {
-                console.warn(`[DDD] Failed to fetch warnings for: ${dddId}`);
+                console.warn(`[DDD] Failed to fetch warnings for: ${dddId} (${response.status})`);
                 return [];
             }
 
