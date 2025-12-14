@@ -2,7 +2,7 @@
  * TMDB Service - Movie Database API Integration
  * ✅ INTEGRATED: trigger-warning-service.js for categorized warnings
  * ✅ INTEGRATED: user-profile-revised.js for region/preference filtering
- * ✅ FIXED: Added proper error handling for DoesTheDogDie service
+ * ✅ FIXED: Trigger warnings now use correct method getWarningsForMovie
  * ✅ NEW: Added Watch Providers API for platform filtering
  * ✅ NEW: Added platform and trigger blocking methods
  * ✅ CRITICAL FIX: Robust platform detection from multiple sources
@@ -302,7 +302,7 @@ class TMDBService {
         return filtered;
     }
 
-    // ✅ FIXED: Proper error handling for DoesTheDogDie service
+    // ✅ FIXED: Uses correct method getWarningsForMovie instead of getContentWarnings
     async fetchTriggerWarnings(movie) {
         if (!movie || !movie.id) {
             console.warn('[TMDB] No movie ID provided for trigger warnings');
@@ -317,28 +317,34 @@ class TMDBService {
         try {
             console.log(`[TMDB] Fetching trigger warnings for: ${movie.title}`);
             
-            // ✅ FIX: Check if service exists and has the method
+            // ✅ FIX: Check if service exists
             if (!doesTheDogDieService) {
                 console.warn('[TMDB] DoesTheDogDie service not available');
                 this.cache.triggerWarnings.set(movie.id, []);
                 return [];
             }
 
-            // ✅ FIX: Check if the method exists before calling it
-            if (typeof doesTheDogDieService.getContentWarnings !== 'function') {
+            // ✅ FIX: Use correct method name - getWarningsForMovie (not getContentWarnings)
+            if (typeof doesTheDogDieService.getWarningsForMovie !== 'function') {
                 console.warn('[TMDB] DoesTheDogDie service method not available');
                 this.cache.triggerWarnings.set(movie.id, []);
                 return [];
             }
             
-            // Get raw warnings from DoesTheDogDie service
-            const rawWarnings = await doesTheDogDieService.getContentWarnings(movie.id);
+            // Get warnings from DoesTheDogDie service
+            // Pass both title and IMDB ID for better matching
+            const rawWarnings = await doesTheDogDieService.getWarningsForMovie(
+                movie.title,
+                movie.imdb_id || null
+            );
             
             if (!rawWarnings || rawWarnings.length === 0) {
                 console.log('[TMDB] No trigger warnings found');
                 this.cache.triggerWarnings.set(movie.id, []);
                 return [];
             }
+
+            console.log(`[TMDB] ✅ Loaded ${rawWarnings.length} trigger warnings`);
 
             // ✅ NEW: Use trigger warning service to categorize (if available)
             if (triggerWarningService && typeof triggerWarningService.getWarnings === 'function') {
@@ -371,7 +377,7 @@ class TMDBService {
             }
 
             // Fallback to raw warnings if categorization not available
-            console.warn('[TMDB] Using raw warnings (categorization not available)');
+            console.log('[TMDB] Using raw warnings (categorization not available)');
             this.cache.triggerWarnings.set(movie.id, rawWarnings);
             movie.triggerWarnings = rawWarnings;
             movie.triggerWarningCount = rawWarnings.length;
@@ -463,12 +469,13 @@ class TMDBService {
     }
 
     // ✅ UPDATED: Get trending movies with region filtering
-    async getTrendingMovies(timeWindow = 'week') {
+    async getTrendingMovies(timeWindow = 'week', page = 1) {
         const userProfile = userProfileService?.getProfile();
         
         const params = new URLSearchParams({
             api_key: this.apiKey,
             language: 'en-US',
+            page: page,
             // ✅ NEW: Use user's region
             region: userProfile?.region || 'US'
         });
