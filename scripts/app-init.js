@@ -1,6 +1,7 @@
 /**
- * App Initialization - WITH LOGIN BUTTON HANDLERS
- * ✅ Adds event listeners to login buttons programmatically
+ * App Initialization - IMPROVED AUTH WAIT
+ * ✅ Waits longer for auth state (5 seconds instead of 2)
+ * ✅ Properly handles Google redirect flow
  */
 
 import { onboardingFlow } from './components/onboarding-flow.js';
@@ -30,8 +31,9 @@ class MoviePickerApp {
         console.log('[App] Initializing Movie Picker App...');
         
         this.setupDOM();
-        this.setupLoginHandlers(); // ✅ NEW: Setup login button handlers
+        this.setupLoginHandlers();
         
+        // ✅ Wait for auth state with longer timeout
         await this.waitForAuthState();
         
         const user = authService.getCurrentUser();
@@ -78,11 +80,9 @@ class MoviePickerApp {
         }
     }
 
-    // ✅ NEW: Setup login button event listeners
     setupLoginHandlers() {
         console.log('[App] Setting up login button handlers...');
         
-        // Wait for DOM to be ready
         const setupHandlers = () => {
             // Google Sign-In
             const googleBtn = document.getElementById('google-signin-btn');
@@ -94,6 +94,7 @@ class MoviePickerApp {
                         googleBtn.disabled = true;
                         
                         await authService.signInWithGoogle();
+                        // Page will redirect - no code after this runs
                     } catch (error) {
                         console.error('[Login] Google sign-in failed:', error);
                         googleBtn.textContent = 'Continue with Google';
@@ -153,7 +154,7 @@ class MoviePickerApp {
                 console.log('[App] ✅ Email signin button handler attached');
             }
 
-            // Enter key support for password field
+            // Enter key support
             const passwordField = document.getElementById('login-password');
             if (passwordField) {
                 passwordField.addEventListener('keypress', (e) => {
@@ -173,10 +174,7 @@ class MoviePickerApp {
             }
         };
 
-        // Try to setup handlers now
         setupHandlers();
-        
-        // Also setup after a delay (in case DOM isn't ready)
         setTimeout(setupHandlers, 500);
     }
 
@@ -216,7 +214,6 @@ class MoviePickerApp {
         
         if (loginContainers.length > 0) {
             console.log('[App] ✅ Login container visible');
-            // Re-setup handlers to make sure they're attached
             setTimeout(() => this.setupLoginHandlers(), 100);
         } else {
             console.error('[App] ❌ No login container found!');
@@ -244,12 +241,13 @@ class MoviePickerApp {
                 }
             });
             
+            // ✅ INCREASED TIMEOUT: 5 seconds instead of 2 (for Google redirect)
             timeout = setTimeout(() => {
                 console.log('[App] Auth state timeout, proceeding anyway');
                 this.authInitialized = true;
                 unsubscribe();
                 resolve();
-            }, 2000);
+            }, 5000); // Was 2000
         });
     }
 
