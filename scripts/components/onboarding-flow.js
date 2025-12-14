@@ -22,7 +22,7 @@ export class OnboardingFlow {
             console.log('[Onboarding] User is authenticated');
             
             const preferences = store.getState().preferences;
-            const hasCompletedOnboarding = preferences?.onboardingComplete || false;
+            const hasCompletedOnboarding = preferences?.onboardingCompleted || false;
             
             if (hasCompletedOnboarding) {
                 console.log('[Onboarding] User already onboarded, skipping');
@@ -132,7 +132,7 @@ export class OnboardingFlow {
 
         // Save that onboarding is complete in local state
         const preferences = store.getState().preferences || {};
-        preferences.onboardingComplete = true;
+        preferences.onboardingCompleted = true;
         store.setState({ preferences });
 
         // Save to localStorage
