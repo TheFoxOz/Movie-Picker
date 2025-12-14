@@ -1,7 +1,7 @@
 /**
- * App Initialization - FIXED VERSION
+ * App Initialization - COMPLETE FIX
+ * ✅ Shows login page when no user is authenticated
  * ✅ Properly coordinates auth state with onboarding flow
- * ✅ Waits for auth before deciding whether to show onboarding
  */
 
 import { onboardingFlow } from './components/onboarding-flow.js';
@@ -30,9 +30,24 @@ class MoviePickerApp {
     async init() {
         console.log('[App] Initializing Movie Picker App...');
         
-        // ✅ CRITICAL: Wait for auth state to be determined first
+        // ✅ Setup DOM first (so we have containers to work with)
+        this.setupDOM();
+        
+        // ✅ Wait for auth state to be determined
         await this.waitForAuthState();
         
+        const user = authService.getCurrentUser();
+        
+        if (!user) {
+            console.log('[App] No user authenticated, showing login page');
+            // ✅ NEW: Make sure login page is visible
+            this.showLoginPage();
+            return;
+        }
+        
+        console.log('[App] User authenticated:', user.email || 'anonymous');
+        
+        // User is authenticated, continue with app initialization
         this.initializeUserProfile();
         await this.initializeEnhancedServices();
 
@@ -44,19 +59,6 @@ class MoviePickerApp {
             matches: new MatchesTab(),
             profile: new ProfileTab()
         };
-
-        this.setupDOM();
-        
-        // ✅ FIXED: Only check onboarding if user is authenticated
-        const user = authService.getCurrentUser();
-        
-        if (!user) {
-            console.log('[App] No user authenticated, staying on login page');
-            // Don't initialize the app UI yet, wait for login
-            return;
-        }
-        
-        console.log('[App] User authenticated:', user.email || 'anonymous');
         
         // Check if user needs onboarding
         const needsOnboarding = await this.checkNeedsOnboarding(user);
@@ -66,10 +68,8 @@ class MoviePickerApp {
             const result = await onboardingFlow.start();
             
             if (!result) {
-                // Onboarding was skipped or completed
                 this.showApp();
             } else {
-                // Wait for onboarding completion event
                 const handleNavigation = (e) => {
                     this.showApp();
                     this.navigateToTab(e.detail);
@@ -83,17 +83,50 @@ class MoviePickerApp {
         }
     }
 
-    // ✅ NEW: Wait for auth state to be determined
+    // ✅ NEW: Show login page
+    showLoginPage() {
+        console.log('[App] Showing login page');
+        
+        // Hide app container and bottom nav
+        if (this.container) {
+            this.container.style.display = 'none';
+        }
+        if (this.bottomNav) {
+            this.bottomNav.style.display = 'none';
+        }
+        
+        // Show login container (assuming it exists in your HTML)
+        const loginContainer = document.getElementById('login-container') || 
+                              document.querySelector('.login-container') ||
+                              document.querySelector('[data-login]');
+        
+        if (loginContainer) {
+            loginContainer.style.display = 'block';
+            console.log('[App] ✅ Login container visible');
+        } else {
+            console.warn('[App] ⚠️ No login container found in DOM!');
+            console.warn('[App] Expected: #login-container or .login-container or [data-login]');
+            
+            // The login form should be in your index.html
+            // If it's not visible, check your HTML structure
+        }
+        
+        // Hide any onboarding elements
+        const onboardingContainer = document.getElementById('onboarding-container') ||
+                                   document.querySelector('.onboarding-container');
+        if (onboardingContainer) {
+            onboardingContainer.style.display = 'none';
+        }
+    }
+
     async waitForAuthState() {
         return new Promise((resolve) => {
-            // If user is already set, resolve immediately
             if (authService.getCurrentUser() !== null || this.authInitialized) {
                 console.log('[App] Auth state already determined');
                 resolve();
                 return;
             }
             
-            // Otherwise wait for auth state change
             console.log('[App] Waiting for auth state...');
             let timeout;
             
@@ -107,7 +140,6 @@ class MoviePickerApp {
                 }
             });
             
-            // Timeout after 2 seconds if no auth state change
             timeout = setTimeout(() => {
                 console.log('[App] Auth state timeout, proceeding anyway');
                 this.authInitialized = true;
@@ -117,10 +149,8 @@ class MoviePickerApp {
         });
     }
 
-    // ✅ NEW: Check if user needs onboarding
     async checkNeedsOnboarding(user) {
         try {
-            // Import Firestore functions
             const { doc, getDoc } = await import('firebase/firestore');
             const { db } = await import('./services/firebase-config.js');
             
@@ -140,7 +170,6 @@ class MoviePickerApp {
             
         } catch (error) {
             console.error('[App] Error checking onboarding status:', error);
-            // Default to showing onboarding on error
             return true;
         }
     }
@@ -210,6 +239,11 @@ class MoviePickerApp {
     setupDOM() {
         this.container = document.getElementById('app-container') || this.createAppContainer();
         this.bottomNav = document.getElementById('bottom-nav') || this.createBottomNav();
+        
+        // ✅ Initially hide app container and bottom nav
+        this.container.style.display = 'none';
+        this.bottomNav.style.display = 'none';
+        
         this.setupNavigationListeners();
         window.addEventListener('navigate-to-tab', (e) => this.navigateToTab(e.detail));
     }
@@ -217,7 +251,7 @@ class MoviePickerApp {
     createAppContainer() {
         const container = document.createElement('div');
         container.id = 'app-container';
-        container.style.cssText = 'min-height: 100vh; padding-bottom: 5rem;';
+        container.style.cssText = 'min-height: 100vh; padding-bottom: 5rem; display: none;';
         document.body.appendChild(container);
         return container;
     }
@@ -290,10 +324,21 @@ class MoviePickerApp {
 
     showApp() {
         console.log('[App] Showing main app interface');
+        
+        // ✅ Hide login page
+        const loginContainer = document.getElementById('login-container') || 
+                              document.querySelector('.login-container') ||
+                              document.querySelector('[data-login]');
+        if (loginContainer) {
+            loginContainer.style.display = 'none';
+        }
+        
+        // ✅ Show app
         if (this.container) this.container.style.display = 'block';
         if (this.bottomNav) this.bottomNav.style.display = 'flex';
         const header = document.getElementById('app-header');
         if (header) header.style.display = 'block';
+        
         this.renderCurrentTab();
         this.setupPreferencesSync();
     }
