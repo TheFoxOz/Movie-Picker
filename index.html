@@ -5,13 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MoviEase - Discover Your Next Favorite Film</title>
     <meta name="description" content="Discover your next favorite film with ease. Swipe through personalized movie recommendations with streaming platform filters and content safety.">
-    <link rel="stylesheet" href="styles/base.css">
-    <link rel="stylesheet" href="styles/components.css">
-    <link rel="stylesheet" href="styles/animations.css">
-    <link rel="stylesheet" href="styles/utilities.css">
     
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', sans-serif;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -181,6 +184,7 @@
             border-radius: 0.5rem;
             color: white;
             font-size: 1rem;
+            font-family: inherit;
         }
 
         .form-group input:focus {
@@ -324,36 +328,3 @@
     <script type="module" src="scripts/main.js"></script>
 </body>
 </html>
-```
-
----
-
-## What This Does
-
-### 1. **Complete MoviEase Branding**
-- New logo with gradient text
-- Tagline: "Discover your next favorite film with ease"
-- Feature highlights at bottom
-
-### 2. **Color Palette Applied**
-- Background: Space Indigo gradient (#0a0e1a → #1e3a5f → #0f1e3a)
-- Card: Space Indigo with transparency
-- Accents: Powder Blue borders and text
-- Buttons: Space Indigo and Powder Blue themes
-- Vanilla Custard: Subtle gradient in logo
-
-### 3. **Modern Design**
-- Animated particle background
-- Glass-morphism effect (backdrop blur)
-- Smooth animations and transitions
-- Responsive design for mobile
-
-### 4. **How It Works**
-```
-index.html (login page)
-    ↓
-scripts/main.js (initializes services)
-    ↓
-scripts/app-init.js (handles auth & navigation)
-    ↓
-Tabs render dynamically in #app-container
