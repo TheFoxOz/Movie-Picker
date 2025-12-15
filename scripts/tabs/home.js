@@ -4,6 +4,7 @@
  * ✅ MoviEase branding and colors
  * ✅ FIXED: Proper scrolling functionality
  * ✅ Visible section headers
+ * ✅ ADDED: Trailer buttons and trigger warnings
  */
 
 import { tmdbService } from '../services/tmdb.js';
@@ -163,6 +164,14 @@ export class HomeTab {
         const posterURL = movie.posterURL || `https://via.placeholder.com/300x450/1e3a5f/b0d4e3?text=${encodeURIComponent(movie.title)}`;
         const rating = movie.rating ? movie.rating.toFixed(1) : 'N/A';
         const year = movie.releaseDate ? movie.releaseDate.split('-')[0] : '';
+        
+        // ✅ ADDED: Get trailer data
+        const hasTrailer = movie.trailerKey && movie.trailerKey.trim() !== '';
+        const trailerUrl = hasTrailer ? `https://www.youtube.com/watch?v=${movie.trailerKey}` : null;
+        
+        // ✅ ADDED: Get trigger warnings
+        const warnings = movie.triggerWarnings || [];
+        const hasWarnings = warnings.length > 0;
 
         return `
             <div 
@@ -198,12 +207,71 @@ export class HomeTab {
                         onerror="this.src='https://via.placeholder.com/300x450/1e3a5f/b0d4e3?text=No+Poster'"
                     />
                     
+                    <!-- ✅ ADDED: Trailer Button (Top Right) -->
+                    ${hasTrailer ? `
+                        <button 
+                            class="trailer-btn"
+                            data-trailer-url="${trailerUrl}"
+                            onclick="event.stopPropagation(); window.open('${trailerUrl}', '_blank')"
+                            style="
+                                position: absolute;
+                                top: 0.5rem;
+                                right: 0.5rem;
+                                width: 32px;
+                                height: 32px;
+                                background: rgba(255, 46, 99, 0.95);
+                                border: 2px solid white;
+                                border-radius: 50%;
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                                cursor: pointer;
+                                transition: all 0.2s;
+                                z-index: 10;
+                                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+                            "
+                            onmouseover="this.style.transform='scale(1.15)'; this.style.background='rgba(255, 46, 99, 1)'"
+                            onmouseout="this.style.transform='scale(1)'; this.style.background='rgba(255, 46, 99, 0.95)'"
+                            title="Watch Trailer"
+                        >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="white">
+                                <path d="M8 5v14l11-7z"/>
+                            </svg>
+                        </button>
+                    ` : ''}
+                    
+                    <!-- ✅ ADDED: Trigger Warning Badge (Top Left) -->
+                    ${hasWarnings ? `
+                        <div 
+                            class="trigger-warning-badge"
+                            style="
+                                position: absolute;
+                                top: 0.5rem;
+                                left: 0.5rem;
+                                background: rgba(239, 68, 68, 0.95);
+                                color: white;
+                                padding: 3px 6px;
+                                border-radius: 4px;
+                                font-size: 0.65rem;
+                                font-weight: 700;
+                                display: flex;
+                                align-items: center;
+                                gap: 3px;
+                                z-index: 10;
+                                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+                            "
+                            title="${warnings.join(', ')}"
+                        >
+                            ⚠️ ${warnings.length}
+                        </div>
+                    ` : ''}
+                    
                     <!-- Rating Badge -->
                     ${rating !== 'N/A' ? `
                         <div style="
                             position: absolute;
-                            top: 0.5rem;
-                            right: 0.5rem;
+                            ${hasWarnings ? 'top: 3rem;' : 'top: 0.5rem;'}
+                            left: 0.5rem;
                             background: linear-gradient(135deg, rgba(30, 58, 95, 0.95), rgba(26, 31, 46, 0.95));
                             backdrop-filter: blur(8px);
                             border: 1px solid rgba(176, 212, 227, 0.3);
@@ -549,4 +617,3 @@ export class HomeTab {
             .map(([genre]) => genre);
     }
 }
-
