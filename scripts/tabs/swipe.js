@@ -1,8 +1,9 @@
 /**
- * Swipe Tab Component – OPTIMIZED LOADING
+ * MoviEase - Swipe Tab Component
  * ✅ Shows first card immediately with placeholder data
  * ✅ Enriches platform data in background
  * ✅ Filters out cinema-only movies
+ * ✅ MoviEase branding and colors
  */
 
 import { store } from "../state/store.js";
@@ -29,17 +30,17 @@ export class SwipeTab {
                 
                 <!-- Header -->
                 <div style="padding: 1.5rem 1rem; text-align: center;">
-                    <h1 style="font-size: 1.5rem; font-weight: 800; color: white; margin: 0 0 0.5rem 0;">
+                    <h1 style="font-size: 1.5rem; font-weight: 800; background: linear-gradient(135deg, #b0d4e3, #f4e8c1); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin: 0 0 0.5rem 0;">
                         Discover Movies
                     </h1>
-                    <p style="font-size: 0.875rem; color: rgba(255, 255, 255, 0.6); margin: 0;">
+                    <p style="font-size: 0.875rem; color: rgba(176, 212, 227, 0.6); margin: 0;">
                         Swipe to find your next favorite film
                     </p>
                 </div>
                 
                 <!-- Card Container -->
                 <div id="swipe-container" style="flex: 1; position: relative; display: flex; align-items: center; justify-content: center; padding: 0 1rem;">
-                    <div style="color: rgba(255,255,255,0.6); text-align: center;">
+                    <div style="color: rgba(176, 212, 227, 0.6); text-align: center;">
                         <div style="font-size: 3rem; margin-bottom: 1rem;">🎬</div>
                         <p>Loading your movies...</p>
                     </div>
@@ -77,13 +78,13 @@ export class SwipeTab {
                 <!-- Completed State -->
                 <div id="swipe-completed" style="display: none; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; padding: 2rem; text-align: center; background: rgba(10, 10, 15, 0.95); z-index: 10;">
                     <div style="font-size: 5rem; margin-bottom: 1.5rem;">🎉</div>
-                    <h2 style="font-size: 2rem; font-weight: 800; color: white; margin: 0 0 1rem 0;">
+                    <h2 style="font-size: 2rem; font-weight: 800; background: linear-gradient(135deg, #b0d4e3, #f4e8c1); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin: 0 0 1rem 0;">
                         You Did It!
                     </h2>
-                    <p style="font-size: 1.125rem; color: rgba(255, 255, 255, 0.8); margin: 0 0 2rem 0; max-width: 400px;">
+                    <p style="font-size: 1.125rem; color: rgba(176, 212, 227, 0.8); margin: 0 0 2rem 0; max-width: 400px;">
                         You've swiped through all available movies. Check your Library to see your picks!
                     </p>
-                    <button id="goto-library" style="padding: 1rem 2rem; background: linear-gradient(135deg, #ff2e63, #d90062); border: none; border-radius: 1rem; color: white; font-size: 1rem; font-weight: 700; cursor: pointer; transition: transform 0.2s;">
+                    <button id="goto-library" style="padding: 1rem 2rem; background: linear-gradient(135deg, #1e3a5f, #2d5a8f); border: none; border-radius: 1rem; color: white; font-size: 1rem; font-weight: 700; cursor: pointer; transition: transform 0.2s; box-shadow: 0 4px 12px rgba(176, 212, 227, 0.3);">
                         View My Library
                     </button>
                 </div>
@@ -318,13 +319,13 @@ export class SwipeTab {
                 const container = this.container?.querySelector("#swipe-container");
                 if (container) {
                     container.innerHTML = `
-                        <div style="color: rgba(255,255,255,0.8); text-align: center; padding: 2rem;">
+                        <div style="color: rgba(176, 212, 227, 0.8); text-align: center; padding: 2rem;">
                             <div style="font-size: 3rem; margin-bottom: 1rem;">⚠️</div>
                             <h3 style="color: white; margin-bottom: 1rem;">Unable to Load Movies</h3>
-                            <p style="color: rgba(255,255,255,0.6); margin-bottom: 1.5rem;">
+                            <p style="color: rgba(176, 212, 227, 0.6); margin-bottom: 1.5rem;">
                                 ${err.message || 'Unknown error'}
                             </p>
-                            <button onclick="location.reload()" style="padding: 0.75rem 1.5rem; background: linear-gradient(135deg, #ff2e63, #d90062); border: none; border-radius: 0.75rem; color: white; font-weight: 700; cursor: pointer;">
+                            <button onclick="location.reload()" style="padding: 0.75rem 1.5rem; background: linear-gradient(135deg, #1e3a5f, #2d5a8f); border: none; border-radius: 0.75rem; color: white; font-weight: 700; cursor: pointer;">
                                 Reload App
                             </button>
                         </div>
