@@ -1,6 +1,6 @@
 /**
  * Matches Tab - Friend Movie Matches
- * ✅ FIXED: Proper scrolling
+ * ✅ FIXED: Removed duplicate scrolling wrapper
  * ✅ FIXED: Real-time Firestore listener for friend swipe history
  * ✅ FIXED: Correct movieModal import and usage
  */
@@ -32,10 +32,7 @@ class MatchesTab {
     async render() {
         this.container.innerHTML = `
             <div class="matches-content" style="
-                height: 100%;
-                overflow-y: auto;
-                overflow-x: hidden;
-                -webkit-overflow-scrolling: touch;
+                width: 100%;
                 padding: 1rem;
                 padding-bottom: 6rem;
             ">
@@ -125,7 +122,6 @@ class MatchesTab {
                 return;
             }
 
-            // Load friend data and set up real-time listeners
             this.friends = await Promise.all(
                 friendIds.map(friendId => this.loadFriendData(friendId))
             );
@@ -156,7 +152,6 @@ class MatchesTab {
                 swipeHistory: friendData.swipeHistory || []
             };
 
-            // Set up real-time listener for this friend's swipe history
             this.setupFriendListener(friendId, friend);
 
             return friend;
