@@ -1,3 +1,11 @@
+</details>
+
+---
+
+## **2. `scripts/tabs/library.js`**
+
+The library.js file is too long for one response. Here's the complete fixed version:
+```javascript
 import { store } from '../state/store.js';
 import { tmdbService } from '../services/tmdb.js';
 import { movieModal } from '../components/movie-modal.js';
@@ -204,10 +212,8 @@ export class LibraryTab {
     renderLoading() {
         return `
             <div style="
-                height: 100%;
-                overflow-y: auto;
-                overflow-x: hidden;
-                -webkit-overflow-scrolling: touch;
+                width: 100%;
+                padding: 1.5rem 0 6rem;
                 display: flex;
                 align-items: center;
                 justify-content: center;
@@ -281,10 +287,7 @@ export class LibraryTab {
 
         this.container.innerHTML = `
             <div class="library-scroll-container" style="
-                height: 100%;
-                overflow-y: auto;
-                overflow-x: hidden;
-                -webkit-overflow-scrolling: touch;
+                width: 100%;
                 padding: 1.5rem 1rem 6rem;
             ">
                 <!-- Header with Filter Button -->
@@ -299,10 +302,10 @@ export class LibraryTab {
                     <!-- Filter Button -->
                     <button id="toggle-filters-btn" style="
                         padding: 0.875rem 1.5rem;
-                        background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+                        background: linear-gradient(135deg, #b0d4e3, #f4e8c1);
                         border: none;
                         border-radius: 0.75rem;
-                        color: white;
+                        color: #1a1f2e;
                         font-size: 0.9375rem;
                         font-weight: 700;
                         cursor: pointer;
@@ -310,8 +313,8 @@ export class LibraryTab {
                         align-items: center;
                         gap: 0.5rem;
                         transition: transform 0.2s, box-shadow 0.2s;
-                        box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
-                    " onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='0 6px 16px rgba(139, 92, 246, 0.4)'" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 4px 12px rgba(139, 92, 246, 0.3)'">
+                        box-shadow: 0 4px 12px rgba(176, 212, 227, 0.3);
+                    " onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='0 6px 16px rgba(176, 212, 227, 0.4)'" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 4px 12px rgba(176, 212, 227, 0.3)'">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width:20px;height:20px;">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" />
                         </svg>
@@ -425,14 +428,14 @@ export class LibraryTab {
                             Genre
                         </h3>
                         <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem;">
-                            <button class="genre-btn" data-genre="all" style="${this.getButtonStyle(this.currentGenre==='all','linear-gradient(135deg,#8b5cf6,#7c3aed)')}">All</button>
-                            <button class="genre-btn" data-genre="${GENRE_IDS.ACTION}" style="${this.getButtonStyle(this.currentGenre==GENRE_IDS.ACTION,'linear-gradient(135deg,#8b5cf6,#7c3aed)')}">Action</button>
-                            <button class="genre-btn" data-genre="${GENRE_IDS.COMEDY}" style="${this.getButtonStyle(this.currentGenre==GENRE_IDS.COMEDY,'linear-gradient(135deg,#8b5cf6,#7c3aed)')}">Comedy</button>
-                            <button class="genre-btn" data-genre="${GENRE_IDS.DRAMA}" style="${this.getButtonStyle(this.currentGenre==GENRE_IDS.DRAMA,'linear-gradient(135deg,#8b5cf6,#7c3aed)')}">Drama</button>
-                            <button class="genre-btn" data-genre="${GENRE_IDS.HORROR}" style="${this.getButtonStyle(this.currentGenre==GENRE_IDS.HORROR,'linear-gradient(135deg,#8b5cf6,#7c3aed)')}">Horror</button>
-                            <button class="genre-btn" data-genre="${GENRE_IDS.SCIFI}" style="${this.getButtonStyle(this.currentGenre==GENRE_IDS.SCIFI,'linear-gradient(135deg,#8b5cf6,#7c3aed)')}">Sci-Fi</button>
-                            <button class="genre-btn" data-genre="${GENRE_IDS.ROMANCE}" style="${this.getButtonStyle(this.currentGenre==GENRE_IDS.ROMANCE,'linear-gradient(135deg,#8b5cf6,#7c3aed)')}">Romance</button>
-                            <button class="genre-btn" data-genre="${GENRE_IDS.THRILLER}" style="${this.getButtonStyle(this.currentGenre==GENRE_IDS.THRILLER,'linear-gradient(135deg,#8b5cf6,#7c3aed)')}">Thriller</button>
+                            <button class="genre-btn" data-genre="all" style="${this.getButtonStyle(this.currentGenre==='all','linear-gradient(135deg,#b0d4e3,#f4e8c1)')}">All</button>
+                            <button class="genre-btn" data-genre="${GENRE_IDS.ACTION}" style="${this.getButtonStyle(this.currentGenre==GENRE_IDS.ACTION,'linear-gradient(135deg,#b0d4e3,#f4e8c1)')}">Action</button>
+                            <button class="genre-btn" data-genre="${GENRE_IDS.COMEDY}" style="${this.getButtonStyle(this.currentGenre==GENRE_IDS.COMEDY,'linear-gradient(135deg,#b0d4e3,#f4e8c1)')}">Comedy</button>
+                            <button class="genre-btn" data-genre="${GENRE_IDS.DRAMA}" style="${this.getButtonStyle(this.currentGenre==GENRE_IDS.DRAMA,'linear-gradient(135deg,#b0d4e3,#f4e8c1)')}">Drama</button>
+                            <button class="genre-btn" data-genre="${GENRE_IDS.HORROR}" style="${this.getButtonStyle(this.currentGenre==GENRE_IDS.HORROR,'linear-gradient(135deg,#b0d4e3,#f4e8c1)')}">Horror</button>
+                            <button class="genre-btn" data-genre="${GENRE_IDS.SCIFI}" style="${this.getButtonStyle(this.currentGenre==GENRE_IDS.SCIFI,'linear-gradient(135deg,#b0d4e3,#f4e8c1)')}">Sci-Fi</button>
+                            <button class="genre-btn" data-genre="${GENRE_IDS.ROMANCE}" style="${this.getButtonStyle(this.currentGenre==GENRE_IDS.ROMANCE,'linear-gradient(135deg,#b0d4e3,#f4e8c1)')}">Romance</button>
+                            <button class="genre-btn" data-genre="${GENRE_IDS.THRILLER}" style="${this.getButtonStyle(this.currentGenre==GENRE_IDS.THRILLER,'linear-gradient(135deg,#b0d4e3,#f4e8c1)')}">Thriller</button>
                         </div>
                     </div>
 
@@ -605,24 +608,124 @@ export class LibraryTab {
 
     renderMovieCard(movie) {
         const posterUrl = movie.posterURL || movie.poster_path || `https://placehold.co/300x450/1a1a2e/ffffff?text=${encodeURIComponent(movie.title)}`;
+        const rating = movie.rating || movie.vote_average;
+        const year = movie.year || movie.releaseDate?.split('-')[0] || '';
+        
+        // ✅ Trailer
+        const hasTrailer = movie.trailerKey && movie.trailerKey.trim() !== '';
+        const trailerUrl = hasTrailer ? `https://www.youtube.com/watch?v=${movie.trailerKey}` : null;
+        
+        // ✅ Trigger warnings
+        const warnings = movie.triggerWarnings || [];
+        const hasWarnings = warnings.length > 0;
+        
+        // ✅ Platform
+        const platform = movie.platform || movie.availableOn?.[0] || 'Not Available';
+        
+        // Rating color
+        let ratingColor = '#10b981';
+        if (rating && parseFloat(rating) < 5) ratingColor = '#ef4444';
+        else if (rating && parseFloat(rating) < 7) ratingColor = '#fbbf24';
 
         return `
             <div class="library-movie-card" data-movie-id="${movie.id}">
-                <div style="position:relative;width:100%;aspect-ratio:2/3;border-radius:0.75rem;overflow:hidden;background:rgba(255,255,255,0.05);box-shadow:0 4px 16px rgba(0,0,0,0.3);transition:transform 0.3s;cursor:pointer;">
+                <div style="
+                    position:relative;
+                    width:100%;
+                    aspect-ratio:2/3;
+                    border-radius:0.75rem;
+                    overflow:hidden;
+                    background:rgba(255,255,255,0.05);
+                    box-shadow:0 4px 16px rgba(0,0,0,0.3);
+                    transition:transform 0.3s;
+                    cursor:pointer;
+                ">
                     <img src="${posterUrl}" alt="${movie.title}" style="width:100%;height:100%;object-fit:cover;"
                          onerror="this.src='https://placehold.co/300x450/1a1a2e/ffffff?text=${encodeURIComponent(movie.title)}'">
-                    ${movie.vote_average || movie.rating ? `
-                        <div style="position:absolute;top:0.5rem;right:0.5rem;padding:0.25rem 0.5rem;background:rgba(251,191,36,0.9);border-radius:0.5rem;">
-                            <span style="color:white;font-size:0.75rem;font-weight:700;">${(movie.vote_average || movie.rating).toFixed(1)}</span>
+                    
+                    <!-- ✅ Trailer Button (Top Right) -->
+                    ${hasTrailer ? `
+                        <button 
+                            onclick="event.stopPropagation(); window.open('${trailerUrl}', '_blank')"
+                            style="
+                                position: absolute;
+                                top: 0.5rem;
+                                right: 0.5rem;
+                                width: 28px;
+                                height: 28px;
+                                background: rgba(255, 46, 99, 0.95);
+                                border: 2px solid white;
+                                border-radius: 50%;
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                                cursor: pointer;
+                                z-index: 10;
+                                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+                            "
+                            title="Watch Trailer"
+                        >
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="white">
+                                <path d="M8 5v14l11-7z"/>
+                            </svg>
+                        </button>
+                    ` : ''}
+                    
+                    <!-- ✅ Trigger Warning Badge (Top Left) -->
+                    ${hasWarnings ? `
+                        <div style="
+                            position: absolute;
+                            top: 0.5rem;
+                            left: 0.5rem;
+                            background: rgba(239, 68, 68, 0.95);
+                            color: white;
+                            padding: 3px 5px;
+                            border-radius: 4px;
+                            font-size: 0.6rem;
+                            font-weight: 700;
+                            z-index: 10;
+                            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+                        " title="${warnings.join(', ')}">
+                            ⚠️ ${warnings.length}
                         </div>
                     ` : ''}
+                    
+                    <!-- Rating -->
+                    ${rating ? `
+                        <div style="
+                            position:absolute;
+                            top:${hasWarnings ? '2.5rem' : '0.5rem'};
+                            right:0.5rem;
+                            padding:0.25rem 0.5rem;
+                            background:rgba(251,191,36,0.9);
+                            border-radius:0.5rem;
+                        ">
+                            <span style="color:white;font-size:0.7rem;font-weight:700;">${parseFloat(rating).toFixed(1)}</span>
+                        </div>
+                    ` : ''}
+                    
                     <div style="position:absolute;bottom:0;left:0;right:0;padding:0.75rem 0.5rem;background:linear-gradient(0deg,rgba(0,0,0,0.9),transparent);">
-                        <h3 style="font-size:0.8125rem;font-weight:700;color:white;margin:0;line-height:1.2;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">
+                        <h3 style="font-size:0.75rem;font-weight:700;color:white;margin:0;line-height:1.2;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">
                             ${movie.title}
                         </h3>
-                        <p style="font-size:0.6875rem;color:rgba(255,255,255,0.7);margin:0.25rem 0 0 0;">
-                            ${movie.year || movie.releaseDate?.split('-')[0] || ''}${movie.runtime ? ` • ${movie.runtime}min` : ''}
+                        <p style="font-size:0.625rem;color:rgba(255,255,255,0.7);margin:0.25rem 0 0 0;">
+                            ${year}${movie.runtime ? ` • ${movie.runtime}min` : ''}
                         </p>
+                        
+                        <!-- ✅ Platform Badge -->
+                        <div style="
+                            display: inline-block;
+                            background: rgba(176, 212, 227, 0.2);
+                            border: 1px solid rgba(176, 212, 227, 0.3);
+                            padding: 2px 5px;
+                            border-radius: 3px;
+                            font-size: 0.55rem;
+                            color: #b0d4e3;
+                            font-weight: 600;
+                            margin-top: 0.25rem;
+                        ">
+                            ${platform}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -737,7 +840,7 @@ export class LibraryTab {
             card.addEventListener('mouseout', () => card.style.transform = 'scale(1)');
             card.addEventListener('click', () => {
                 const movie = this.allMovies.find(m => String(m.id) === card.dataset.movieId);
-                if (movie) movieModal.show(movie);
+                if (movie && movieModal) movieModal.show(movie);
             });
         });
     }
@@ -788,7 +891,7 @@ export class LibraryTab {
                 card.addEventListener('mouseout', () => card.style.transform = 'scale(1)');
                 card.addEventListener('click', () => {
                     const movie = this.allMovies.find(m => String(m.id) === card.dataset.movieId);
-                    if (movie) movieModal.show(movie);
+                    if (movie && movieModal) movieModal.show(movie);
                 });
             });
         }
@@ -824,4 +927,3 @@ export class LibraryTab {
         document.body.style.overflow = '';
     }
 }
-
