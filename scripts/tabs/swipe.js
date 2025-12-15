@@ -457,3 +457,4 @@ export class SwipeTab {
         console.log('[SwipeTab] Destroyed');
     }
 }
+
