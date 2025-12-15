@@ -2,12 +2,13 @@
  * Matches Tab - Friend Movie Matches
  * ✅ FIXED: Proper scrolling
  * ✅ FIXED: Real-time Firestore listener for friend swipe history
+ * ✅ FIXED: Correct movieModal import and usage
  */
 
 import { tmdbService } from '../services/tmdb.js';
 import { authService } from '../services/auth-service.js';
 import { userProfileService } from '../services/user-profile-revised.js';
-import { showMovieModal } from '../components/movie-modal.js';
+import { movieModal } from '../components/movie-modal.js';
 import { doc, getDoc, onSnapshot, collection, query, where } from 'firebase/firestore';
 import { db } from '../services/firebase-config.js';
 
@@ -435,8 +436,8 @@ class MatchesTab {
             if (movieCard && !movieCard.classList.contains('loading')) {
                 const movieId = parseInt(movieCard.dataset.movieId);
                 const movie = this.matches.find(m => m.id === movieId);
-                if (movie && showMovieModal) {
-                    await showMovieModal(movie);
+                if (movie && movieModal) {
+                    movieModal.show(movie);
                 }
             }
         });
