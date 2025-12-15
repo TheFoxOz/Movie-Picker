@@ -1,12 +1,29 @@
 {
-  "name": "movie-picker",
+  "name": "moviease",
   "version": "1.0.0",
-  "description": "Tinder-style movie discovery app with Firebase and TMDB",
+  "description": "MoviEase - Discover your next favorite film with ease. A Tinder-style movie discovery app with streaming platform filters and trigger warnings.",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview"
+  },
+  "keywords": [
+    "movies",
+    "streaming",
+    "swipe",
+    "recommendations",
+    "moviease",
+    "tmdb",
+    "firebase",
+    "trigger-warnings"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "homepage": "https://moviease.app",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/moviease.git"
   },
   "dependencies": {
     "firebase": "^10.7.1"
