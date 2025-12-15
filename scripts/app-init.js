@@ -2,6 +2,7 @@
  * MoviEase - App Initialization
  * Discover your next favorite film with ease
  * 
+ * ✅ FIXED: Better error handling and container checks
  * ✅ IMPROVED AUTH WAIT: 5 seconds for Google redirect
  * ✅ Handles onboarding flow for new users
  * ✅ Manages tab navigation and rendering
@@ -342,7 +343,13 @@ class MoviEaseApp {
     createAppContainer() {
         const container = document.createElement('div');
         container.id = 'app-container';
-        container.style.cssText = 'min-height: 100vh; padding-bottom: 5rem; display: none;';
+        container.style.cssText = `
+            width: 100%;
+            min-height: 100vh;
+            position: relative;
+            padding-bottom: 5rem;
+            display: none;
+        `;
         document.body.appendChild(container);
         return container;
     }
@@ -550,7 +557,10 @@ class MoviEaseApp {
     }
 
     async renderCurrentTab() {
-        if (!this.container) return;
+        if (!this.container) {
+            console.error('[MoviEase] No container available for rendering');
+            return;
+        }
         
         // Show loading spinner with MoviEase colors
         this.container.innerHTML = `
@@ -564,19 +574,57 @@ class MoviEaseApp {
         `;
         
         await new Promise(resolve => setTimeout(resolve, 100));
-        this.container.innerHTML = '';
         
         const tab = this.tabs[this.currentTab];
-        if (tab && typeof tab.render === 'function') {
+        
+        if (!tab) {
+            console.error(`[MoviEase] Tab '${this.currentTab}' not found`);
+            this.container.innerHTML = `
+                <div style="padding: 2rem; text-align: center;">
+                    <div style="font-size: 3rem; margin-bottom: 1rem;">⚠️</div>
+                    <h3 style="color: white; margin-bottom: 1rem;">Tab Not Found</h3>
+                    <p style="color: rgba(176, 212, 227, 0.7);">The '${this.currentTab}' tab could not be loaded.</p>
+                </div>
+            `;
+            return;
+        }
+        
+        // ✅ CRITICAL: Clear container and ensure it's visible
+        this.container.innerHTML = '';
+        this.container.style.display = 'block';
+        
+        if (typeof tab.render === 'function') {
             try {
+                console.log(`[MoviEase] Rendering tab: ${this.currentTab}`);
                 await tab.render(this.container);
+                console.log(`[MoviEase] ✅ Tab rendered: ${this.currentTab}`);
             } catch (error) {
                 console.error(`[MoviEase] Error rendering ${this.currentTab}:`, error);
                 this.container.innerHTML = `
                     <div style="padding: 2rem; text-align: center;">
                         <div style="font-size: 3rem; margin-bottom: 1rem;">⚠️</div>
                         <h3 style="color: white; margin-bottom: 1rem;">Oops! Something went wrong</h3>
-                        <p style="color: rgba(176, 212, 227, 0.7);">We couldn't load this tab. Please try again.</p>
+                        <p style="color: rgba(176, 212, 227, 0.7); margin-bottom: 0.5rem;">Error: ${error.message}</p>
+                        <p style="color: rgba(176, 212, 227, 0.5); font-size: 0.875rem; margin-bottom: 1.5rem;">Tab: ${this.currentTab}</p>
+                        <button onclick="location.reload()" style="margin-top: 1.5rem; padding: 0.75rem 1.5rem; background: linear-gradient(135deg, #1e3a5f, #2d5a8f); border: none; border-radius: 0.75rem; color: white; font-weight: 600; cursor: pointer;">
+                            Reload App
+                        </button>
+                    </div>
+                `;
+            }
+        } else if (typeof tab.init === 'function') {
+            try {
+                console.log(`[MoviEase] Initializing tab: ${this.currentTab}`);
+                await tab.init(this.container);
+                console.log(`[MoviEase] ✅ Tab initialized: ${this.currentTab}`);
+            } catch (error) {
+                console.error(`[MoviEase] Error initializing ${this.currentTab}:`, error);
+                this.container.innerHTML = `
+                    <div style="padding: 2rem; text-align: center;">
+                        <div style="font-size: 3rem; margin-bottom: 1rem;">⚠️</div>
+                        <h3 style="color: white; margin-bottom: 1rem;">Oops! Something went wrong</h3>
+                        <p style="color: rgba(176, 212, 227, 0.7); margin-bottom: 0.5rem;">Error: ${error.message}</p>
+                        <p style="color: rgba(176, 212, 227, 0.5); font-size: 0.875rem; margin-bottom: 1.5rem;">Tab: ${this.currentTab}</p>
                         <button onclick="location.reload()" style="margin-top: 1.5rem; padding: 0.75rem 1.5rem; background: linear-gradient(135deg, #1e3a5f, #2d5a8f); border: none; border-radius: 0.75rem; color: white; font-weight: 600; cursor: pointer;">
                             Reload App
                         </button>
