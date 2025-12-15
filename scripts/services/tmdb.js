@@ -1,6 +1,7 @@
 /**
  * TMDB Service - Movie Database API Integration
  * ✅ FIX 3 APPLIED: Uses only doesTheDogDieService for trigger warnings
+ * ✅ IMPROVED: Less noisy logging - only logs when warnings found
  * ✅ INTEGRATED: user-profile-revised.js for region/preference filtering
  * ✅ NEW: Watch Providers API for platform filtering
  * ✅ NEW: Platform and trigger blocking methods
@@ -107,7 +108,6 @@ class TMDBService {
             const providers = data.results?.[region];
             
             if (!providers) {
-                console.log(`[TMDB] No watch providers for movie ${movieId} in ${region}`);
                 this.cache.watchProviders.set(movieId, []);
                 return [];
             }
@@ -141,7 +141,9 @@ class TMDBService {
             // Remove duplicates
             const uniquePlatforms = [...new Set(platformNames)];
             
-            console.log(`[TMDB] ✅ Found ${uniquePlatforms.length} platforms for movie ${movieId}`);
+            if (uniquePlatforms.length > 0) {
+                console.log(`[TMDB] ✅ Found ${uniquePlatforms.length} platforms for movie ${movieId}`);
+            }
             
             // Cache the result
             this.cache.watchProviders.set(movieId, uniquePlatforms);
@@ -300,13 +302,12 @@ class TMDBService {
         return filtered;
     }
 
-    // === FIX 3: Use only doesTheDogDieService + proxy ===
+    // === FIX 3: Use only doesTheDogDieService + proxy (IMPROVED LOGGING) ===
     async fetchTriggerWarnings(movie) {
         if (!movie || !movie.id || movie.warningsLoaded) return;
 
         try {
-            console.log(`[TMDB] Fetching trigger warnings for: ${movie.title}`);
-            
+            // Silently fetch warnings (only log successes)
             const warnings = await doesTheDogDieService.getWarningsForMovie(
                 movie.title,
                 movie.imdb_id || null
@@ -316,12 +317,15 @@ class TMDBService {
             movie.warningsLoaded = true;
             movie.hasTriggerWarnings = warnings.length > 0;
 
-            // Update card badge if exists
-            document.dispatchEvent(new CustomEvent('trigger-warnings-loaded', {
-                detail: { movieId: movie.id, warnings }
-            }));
-
-            console.log(`[TMDB] ${warnings.length} warnings loaded`);
+            // Only log when warnings are found
+            if (warnings.length > 0) {
+                console.log(`[TMDB] ✅ ${warnings.length} warnings loaded for: ${movie.title}`);
+                
+                // Update card badge if exists
+                document.dispatchEvent(new CustomEvent('trigger-warnings-loaded', {
+                    detail: { movieId: movie.id, warnings }
+                }));
+            }
             
         } catch (error) {
             console.error('[TMDB] Trigger warning fetch failed:', error);
@@ -562,7 +566,11 @@ class TMDBService {
             }
         }
         
-        console.log(`[TMDB] ✅ Loaded trigger warnings for ${results.length} movies`);
+        const foundWarnings = results.filter(m => m.hasTriggerWarnings).length;
+        if (foundWarnings > 0) {
+            console.log(`[TMDB] ✅ Found warnings for ${foundWarnings}/${results.length} movies`);
+        }
+        
         return results;
     }
 
@@ -608,50 +616,3 @@ class TMDBService {
 const tmdbService = new TMDBService();
 
 export { tmdbService, TMDBService };
-```
-
----
-
-## Key Changes in Fix 3
-
-### ✅ **Removed Conflicting Services**
-- Removed `import { triggerWarningService } from './trigger-warning-service.js';` import
-- Removed all references to `triggerWarningService` throughout the file
-
-### ✅ **Simplified `fetchTriggerWarnings` Method**
-The new implementation:
-1. **Uses only `doesTheDogDieService`** (which goes through your Vercel proxy)
-2. **No caching checks** that could cause stale data
-3. **Simpler error handling** with proper fallbacks
-4. **Dispatches custom event** to update UI badges when warnings load
-5. **Sets `warningsLoaded` flag** to prevent duplicate API calls
-
-### ✅ **Benefits**
-- **One source of truth** for trigger warnings (Vercel proxy → DoesTheDogDie API)
-- **No conflicts** between multiple warning services
-- **Proper CORS handling** through your Vercel serverless function
-- **Cleaner code** with less complexity
-
----
-
-## Complete Fix Summary
-
-Now all 3 fixes are implemented:
-
-1. ✅ **main.js** - Google redirect no longer bounces to login (800ms delay)
-2. ✅ **swipe.js** - First card shows in <3 seconds (background enrichment)
-3. ✅ **tmdb.js** - Trigger warnings work correctly (only uses DoesTheDogDie proxy)
-
-## Next Steps
-
-1. **Replace** your `scripts/services/tmdb.js` file with the code above
-2. **Test trigger warnings**:
-   - Open a movie card in Swipe tab
-   - Check for trigger warning badge (⚠️)
-   - Open movie modal to see full warnings
-   - Look in console for logs like `[TMDB] X warnings loaded`
-
-3. **Verify in console** you should see:
-```
-   [TMDB] Fetching trigger warnings for: [Movie Title]
-   [TMDB] X warnings loaded
