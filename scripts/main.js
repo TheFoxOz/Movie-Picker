@@ -23,21 +23,22 @@ async function initializeTMDB() {
     }
 }
 
-// Initialize Firebase Auth
+// === UPDATED: Better Google redirect handling ===
 async function initializeAuth() {
     try {
         console.log('[Main] Checking for Google redirect result...');
         
-        // ✅ CRITICAL: Wait for Google redirect result FIRST
         const redirectResult = await authService.handleRedirectResult();
         
         if (redirectResult) {
-            console.log('[Main] ✅ Google redirect successful, user:', redirectResult.user.email);
+            console.log('[Main] Google redirect successful:', redirectResult.user.email);
+            // Give Firebase a moment to fully update auth state
+            await new Promise(resolve => setTimeout(resolve, 800));
         } else {
-            console.log('[Main] No redirect result (normal page load)');
+            console.log('[Main] No redirect result');
         }
         
-        console.log('✅ Auth Service initialized');
+        console.log('✅ Auth Service ready');
     } catch (error) {
         console.error('⚠️ Auth redirect handling failed:', error);
     }
