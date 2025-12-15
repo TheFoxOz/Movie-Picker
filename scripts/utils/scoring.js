@@ -221,3 +221,4 @@ export function getPlatformStyle(platform) {
     
     return styles[platform] || { icon: '▶', color: '#6366f1' };
 }
+
