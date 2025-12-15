@@ -1,672 +1,531 @@
-import { store } from '../state/store.js';
+/**
+ * MoviEase - Home Tab
+ * Personalized movie feed with horizontal scrolling rows
+ * ✅ MoviEase branding and colors
+ * ✅ Proper scrolling functionality
+ * ✅ Visible section headers
+ */
+
 import { tmdbService } from '../services/tmdb.js';
-import { movieModal } from '../components/movie-modal.js';
-import { ENV } from '../config/env.js';
-
-const GENRE_IDS = {
-    ACTION: 28,
-    ADVENTURE: 12,
-    ANIMATION: 16,
-    COMEDY: 35,
-    CRIME: 80,
-    DOCUMENTARY: 99,
-    DRAMA: 18,
-    FAMILY: 10751,
-    FANTASY: 14,
-    HISTORY: 36,
-    HORROR: 27,
-    MUSIC: 10402,
-    MYSTERY: 9648,
-    ROMANCE: 10749,
-    SCIFI: 878,
-    THRILLER: 53,
-    WAR: 10752,
-    WESTERN: 37
-};
-
-const GENRE_NAMES = {
-    28: 'Action',
-    12: 'Adventure',
-    16: 'Animation',
-    35: 'Comedy',
-    80: 'Crime',
-    99: 'Documentary',
-    18: 'Drama',
-    10751: 'Family',
-    14: 'Fantasy',
-    36: 'History',
-    27: 'Horror',
-    10402: 'Music',
-    9648: 'Mystery',
-    10749: 'Romance',
-    878: 'Sci-Fi',
-    53: 'Thriller',
-    10752: 'War',
-    37: 'Western'
-};
+import { store } from '../state/store.js';
 
 export class HomeTab {
     constructor() {
         this.container = null;
-        this.preferences = null;
-        this.sections = {}; // Will hold all movie sections
-        this.isLoading = false;
     }
 
     async render(container) {
+        console.log('[Home] Rendering home tab...');
         this.container = container;
-        this.preferences = store.getState().preferences || this.getDefaultPreferences();
-        
-        window.addEventListener('preferences-updated', () => {
-            console.log('[Home] Preferences updated, refreshing...');
-            this.render(this.container);
-        });
 
-        this.container.innerHTML = this.renderLoading();
-        await this.loadContent();
-        this.renderContent();
-    }
-
-    getDefaultPreferences() {
-        return {
-            platforms: {
-                'Netflix': true,
-                'Hulu': true,
-                'Prime Video': true,
-                'Disney+': true,
-                'HBO Max': true,
-                'Apple TV+': true
-            },
-            triggerWarnings: { enabled: false },
-            theme: 'dark',
-            language: 'en',
-            location: 'US'
-        };
-    }
-
-    /**
-     * ✅ NEW: Fetch movies until we have enough that match user's filters
-     * Keeps fetching pages until we have targetCount filtered movies
-     */
-    async fetchUntilEnough(fetchFunction, targetCount = 20, maxPages = 5) {
-        let allMovies = [];
-        let page = 1;
-        
-        console.log(`[Home] Fetching until we have ${targetCount} movies...`);
-        
-        while (allMovies.length < targetCount && page <= maxPages) {
-            console.log(`[Home] Fetching page ${page}...`);
-            
-            // Fetch the page
-            let pageMovies = await fetchFunction(page);
-            pageMovies = pageMovies.movies || pageMovies || [];
-            
-            // Enrich with platform data
-            pageMovies = await this.enrichWithPlatformData(pageMovies);
-            
-            // Filter the movies
-            const filtered = this.filterMovies(pageMovies);
-            
-            console.log(`[Home] Page ${page}: ${pageMovies.length} fetched → ${filtered.length} after filtering`);
-            
-            // Add to our collection
-            allMovies = allMovies.concat(filtered);
-            
-            // If we got no filtered movies, might be pointless to continue
-            if (filtered.length === 0 && page > 2) {
-                console.log(`[Home] No movies found on page ${page}, stopping`);
-                break;
-            }
-            
-            page++;
-        }
-        
-        console.log(`[Home] ✅ Collected ${allMovies.length} movies across ${page - 1} pages`);
-        
-        // Return exactly targetCount movies (or less if we couldn't get enough)
-        return allMovies.slice(0, targetCount);
-    }
-
-    async loadContent() {
-        if (this.isLoading) return;
-        this.isLoading = true;
+        // Show loading state
+        this.container.innerHTML = `
+            <div style="display: flex; align-items: center; justify-content: center; height: calc(100vh - 10rem); flex-direction: column; gap: 1rem;">
+                <div style="width: 48px; height: 48px; border: 4px solid rgba(176, 212, 227, 0.2); border-top-color: #b0d4e3; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                <p style="color: rgba(176, 212, 227, 0.7); font-size: 0.875rem;">Loading your personalized feed...</p>
+            </div>
+            <style>@keyframes spin { to { transform: rotate(360deg); }}</style>
+        `;
 
         try {
-            if (!tmdbService) {
-                console.error('[Home] TMDB service not available');
-                return;
-            }
+            // Load movie data
+            const [trending, popular, topRated] = await Promise.all([
+                tmdbService.getTrendingMovies('week'),
+                tmdbService.getPopularMovies(1),
+                tmdbService.discoverMovies({ sortBy: 'vote_average.desc', minVotes: 1000, page: 1 })
+            ]);
 
-            console.log('[Home] Loading content...');
-            this.sections = {};
+            // Get user's genre preferences from swipe history
+            const state = store.getState();
+            const swipeHistory = state.swipeHistory || [];
+            const favoriteGenres = this.getFavoriteGenres(swipeHistory);
 
-            // Get user's favorite genres from swipe history
-            const favoriteGenres = this.getUserFavoriteGenres();
-            console.log('[Home] User favorite genres:', favoriteGenres);
-
-            // ✅ IMPROVED: Load Trending - fetch until we have 20
-            console.log('[Home] Loading trending movies...');
-            const trending = await this.fetchUntilEnough(
-                (page) => tmdbService.getTrendingMovies('week', page),
-                20,
-                5
-            );
-            this.sections['Trending This Week'] = {
-                emoji: '🔥',
-                movies: trending
-            };
-
-            // Load genre-specific sections based on user preferences
-            if (favoriteGenres.length > 0) {
-                // Load sections for user's favorite genres
-                for (const genreId of favoriteGenres.slice(0, 3)) { // Top 3 favorite genres
-                    const genreName = GENRE_NAMES[genreId];
-                    if (genreName) {
-                        console.log(`[Home] Loading ${genreName} movies...`);
-                        const genreMovies = await this.fetchUntilEnough(
-                            (page) => tmdbService.discoverMovies({
-                                withGenres: genreId,
-                                sortBy: 'popularity.desc',
-                                page: page
-                            }),
-                            20,
-                            5
-                        );
-                        
-                        this.sections[`${genreName} Movies`] = {
-                            emoji: this.getGenreEmoji(genreId),
-                            movies: genreMovies
-                        };
-                    }
-                }
-            } else {
-                // Default genre sections for new users
-                const defaultGenres = [
-                    { id: GENRE_IDS.ACTION, name: 'Action' },
-                    { id: GENRE_IDS.COMEDY, name: 'Comedy' },
-                    { id: GENRE_IDS.DRAMA, name: 'Drama' }
-                ];
-
-                for (const { id, name } of defaultGenres) {
-                    console.log(`[Home] Loading ${name} movies...`);
-                    const genreMovies = await this.fetchUntilEnough(
-                        (page) => tmdbService.discoverMovies({
-                            withGenres: id,
-                            sortBy: 'popularity.desc',
-                            page: page
-                        }),
-                        20,
-                        5
-                    );
-                    
-                    this.sections[`${name} Movies`] = {
-                        emoji: this.getGenreEmoji(id),
-                        movies: genreMovies
-                    };
-                }
-            }
-
-            // ✅ IMPROVED: Top Rated section
-            console.log('[Home] Loading top rated movies...');
-            const topRated = await this.fetchUntilEnough(
-                (page) => tmdbService.discoverMovies({
-                    sortBy: 'vote_average.desc',
-                    minVotes: 1000,
-                    page: page
-                }),
-                20,
-                5
-            );
-            this.sections['Top Rated'] = {
-                emoji: '⭐',
-                movies: topRated
-            };
-
-            // ✅ IMPROVED: Popular Movies section
-            console.log('[Home] Loading popular movies...');
-            const popular = await this.fetchUntilEnough(
-                (page) => tmdbService.getPopularMovies(page),
-                20,
-                5
-            );
-            this.sections['Popular Now'] = {
-                emoji: '🍿',
-                movies: popular
-            };
-
-            console.log('[Home] ✅ Content loaded successfully');
-            console.log('[Home] Total sections:', Object.keys(this.sections).length);
+            // Render the feed
+            this.renderFeed(trending, popular, topRated.movies, favoriteGenres);
 
         } catch (error) {
-            console.error('[Home] Error loading content:', error);
-        } finally {
-            this.isLoading = false;
+            console.error('[Home] Failed to load content:', error);
+            this.container.innerHTML = `
+                <div style="display: flex; align-items: center; justify-content: center; height: calc(100vh - 10rem); flex-direction: column; gap: 1rem; padding: 2rem; text-align: center;">
+                    <div style="font-size: 3rem;">⚠️</div>
+                    <h3 style="color: white; font-size: 1.25rem; font-weight: 700;">Failed to Load Content</h3>
+                    <p style="color: rgba(176, 212, 227, 0.6); font-size: 0.875rem;">Please try refreshing the page</p>
+                    <button onclick="location.reload()" style="padding: 0.75rem 1.5rem; background: linear-gradient(135deg, #1e3a5f, #2d5a8f); border: none; border-radius: 0.75rem; color: white; font-weight: 600; cursor: pointer; margin-top: 1rem;">
+                        Refresh
+                    </button>
+                </div>
+            `;
         }
     }
 
-    getUserFavoriteGenres() {
-        const swipeHistory = store.getState().swipeHistory || [];
-        
-        const lovedAndLiked = swipeHistory.filter(s => 
-            s && 
-            (s.action === 'love' || s.action === 'like') && 
-            s.movie && 
-            s.movie.id
-        );
+    renderFeed(trending, popular, topRated, favoriteGenres) {
+        const sections = [
+            { title: '🔥 Trending This Week', movies: trending },
+            { title: '⭐ Popular Now', movies: popular },
+            { title: '🏆 Top Rated', movies: topRated }
+        ];
 
-        if (lovedAndLiked.length === 0) {
-            return [];
-        }
-
-        // Count genre occurrences
-        const genreCounts = {};
-        lovedAndLiked.forEach(swipe => {
-            const movie = swipe.movie;
-            if (!movie) return;
-            
-            const genreIds = movie.genre_ids || movie.genreIds || [];
-            genreIds.forEach(genreId => {
-                genreCounts[genreId] = (genreCounts[genreId] || 0) + 1;
-            });
-        });
-
-        // Sort by count and return top genres
-        return Object.entries(genreCounts)
-            .sort((a, b) => b[1] - a[1])
-            .map(([genreId]) => parseInt(genreId));
-    }
-
-    getGenreEmoji(genreId) {
-        const emojis = {
-            28: '💥',  // Action
-            12: '🗺️',  // Adventure
-            16: '🎨',  // Animation
-            35: '😂',  // Comedy
-            80: '🔫',  // Crime
-            99: '📽️',  // Documentary
-            18: '🎭',  // Drama
-            10751: '👨‍👩‍👧‍👦', // Family
-            14: '🧙',  // Fantasy
-            36: '📜',  // History
-            27: '👻',  // Horror
-            10402: '🎵', // Music
-            9648: '🔍', // Mystery
-            10749: '💕', // Romance
-            878: '🚀', // Sci-Fi
-            53: '😱', // Thriller
-            10752: '⚔️', // War
-            37: '🤠'  // Western
-        };
-        return emojis[genreId] || '🎬';
-    }
-
-    async enrichWithPlatformData(movies, options = { maxConcurrent: 5, delay: 50 }) {
-        if (!movies || movies.length === 0) {
-            return movies;
-        }
-
-        const { maxConcurrent, delay } = options;
-        
-        for (let i = 0; i < movies.length; i += maxConcurrent) {
-            const batch = movies.slice(i, i + maxConcurrent);
-            
-            await Promise.all(
-                batch.map(async (movie) => {
-                    if (tmdbService.getWatchProviders) {
-                        movie.availableOn = await tmdbService.getWatchProviders(movie.id);
-                        
-                        // ✅ NEW: Set platform field
-                        if (movie.availableOn && movie.availableOn.length > 0) {
-                            movie.platform = movie.availableOn[0];
-                        } else {
-                            const year = movie.releaseDate?.split('-')[0] || movie.year;
-                            const currentYear = new Date().getFullYear();
-                            
-                            if (year && parseInt(year) > currentYear) {
-                                movie.platform = 'Coming Soon';
-                            } else {
-                                movie.platform = 'Cinema';
-                            }
-                        }
-                    } else {
-                        movie.availableOn = [];
-                        movie.platform = 'Not Available';
-                    }
-                })
-            );
-            
-            if (i + maxConcurrent < movies.length) {
-                await new Promise(resolve => setTimeout(resolve, delay));
-            }
-        }
-        
-        return movies;
-    }
-
-    // ✅ UPDATED: Filter out cinema-only movies, but keep movies without platform data
-    filterMovies(movies) {
-        if (!movies || movies.length === 0) {
-            return [];
-        }
-
-        let filtered = [...movies];
-
-        // ✅ FIXED: Only remove movies explicitly marked as Cinema/Coming Soon
-        // Keep movies without platform data (most TMDB movies don't have this)
-        filtered = filtered.filter(movie => {
-            const platform = movie.platform;
-            
-            // Only remove if explicitly cinema-only, coming soon, or not available
-            if (platform === 'Cinema' || platform === 'Coming Soon' || platform === 'Not Available') {
-                console.log(`[Home] Filtering out cinema-only movie: ${movie.title}`);
-                return false;
-            }
-            
-            // Keep all other movies (including those without platform data)
-            return true;
-        });
-
-        console.log(`[Home] Cinema filter: ${movies.length} → ${filtered.length} movies`);
-
-        // Filter by user's selected platforms
-        if (tmdbService.filterByUserPlatforms) {
-            const beforePlatformFilter = filtered.length;
-            filtered = tmdbService.filterByUserPlatforms(filtered);
-            
-            if (filtered.length < beforePlatformFilter) {
-                console.log(`[Home] Platform filter: ${beforePlatformFilter} → ${filtered.length} movies`);
-            }
-        }
-
-        // Filter by trigger warnings
-        if (this.preferences.triggerWarnings.enabled) {
-            if (tmdbService.filterBlockedMovies) {
-                const beforeTriggerFilter = filtered.length;
-                filtered = tmdbService.filterBlockedMovies(filtered);
+        // Add genre-based sections if user has favorites
+        if (favoriteGenres.length > 0) {
+            favoriteGenres.slice(0, 2).forEach(genre => {
+                const genreMovies = popular.filter(m => 
+                    m.genres && m.genres.includes(genre)
+                ).slice(0, 10);
                 
-                if (filtered.length < beforeTriggerFilter) {
-                    console.log(`[Home] Trigger filter: ${beforeTriggerFilter} → ${filtered.length} movies`);
+                if (genreMovies.length > 0) {
+                    sections.push({
+                        title: `🎬 ${genre} Picks`,
+                        movies: genreMovies
+                    });
                 }
-            }
+            });
         }
 
-        return filtered;
-    }
-
-    renderLoading() {
-        return `
-            <div style="display:flex;align-items:center;justify-content:center;height:calc(100vh - 10rem);flex-direction:column;gap:1rem;">
-                <div style="width:48px;height:48px;border:4px solid rgba(255,46,99,0.3);border-top-color:#ff2e63;border-radius:50%;animation:spin 1s linear infinite;"></div>
-                <p style="color:rgba(255,255,255,0.7);">Loading your personalized feed...</p>
-            </div>
-            <style>
-                @keyframes spin {
-                    to { transform: rotate(360deg); }
-                }
-            </style>
-        `;
-    }
-
-    renderContent() {
-        const enabledPlatforms = Object.keys(this.preferences.platforms)
-            .filter(p => this.preferences.platforms[p]);
-
-        const swipeHistory = store.getState().swipeHistory || [];
-        const hasHistory = swipeHistory.length > 0;
+        const sectionsHTML = sections.map(section => this.renderSection(section)).join('');
 
         this.container.innerHTML = `
-            <div style="padding: 1.5rem 1rem 6rem;">
-                
+            <div style="padding: 1.5rem 0 6rem; overflow-y: auto; height: calc(100vh - 5rem); -webkit-overflow-scrolling: touch;">
                 <!-- Header -->
-                <div style="margin-bottom: 2rem;">
-                    <h1 style="font-size: 1.75rem; font-weight: 800; color: white; margin: 0 0 0.5rem 0;">
-                        ${this.getGreeting()}
+                <div style="padding: 0 1rem 1.5rem;">
+                    <h1 style="font-size: 1.75rem; font-weight: 800; background: linear-gradient(135deg, #b0d4e3, #f4e8c1); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin: 0 0 0.5rem;">
+                        Discover
                     </h1>
-                    <p style="color: rgba(255,255,255,0.6); font-size: 0.875rem; margin: 0;">
-                        ${hasHistory ? 'Personalized for your taste' : 'Discover movies on your platforms'}
+                    <p style="color: rgba(176, 212, 227, 0.6); font-size: 0.875rem; margin: 0;">
+                        Your personalized movie feed
                     </p>
                 </div>
 
-                <!-- Warning if no platforms -->
-                ${enabledPlatforms.length === 0 ? `
-                    <div style="padding: 1.5rem; background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); border-radius: 1rem; margin-bottom: 2rem;">
-                        <div style="display: flex; align-items: center; gap: 0.75rem;">
-                            <span style="font-size: 1.5rem;">⚠️</span>
-                            <div>
-                                <div style="font-weight: 700; color: #ef4444; margin-bottom: 0.25rem;">No Platforms Enabled</div>
-                                <div style="font-size: 0.875rem; color: rgba(255,255,255,0.7);">
-                                    Go to Profile → Streaming Platforms to enable at least one platform
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                ` : ''}
-
-                ${enabledPlatforms.length > 0 ? `
-                    <!-- Movie Sections -->
-                    ${Object.entries(this.sections).map(([title, data]) => 
-                        this.renderSection(data.emoji, title, data.movies)
-                    ).join('')}
-
-                    <!-- End Message -->
-                    <div style="text-align: center; padding: 3rem 1rem;">
-                        <div style="font-size: 3rem; margin-bottom: 0.5rem;">🎬</div>
-                        <p style="color: rgba(255,255,255,0.5); margin: 0;">
-                            That's all for now! Check back later for more.
-                        </p>
-                    </div>
-                ` : ''}
+                <!-- Movie Sections -->
+                ${sectionsHTML}
             </div>
         `;
 
-        this.attachListeners();
+        // Add click handlers to movie cards
+        this.attachMovieClickHandlers();
     }
 
-    renderSection(emoji, title, movies) {
-        if (!movies || movies.length === 0) {
-            return '';
-        }
+    renderSection(section) {
+        if (!section.movies || section.movies.length === 0) return '';
+
+        const moviesHTML = section.movies.map(movie => this.renderMovieCard(movie)).join('');
 
         return `
-            <div style="margin-bottom: 2.5rem;">
-                <!-- Section Header -->
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; padding: 0 0.5rem;">
-                    <h2 style="font-size: 1.125rem; font-weight: 700; color: white; margin: 0; display: flex; align-items: center; gap: 0.5rem;">
-                        <span style="font-size: 1.25rem;">${emoji}</span>
-                        ${title}
-                    </h2>
-                </div>
-                
-                <!-- Horizontal scrolling with SMALLER cards (3-4 visible) -->
-                <div class="movie-row" style="
+            <div style="margin-bottom: 2rem;">
+                <!-- Section Title -->
+                <h2 style="
+                    color: white;
+                    font-size: 1.125rem;
+                    font-weight: 700;
+                    padding: 0 1rem 1rem;
+                    margin: 0;
+                ">
+                    ${section.title}
+                </h2>
+
+                <!-- Horizontal Scrolling Row -->
+                <div style="
+                    display: flex;
+                    gap: 1rem;
                     overflow-x: auto;
-                    overflow-y: hidden;
-                    scroll-behavior: smooth;
+                    padding: 0 1rem 1rem;
+                    scroll-snap-type: x mandatory;
                     -webkit-overflow-scrolling: touch;
                     scrollbar-width: none;
                     -ms-overflow-style: none;
-                    padding: 0 0.5rem;
                 ">
-                    <div style="
-                        display: flex;
-                        gap: 0.75rem;
-                        padding-bottom: 1rem;
-                    ">
-                        ${movies.map(movie => this.renderMovieCard(movie)).join('')}
-                    </div>
+                    ${moviesHTML}
                 </div>
-                
-                <style>
-                    .movie-row::-webkit-scrollbar {
-                        display: none;
-                    }
-                </style>
             </div>
         `;
     }
 
     renderMovieCard(movie) {
-        const posterUrl = movie.posterURL || 
-                         (movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : null) ||
-                         movie.backdropURL ||
-                         `https://placehold.co/300x450/1a1a2e/ffffff?text=${encodeURIComponent(movie.title || 'Movie')}`;
-        
-        const hasWarnings = movie.triggerWarnings && movie.triggerWarnings.length > 0;
-        const platform = movie.availableOn && movie.availableOn.length > 0 ? movie.availableOn[0] : null;
-        const year = movie.releaseDate?.split('-')[0] || movie.release_date?.split('-')[0] || '';
+        const posterURL = movie.posterURL || `https://via.placeholder.com/300x450/1e3a5f/b0d4e3?text=${encodeURIComponent(movie.title)}`;
+        const rating = movie.rating ? movie.rating.toFixed(1) : 'N/A';
+        const year = movie.releaseDate ? movie.releaseDate.split('-')[0] : '';
 
         return `
-            <div class="home-movie-card" data-movie-id="${movie.id}" style="
-                min-width: 110px;
-                max-width: 110px;
-                flex-shrink: 0;
-            ">
+            <div 
+                class="home-movie-card" 
+                data-movie-id="${movie.id}"
+                style="
+                    flex: 0 0 140px;
+                    scroll-snap-align: start;
+                    cursor: pointer;
+                    transition: transform 0.2s;
+                "
+                onmouseover="this.style.transform='scale(1.05)'"
+                onmouseout="this.style.transform='scale(1)'"
+            >
+                <!-- Poster -->
                 <div style="
                     position: relative;
-                    width: 100%;
-                    aspect-ratio: 2/3;
-                    border-radius: 0.625rem;
+                    width: 140px;
+                    height: 210px;
+                    border-radius: 0.75rem;
                     overflow: hidden;
-                    background: rgba(255,255,255,0.05);
-                    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-                    transition: transform 0.2s, box-shadow 0.2s;
-                    cursor: pointer;
+                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+                    background: linear-gradient(135deg, rgba(30, 58, 95, 0.3), rgba(26, 31, 46, 0.3));
                 ">
                     <img 
-                        src="${posterUrl}" 
-                        alt="${movie.title}" 
-                        style="width: 100%; height: 100%; object-fit: cover;"
-                        onerror="this.src='https://placehold.co/300x450/1a1a2e/ffffff?text=${encodeURIComponent(movie.title || 'Movie')}'"
-                    >
+                        src="${posterURL}" 
+                        alt="${movie.title}"
+                        style="
+                            width: 100%;
+                            height: 100%;
+                            object-fit: cover;
+                        "
+                        onerror="this.src='https://via.placeholder.com/300x450/1e3a5f/b0d4e3?text=No+Poster'"
+                    />
                     
                     <!-- Rating Badge -->
-                    ${movie.vote_average || movie.rating ? `
+                    ${rating !== 'N/A' ? `
                         <div style="
                             position: absolute;
-                            top: 0.375rem;
-                            right: 0.375rem;
-                            padding: 0.1875rem 0.375rem;
-                            background: rgba(251,191,36,0.95);
+                            top: 0.5rem;
+                            right: 0.5rem;
+                            background: linear-gradient(135deg, rgba(30, 58, 95, 0.95), rgba(26, 31, 46, 0.95));
                             backdrop-filter: blur(8px);
-                            border-radius: 0.375rem;
-                            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-                        ">
-                            <span style="color: white; font-size: 0.6875rem; font-weight: 700;">
-                                ${(movie.vote_average || movie.rating).toFixed(1)}
-                            </span>
-                        </div>
-                    ` : ''}
-
-                    <!-- Trigger Warning Badge -->
-                    ${hasWarnings ? `
-                        <div style="
-                            position: absolute;
-                            top: 0.375rem;
-                            left: 0.375rem;
-                            padding: 0.1875rem 0.375rem;
-                            background: rgba(239,68,68,0.95);
-                            backdrop-filter: blur(8px);
-                            border-radius: 0.375rem;
-                            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-                        ">
-                            <span style="color: white; font-size: 0.6875rem; font-weight: 700;">⚠️</span>
-                        </div>
-                    ` : ''}
-
-                    <!-- Movie Info Overlay -->
-                    <div style="
-                        position: absolute;
-                        bottom: 0;
-                        left: 0;
-                        right: 0;
-                        padding: 0.5rem 0.375rem;
-                        background: linear-gradient(0deg, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.7) 50%, transparent 100%);
-                    ">
-                        <h3 style="
+                            border: 1px solid rgba(176, 212, 227, 0.3);
+                            border-radius: 0.5rem;
+                            padding: 0.25rem 0.5rem;
+                            display: flex;
+                            align-items: center;
+                            gap: 0.25rem;
                             font-size: 0.75rem;
                             font-weight: 700;
-                            color: white;
-                            margin: 0;
-                            line-height: 1.2;
-                            overflow: hidden;
-                            text-overflow: ellipsis;
-                            display: -webkit-box;
-                            -webkit-line-clamp: 2;
-                            -webkit-box-orient: vertical;
+                            color: ${parseFloat(rating) >= 7 ? '#4ade80' : parseFloat(rating) >= 5 ? '#fbbf24' : '#ef4444'};
                         ">
-                            ${movie.title}
-                        </h3>
+                            ⭐ ${rating}
+                        </div>
+                    ` : ''}
+                </div>
+
+                <!-- Movie Info -->
+                <div style="margin-top: 0.5rem;">
+                    <h3 style="
+                        color: white;
+                        font-size: 0.875rem;
+                        font-weight: 600;
+                        margin: 0 0 0.25rem;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                        display: -webkit-box;
+                        -webkit-line-clamp: 2;
+                        -webkit-box-orient: vertical;
+                        line-height: 1.3;
+                    ">
+                        ${movie.title}
+                    </h3>
+                    ${year ? `
                         <p style="
-                            font-size: 0.625rem;
-                            color: rgba(255,255,255,0.7);
-                            margin: 0.25rem 0 0 0;
+                            color: rgba(176, 212, 227, 0.6);
+                            font-size: 0.75rem;
+                            margin: 0;
                         ">
-                            ${year}${platform ? ` • ${this.getPlatformEmoji(platform)}` : ''}
+                            ${year}
                         </p>
-                    </div>
+                    ` : ''}
                 </div>
             </div>
         `;
     }
 
-    getPlatformEmoji(platform) {
-        const emojis = {
-            'Netflix': '🔴',
-            'Hulu': '🟢',
-            'Prime Video': '🔵',
-            'Disney+': '⭐',
-            'HBO Max': '🟣',
-            'Apple TV+': '🍎',
-            'Peacock': '🦚',
-            'Paramount+': '🔷'
-        };
-        return emojis[platform] || '▶️';
-    }
-
-    getGreeting() {
-        const hour = new Date().getHours();
-        if (hour < 12) return 'Good Morning';
-        if (hour < 18) return 'Good Afternoon';
-        return 'Good Evening';
-    }
-
-    attachListeners() {
-        this.container.querySelectorAll('.home-movie-card').forEach(card => {
-            const cardDiv = card.querySelector('div[style*="cursor: pointer"]');
-            
-            card.addEventListener('mouseover', () => {
-                if (cardDiv) {
-                    cardDiv.style.transform = 'scale(1.05)';
-                    cardDiv.style.boxShadow = '0 8px 20px rgba(0,0,0,0.6)';
-                }
-            });
-            
-            card.addEventListener('mouseout', () => {
-                if (cardDiv) {
-                    cardDiv.style.transform = 'scale(1)';
-                    cardDiv.style.boxShadow = '0 4px 12px rgba(0,0,0,0.4)';
-                }
-            });
-            
-            card.addEventListener('click', () => {
+    attachMovieClickHandlers() {
+        const movieCards = this.container.querySelectorAll('.home-movie-card');
+        movieCards.forEach(card => {
+            card.addEventListener('click', async () => {
                 const movieId = parseInt(card.dataset.movieId);
-                const movie = this.findMovieById(movieId);
-                if (movie) {
-                    movieModal.show(movie);
+                if (movieId) {
+                    await this.showMovieModal(movieId);
                 }
             });
         });
     }
 
-    findMovieById(movieId) {
-        for (const sectionData of Object.values(this.sections)) {
-            const movie = sectionData.movies.find(m => m.id === movieId);
-            if (movie) return movie;
+    async showMovieModal(movieId) {
+        try {
+            console.log('[Home] Loading movie details:', movieId);
+            
+            // Show loading modal
+            const modal = document.createElement('div');
+            modal.id = 'movie-modal';
+            modal.style.cssText = `
+                position: fixed;
+                inset: 0;
+                background: rgba(10, 14, 26, 0.95);
+                backdrop-filter: blur(8px);
+                z-index: 1000;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 1rem;
+                animation: fadeIn 0.2s;
+            `;
+            
+            modal.innerHTML = `
+                <div style="width: 48px; height: 48px; border: 4px solid rgba(176, 212, 227, 0.2); border-top-color: #b0d4e3; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+            `;
+            
+            document.body.appendChild(modal);
+
+            // Load movie details
+            const movie = await tmdbService.getMovieDetails(movieId);
+            
+            if (!movie) {
+                modal.remove();
+                return;
+            }
+
+            // Render full modal
+            this.renderMovieModal(modal, movie);
+
+        } catch (error) {
+            console.error('[Home] Failed to load movie details:', error);
+            const modal = document.getElementById('movie-modal');
+            if (modal) modal.remove();
         }
-        return null;
     }
 
-    destroy() {
-        window.removeEventListener('preferences-updated', this.render);
+    renderMovieModal(modal, movie) {
+        const backdropURL = movie.backdropURL || movie.posterURL || '';
+        const posterURL = movie.posterURL || '';
+        const rating = movie.rating ? movie.rating.toFixed(1) : 'N/A';
+        const year = movie.releaseDate ? movie.releaseDate.split('-')[0] : '';
+        const runtime = movie.runtime ? `${movie.runtime}min` : '';
+        const director = movie.director ? movie.director.name : '';
+        
+        modal.innerHTML = `
+            <div style="
+                width: 100%;
+                max-width: 600px;
+                max-height: 90vh;
+                background: linear-gradient(180deg, rgba(20, 24, 36, 0.98), rgba(26, 31, 46, 0.98));
+                border: 1px solid rgba(176, 212, 227, 0.2);
+                border-radius: 1.5rem;
+                overflow-y: auto;
+                position: relative;
+                animation: slideUp 0.3s;
+            ">
+                <!-- Close Button -->
+                <button 
+                    id="close-modal" 
+                    style="
+                        position: sticky;
+                        top: 1rem;
+                        right: 1rem;
+                        float: right;
+                        width: 40px;
+                        height: 40px;
+                        background: rgba(30, 58, 95, 0.8);
+                        backdrop-filter: blur(8px);
+                        border: 1px solid rgba(176, 212, 227, 0.3);
+                        border-radius: 50%;
+                        color: white;
+                        font-size: 1.25rem;
+                        cursor: pointer;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        z-index: 10;
+                        margin: 1rem 1rem 0 0;
+                    "
+                >
+                    ✕
+                </button>
+
+                <!-- Backdrop -->
+                ${backdropURL ? `
+                    <div style="
+                        width: 100%;
+                        height: 250px;
+                        background: url('${backdropURL}') center/cover;
+                        position: relative;
+                    ">
+                        <div style="
+                            position: absolute;
+                            inset: 0;
+                            background: linear-gradient(to bottom, transparent 0%, rgba(20, 24, 36, 0.98) 100%);
+                        "></div>
+                    </div>
+                ` : ''}
+
+                <!-- Content -->
+                <div style="padding: 1.5rem;">
+                    <!-- Title & Info -->
+                    <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem;">
+                        ${posterURL ? `
+                            <img 
+                                src="${posterURL}" 
+                                alt="${movie.title}"
+                                style="
+                                    width: 100px;
+                                    height: 150px;
+                                    object-fit: cover;
+                                    border-radius: 0.75rem;
+                                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+                                "
+                            />
+                        ` : ''}
+                        <div style="flex: 1;">
+                            <h2 style="
+                                color: white;
+                                font-size: 1.5rem;
+                                font-weight: 700;
+                                margin: 0 0 0.5rem;
+                            ">
+                                ${movie.title}
+                            </h2>
+                            <div style="display: flex; flex-wrap: wrap; gap: 0.75rem; color: rgba(176, 212, 227, 0.7); font-size: 0.875rem;">
+                                ${year ? `<span>${year}</span>` : ''}
+                                ${runtime ? `<span>• ${runtime}</span>` : ''}
+                                ${rating !== 'N/A' ? `<span>• ⭐ ${rating}</span>` : ''}
+                            </div>
+                            ${movie.genres && movie.genres.length > 0 ? `
+                                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem;">
+                                    ${movie.genres.map(genre => `
+                                        <span style="
+                                            padding: 0.25rem 0.75rem;
+                                            background: rgba(176, 212, 227, 0.1);
+                                            border: 1px solid rgba(176, 212, 227, 0.2);
+                                            border-radius: 1rem;
+                                            font-size: 0.75rem;
+                                            color: #b0d4e3;
+                                        ">
+                                            ${genre}
+                                        </span>
+                                    `).join('')}
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+
+                    <!-- Overview -->
+                    ${movie.overview ? `
+                        <div style="margin-bottom: 1.5rem;">
+                            <h3 style="
+                                color: white;
+                                font-size: 1rem;
+                                font-weight: 700;
+                                margin: 0 0 0.75rem;
+                            ">
+                                Overview
+                            </h3>
+                            <p style="
+                                color: rgba(176, 212, 227, 0.8);
+                                font-size: 0.9375rem;
+                                line-height: 1.6;
+                                margin: 0;
+                            ">
+                                ${movie.overview}
+                            </p>
+                        </div>
+                    ` : ''}
+
+                    <!-- Director -->
+                    ${director ? `
+                        <div style="margin-bottom: 1.5rem;">
+                            <span style="color: rgba(176, 212, 227, 0.6); font-size: 0.875rem;">Directed by</span>
+                            <span style="color: white; font-size: 0.875rem; font-weight: 600; margin-left: 0.5rem;">${director}</span>
+                        </div>
+                    ` : ''}
+
+                    <!-- Cast -->
+                    ${movie.cast && movie.cast.length > 0 ? `
+                        <div style="margin-bottom: 1.5rem;">
+                            <h3 style="
+                                color: white;
+                                font-size: 1rem;
+                                font-weight: 700;
+                                margin: 0 0 0.75rem;
+                            ">
+                                Cast
+                            </h3>
+                            <div style="display: flex; gap: 0.5rem; overflow-x: auto; padding-bottom: 0.5rem;">
+                                ${movie.cast.slice(0, 10).map(actor => `
+                                    <div style="
+                                        flex: 0 0 80px;
+                                        text-align: center;
+                                    ">
+                                        ${actor.profile_path ? `
+                                            <div style="
+                                                width: 80px;
+                                                height: 80px;
+                                                border-radius: 50%;
+                                                background: url('https://image.tmdb.org/t/p/w185${actor.profile_path}') center/cover;
+                                                margin-bottom: 0.5rem;
+                                                border: 2px solid rgba(176, 212, 227, 0.2);
+                                            "></div>
+                                        ` : `
+                                            <div style="
+                                                width: 80px;
+                                                height: 80px;
+                                                border-radius: 50%;
+                                                background: linear-gradient(135deg, #1e3a5f, #2d5a8f);
+                                                margin-bottom: 0.5rem;
+                                                display: flex;
+                                                align-items: center;
+                                                justify-content: center;
+                                                color: white;
+                                                font-size: 1.5rem;
+                                            ">
+                                                👤
+                                            </div>
+                                        `}
+                                        <p style="
+                                            color: white;
+                                            font-size: 0.75rem;
+                                            font-weight: 600;
+                                            margin: 0;
+                                            overflow: hidden;
+                                            text-overflow: ellipsis;
+                                            white-space: nowrap;
+                                        ">
+                                            ${actor.name}
+                                        </p>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    ` : ''}
+                </div>
+            </div>
+
+            <style>
+                @keyframes fadeIn {
+                    from { opacity: 0; }
+                    to { opacity: 1; }
+                }
+                @keyframes slideUp {
+                    from { transform: translateY(50px); opacity: 0; }
+                    to { transform: translateY(0); opacity: 1; }
+                }
+            </style>
+        `;
+
+        // Close button handler
+        const closeBtn = modal.querySelector('#close-modal');
+        closeBtn.addEventListener('click', () => modal.remove());
+        
+        // Close on backdrop click
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) modal.remove();
+        });
+    }
+
+    getFavoriteGenres(swipeHistory) {
+        const genreCounts = {};
+        
+        swipeHistory.forEach(swipe => {
+            if ((swipe.action === 'love' || swipe.action === 'like') && swipe.movie && swipe.movie.genres) {
+                swipe.movie.genres.forEach(genre => {
+                    genreCounts[genre] = (genreCounts[genre] || 0) + 1;
+                });
+            }
+        });
+
+        return Object.entries(genreCounts)
+            .sort((a, b) => b[1] - a[1])
+            .map(([genre]) => genre);
     }
 }
