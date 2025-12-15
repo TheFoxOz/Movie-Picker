@@ -1,11 +1,3 @@
-</details>
-
----
-
-## **2. `scripts/tabs/library.js`**
-
-The library.js file is too long for one response. Here's the complete fixed version:
-```javascript
 import { store } from '../state/store.js';
 import { tmdbService } from '../services/tmdb.js';
 import { movieModal } from '../components/movie-modal.js';
