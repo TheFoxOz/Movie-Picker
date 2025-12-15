@@ -1,7 +1,10 @@
 /**
- * App Initialization - IMPROVED AUTH WAIT
- * ✅ Waits longer for auth state (5 seconds instead of 2)
- * ✅ Properly handles Google redirect flow
+ * MoviEase - App Initialization
+ * Discover your next favorite film with ease
+ * 
+ * ✅ IMPROVED AUTH WAIT: 5 seconds for Google redirect
+ * ✅ Handles onboarding flow for new users
+ * ✅ Manages tab navigation and rendering
  */
 
 import { onboardingFlow } from './components/onboarding-flow.js';
@@ -14,7 +17,7 @@ import { store } from './state/store.js';
 import { authService } from './services/auth-service.js';
 import { userProfileService } from './services/user-profile-revised.js';
 
-class MoviePickerApp {
+class MoviEaseApp {
     constructor() {
         this.currentTab = 'swipe';
         this.tabs = {};
@@ -28,7 +31,7 @@ class MoviePickerApp {
     }
 
     async init() {
-        console.log('[App] Initializing Movie Picker App...');
+        console.log('[MoviEase] Initializing app...');
         
         this.setupDOM();
         this.setupLoginHandlers();
@@ -39,17 +42,17 @@ class MoviePickerApp {
         const user = authService.getCurrentUser();
         
         if (!user) {
-            console.log('[App] No user authenticated, showing login page');
+            console.log('[MoviEase] No user authenticated, showing login page');
             this.showLoginPage();
             return;
         }
         
-        console.log('[App] User authenticated:', user.email || 'anonymous');
+        console.log('[MoviEase] User authenticated:', user.email || 'anonymous');
         
         this.initializeUserProfile();
         await this.initializeEnhancedServices();
 
-        console.log('[App] Initializing tabs...');
+        console.log('[MoviEase] Initializing tabs...');
         this.tabs = {
             home: new HomeTab(),
             swipe: new SwipeTab(),
@@ -61,7 +64,7 @@ class MoviePickerApp {
         const needsOnboarding = await this.checkNeedsOnboarding(user);
         
         if (needsOnboarding) {
-            console.log('[App] User needs onboarding, starting onboarding flow');
+            console.log('[MoviEase] User needs onboarding, starting onboarding flow');
             const result = await onboardingFlow.start();
             
             if (!result) {
@@ -75,13 +78,13 @@ class MoviePickerApp {
                 window.addEventListener('navigate-to-tab', handleNavigation);
             }
         } else {
-            console.log('[App] User already onboarded, showing app');
+            console.log('[MoviEase] User already onboarded, showing app');
             this.showApp();
         }
     }
 
     setupLoginHandlers() {
-        console.log('[App] Setting up login button handlers...');
+        console.log('[MoviEase] Setting up login button handlers...');
         
         const setupHandlers = () => {
             // Google Sign-In
@@ -89,20 +92,20 @@ class MoviePickerApp {
             if (googleBtn) {
                 googleBtn.addEventListener('click', async () => {
                     try {
-                        console.log('[Login] Google sign-in clicked');
+                        console.log('[MoviEase] Google sign-in clicked');
                         googleBtn.textContent = 'Redirecting to Google...';
                         googleBtn.disabled = true;
                         
                         await authService.signInWithGoogle();
                         // Page will redirect - no code after this runs
                     } catch (error) {
-                        console.error('[Login] Google sign-in failed:', error);
+                        console.error('[MoviEase] Google sign-in failed:', error);
                         googleBtn.textContent = 'Continue with Google';
                         googleBtn.disabled = false;
                         alert('Google sign-in failed. Please try again.');
                     }
                 });
-                console.log('[App] ✅ Google button handler attached');
+                console.log('[MoviEase] ✅ Google button handler attached');
             }
 
             // Guest Sign-In
@@ -110,28 +113,31 @@ class MoviePickerApp {
             if (guestBtn) {
                 guestBtn.addEventListener('click', async () => {
                     try {
-                        console.log('[Login] Guest sign-in clicked');
+                        console.log('[MoviEase] Guest sign-in clicked');
                         guestBtn.textContent = 'Signing in as guest...';
                         guestBtn.disabled = true;
                         
                         await authService.signInAnonymously();
                         // Redirect handled by auth service
                     } catch (error) {
-                        console.error('[Login] Guest sign-in failed:', error);
+                        console.error('[MoviEase] Guest sign-in failed:', error);
                         guestBtn.textContent = 'Continue as Guest';
                         guestBtn.disabled = false;
                         alert('Guest sign-in failed. Please try again.');
                     }
                 });
-                console.log('[App] ✅ Guest button handler attached');
+                console.log('[MoviEase] ✅ Guest button handler attached');
             }
 
-            // Email/Password Sign-In
-            const signinBtn = document.getElementById('signin-btn');
-            if (signinBtn) {
-                signinBtn.addEventListener('click', async () => {
-                    const email = document.getElementById('login-email')?.value;
-                    const password = document.getElementById('login-password')?.value;
+            // Email/Password Sign-In Form
+            const emailForm = document.getElementById('email-signin-form');
+            if (emailForm) {
+                emailForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    
+                    const email = document.getElementById('email')?.value;
+                    const password = document.getElementById('password')?.value;
+                    const submitBtn = emailForm.querySelector('button[type="submit"]');
                     
                     if (!email || !password) {
                         alert('Please enter email and password');
@@ -139,38 +145,21 @@ class MoviePickerApp {
                     }
 
                     try {
-                        console.log('[Login] Email sign-in clicked');
-                        signinBtn.textContent = 'Signing in...';
-                        signinBtn.disabled = true;
+                        console.log('[MoviEase] Email sign-in clicked');
+                        const originalText = submitBtn.textContent;
+                        submitBtn.textContent = 'Signing in...';
+                        submitBtn.disabled = true;
                         
                         await authService.signIn(email, password);
                         // Redirect handled by auth service
                     } catch (error) {
-                        console.error('[Login] Email sign-in failed:', error);
-                        signinBtn.textContent = 'Sign In';
-                        signinBtn.disabled = false;
+                        console.error('[MoviEase] Email sign-in failed:', error);
+                        submitBtn.textContent = 'Sign In';
+                        submitBtn.disabled = false;
+                        alert('Sign in failed. Please check your credentials and try again.');
                     }
                 });
-                console.log('[App] ✅ Email signin button handler attached');
-            }
-
-            // Enter key support
-            const passwordField = document.getElementById('login-password');
-            if (passwordField) {
-                passwordField.addEventListener('keypress', (e) => {
-                    if (e.key === 'Enter') {
-                        document.getElementById('signin-btn')?.click();
-                    }
-                });
-            }
-
-            // Sign up link
-            const signupLink = document.getElementById('signup-link');
-            if (signupLink) {
-                signupLink.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    alert('Sign up functionality coming soon! Please use Google or Guest login.');
-                });
+                console.log('[MoviEase] ✅ Email signin form handler attached');
             }
         };
 
@@ -179,7 +168,7 @@ class MoviePickerApp {
     }
 
     showLoginPage() {
-        console.log('[App] Showing login page');
+        console.log('[MoviEase] Showing login page');
         
         const loginContainers = [
             document.getElementById('login-container'),
@@ -213,27 +202,27 @@ class MoviePickerApp {
         }
         
         if (loginContainers.length > 0) {
-            console.log('[App] ✅ Login container visible');
+            console.log('[MoviEase] ✅ Login container visible');
             setTimeout(() => this.setupLoginHandlers(), 100);
         } else {
-            console.error('[App] ❌ No login container found!');
+            console.error('[MoviEase] ❌ No login container found!');
         }
     }
 
     async waitForAuthState() {
         return new Promise((resolve) => {
             if (authService.getCurrentUser() !== null || this.authInitialized) {
-                console.log('[App] Auth state already determined');
+                console.log('[MoviEase] Auth state already determined');
                 resolve();
                 return;
             }
             
-            console.log('[App] Waiting for auth state...');
+            console.log('[MoviEase] Waiting for auth state...');
             let timeout;
             
             const unsubscribe = store.subscribe((state) => {
                 if (state.isAuthenticated !== undefined) {
-                    console.log('[App] Auth state determined:', state.isAuthenticated);
+                    console.log('[MoviEase] Auth state determined:', state.isAuthenticated);
                     clearTimeout(timeout);
                     this.authInitialized = true;
                     unsubscribe();
@@ -243,11 +232,11 @@ class MoviePickerApp {
             
             // ✅ INCREASED TIMEOUT: 5 seconds instead of 2 (for Google redirect)
             timeout = setTimeout(() => {
-                console.log('[App] Auth state timeout, proceeding anyway');
+                console.log('[MoviEase] Auth state timeout, proceeding anyway');
                 this.authInitialized = true;
                 unsubscribe();
                 resolve();
-            }, 5000); // Was 2000
+            }, 5000);
         });
     }
 
@@ -260,18 +249,18 @@ class MoviePickerApp {
             const userDoc = await getDoc(userRef);
             
             if (!userDoc.exists()) {
-                console.log('[App] User doc does not exist, needs onboarding');
+                console.log('[MoviEase] User doc does not exist, needs onboarding');
                 return true;
             }
             
             const userData = userDoc.data();
             const needsOnboarding = !userData.onboardingCompleted;
             
-            console.log('[App] Onboarding status:', userData.onboardingCompleted ? 'Complete' : 'Incomplete');
+            console.log('[MoviEase] Onboarding status:', userData.onboardingCompleted ? 'Complete' : 'Incomplete');
             return needsOnboarding;
             
         } catch (error) {
-            console.error('[App] Error checking onboarding status:', error);
+            console.error('[MoviEase] Error checking onboarding status:', error);
             return true;
         }
     }
@@ -316,7 +305,7 @@ class MoviePickerApp {
     }
 
     async initializeEnhancedServices() {
-        console.log('[App] Initializing enhanced services...');
+        console.log('[MoviEase] Initializing enhanced services...');
         
         try {
             const { doesTheDogDieService } = await import('./services/does-the-dog-die.js');
@@ -324,17 +313,17 @@ class MoviePickerApp {
             
             if (doesTheDogDieService && ENV && ENV.DTD_API_KEY) {
                 this.services.triggerWarnings = doesTheDogDieService;
-                console.log('[App] ✅ DoesTheDogDie service ready');
+                console.log('[MoviEase] ✅ DoesTheDogDie service ready');
             }
         } catch (error) {
-            console.warn('[App] ⚠️ DoesTheDogDie service not loaded:', error.message);
+            console.warn('[MoviEase] ⚠️ DoesTheDogDie service not loaded:', error.message);
         }
         
         this.services.userProfile = userProfileService;
-        console.log('[App] ✅ Loaded services');
+        console.log('[MoviEase] ✅ Loaded services');
         
         if (typeof window !== 'undefined') {
-            window.moviePickerServices = this.services;
+            window.moviEaseServices = this.services;
         }
     }
 
@@ -360,11 +349,124 @@ class MoviePickerApp {
     createBottomNav() {
         const nav = document.createElement('nav');
         nav.id = 'bottom-nav';
-        nav.style.cssText = 'position: fixed; bottom: 0; left: 0; right: 0; background: rgba(17, 17, 27, 0.95); backdrop-filter: blur(10px); border-top: 1px solid rgba(255, 255, 255, 0.1); padding: 0.5rem; z-index: 1000; display: none;';
         nav.innerHTML = `
-            <div style="display: flex; justify-content: space-around; max-width: 600px; margin: 0 auto;">
+            <style>
+                #bottom-nav {
+                    position: fixed;
+                    bottom: 0;
+                    left: 0;
+                    right: 0;
+                    height: 5rem;
+                    background: linear-gradient(180deg, rgba(20, 24, 36, 0.98) 0%, rgba(26, 31, 46, 0.98) 100%);
+                    border-top: 1px solid rgba(176, 212, 227, 0.15);
+                    backdrop-filter: blur(20px);
+                    z-index: 100;
+                    padding: 0.5rem 0;
+                    display: none;
+                }
+
+                .nav-container {
+                    display: flex;
+                    justify-content: space-around;
+                    align-items: center;
+                    max-width: 600px;
+                    margin: 0 auto;
+                    height: 100%;
+                    padding: 0 1rem;
+                }
+
+                .nav-btn {
+                    flex: 1;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 0.25rem;
+                    padding: 0.5rem;
+                    background: transparent;
+                    border: none;
+                    border-radius: 0.75rem;
+                    color: rgba(176, 212, 227, 0.6);
+                    font-size: 0.75rem;
+                    font-weight: 600;
+                    cursor: pointer;
+                    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                    position: relative;
+                }
+
+                .nav-btn:hover {
+                    color: rgba(176, 212, 227, 0.9);
+                    transform: translateY(-2px);
+                }
+
+                .nav-btn.active {
+                    color: #b0d4e3;
+                    font-weight: 700;
+                }
+
+                .nav-btn.active::after {
+                    content: '';
+                    position: absolute;
+                    bottom: -0.5rem;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    width: 4px;
+                    height: 4px;
+                    background: #b0d4e3;
+                    border-radius: 50%;
+                    box-shadow: 0 0 8px rgba(176, 212, 227, 0.6);
+                }
+
+                .nav-icon {
+                    font-size: 1.5rem;
+                    transition: transform 0.3s;
+                }
+
+                .nav-btn:hover .nav-icon {
+                    transform: scale(1.1);
+                }
+
+                .nav-btn.active .nav-icon {
+                    filter: drop-shadow(0 0 8px rgba(176, 212, 227, 0.4));
+                }
+
+                #swipe-btn {
+                    width: 4rem;
+                    height: 4rem;
+                    background: linear-gradient(135deg, #1e3a5f, #2d5a8f);
+                    border: 3px solid #b0d4e3;
+                    border-radius: 50%;
+                    margin: 0 0.5rem;
+                    box-shadow: 0 8px 24px rgba(176, 212, 227, 0.3);
+                }
+
+                #swipe-btn:hover {
+                    transform: scale(1.1);
+                    box-shadow: 0 12px 32px rgba(176, 212, 227, 0.4);
+                }
+
+                #swipe-btn .nav-icon {
+                    font-size: 2rem;
+                }
+
+                @media (max-width: 480px) {
+                    .nav-btn {
+                        font-size: 0.65rem;
+                    }
+                    
+                    .nav-icon {
+                        font-size: 1.25rem;
+                    }
+                    
+                    #swipe-btn {
+                        width: 3.5rem;
+                        height: 3.5rem;
+                    }
+                }
+            </style>
+            <div class="nav-container">
                 ${this.renderNavButton('home', '🏠', 'Home')}
-                ${this.renderNavButton('swipe', '👆', 'Swipe')}
+                ${this.renderNavButton('swipe', '👆', 'Swipe', true)}
                 ${this.renderNavButton('library', '📚', 'Library')}
                 ${this.renderNavButton('matches', '🤝', 'Matches')}
                 ${this.renderNavButton('profile', '👤', 'Profile')}
@@ -374,11 +476,14 @@ class MoviePickerApp {
         return nav;
     }
 
-    renderNavButton(tabName, icon, label) {
+    renderNavButton(tabName, icon, label, isSwipeBtn = false) {
         const isActive = this.currentTab === tabName;
+        const btnId = isSwipeBtn ? 'id="swipe-btn"' : '';
+        const activeClass = isActive ? 'active' : '';
+        
         return `
-            <button class="nav-btn" data-tab="${tabName}" style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 0.25rem; padding: 0.75rem 0.5rem; background: ${isActive ? 'rgba(255, 46, 99, 0.1)' : 'transparent'}; border: none; border-radius: 0.75rem; color: ${isActive ? '#ff2e63' : 'rgba(255, 255, 255, 0.6)'}; font-size: 0.75rem; font-weight: ${isActive ? '700' : '600'}; cursor: pointer; transition: all 0.3s;">
-                <span style="font-size: 1.5rem;">${icon}</span>
+            <button class="nav-btn ${activeClass}" ${btnId} data-tab="${tabName}">
+                <span class="nav-icon">${icon}</span>
                 <span>${label}</span>
             </button>
         `;
@@ -393,6 +498,7 @@ class MoviePickerApp {
 
     navigateToTab(tabName) {
         if (!tabName) return;
+        console.log('[MoviEase] Navigating to:', tabName);
         this.currentTab = tabName;
         if (tabName === 'swipe') this.tabs.swipe = new SwipeTab();
         this.updateNavigation();
@@ -402,29 +508,53 @@ class MoviePickerApp {
     updateNavigation() {
         this.bottomNav.querySelectorAll('.nav-btn').forEach(btn => {
             const isActive = btn.dataset.tab === this.currentTab;
-            btn.style.background = isActive ? 'rgba(255, 46, 99, 0.1)' : 'transparent';
-            btn.style.color = isActive ? '#ff2e63' : 'rgba(255, 255, 255, 0.6)';
-            btn.style.fontWeight = isActive ? '700' : '600';
+            if (isActive) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
         });
     }
 
     async renderCurrentTab() {
         if (!this.container) return;
-        this.container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:calc(100vh - 15rem);"><div style="width:48px;height:48px;border:4px solid rgba(255,46,99,0.3);border-top-color:#ff2e63;border-radius:50%;animation:spin 1s linear infinite;"></div></div><style>@keyframes spin { to { transform: rotate(360deg); }}</style>';
+        
+        // Show loading spinner with MoviEase colors
+        this.container.innerHTML = `
+            <div style="display: flex; align-items: center; justify-content: center; height: calc(100vh - 15rem);">
+                <div style="text-align: center;">
+                    <div style="width: 48px; height: 48px; border: 4px solid rgba(176, 212, 227, 0.2); border-top-color: #b0d4e3; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 1rem;"></div>
+                    <p style="color: rgba(176, 212, 227, 0.7); font-size: 0.875rem;">Loading...</p>
+                </div>
+            </div>
+            <style>@keyframes spin { to { transform: rotate(360deg); }}</style>
+        `;
+        
         await new Promise(resolve => setTimeout(resolve, 100));
         this.container.innerHTML = '';
+        
         const tab = this.tabs[this.currentTab];
         if (tab && typeof tab.render === 'function') {
             try {
                 await tab.render(this.container);
             } catch (error) {
-                console.error(`[App] Error rendering ${this.currentTab}:`, error);
+                console.error(`[MoviEase] Error rendering ${this.currentTab}:`, error);
+                this.container.innerHTML = `
+                    <div style="padding: 2rem; text-align: center;">
+                        <div style="font-size: 3rem; margin-bottom: 1rem;">⚠️</div>
+                        <h3 style="color: white; margin-bottom: 1rem;">Oops! Something went wrong</h3>
+                        <p style="color: rgba(176, 212, 227, 0.7);">We couldn't load this tab. Please try again.</p>
+                        <button onclick="location.reload()" style="margin-top: 1.5rem; padding: 0.75rem 1.5rem; background: linear-gradient(135deg, #1e3a5f, #2d5a8f); border: none; border-radius: 0.75rem; color: white; font-weight: 600; cursor: pointer;">
+                            Reload App
+                        </button>
+                    </div>
+                `;
             }
         }
     }
 
     showApp() {
-        console.log('[App] Showing main app interface');
+        console.log('[MoviEase] Showing main app interface');
         
         const loginContainers = [
             document.getElementById('login-container'),
@@ -437,7 +567,7 @@ class MoviePickerApp {
         });
         
         if (this.container) this.container.style.display = 'block';
-        if (this.bottomNav) this.bottomNav.style.display = 'flex';
+        if (this.bottomNav) this.bottomNav.style.display = 'block';
         const header = document.getElementById('app-header');
         if (header) header.style.display = 'block';
         
@@ -449,10 +579,10 @@ class MoviePickerApp {
         store.subscribe((state) => {
             try {
                 if (state.swipeHistory) {
-                    localStorage.setItem('moviePickerSwipeHistory', JSON.stringify(state.swipeHistory));
+                    localStorage.setItem('moviEaseSwipeHistory', JSON.stringify(state.swipeHistory));
                 }
             } catch (error) {
-                console.error('[App] Failed to sync swipe history:', error);
+                console.error('[MoviEase] Failed to sync swipe history:', error);
             }
         });
     }
@@ -460,12 +590,12 @@ class MoviePickerApp {
 
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
-        const app = new MoviePickerApp();
+        const app = new MoviEaseApp();
         app.init();
     });
 } else {
-    const app = new MoviePickerApp();
+    const app = new MoviEaseApp();
     app.init();
 }
 
-export { MoviePickerApp };
+export { MoviEaseApp };
