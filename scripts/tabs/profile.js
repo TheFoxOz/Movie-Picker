@@ -572,4 +572,3 @@ export class ProfileTab {
         }, 2500);
     }
 }
-
