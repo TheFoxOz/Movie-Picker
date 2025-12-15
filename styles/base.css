@@ -1,26 +1,27 @@
 /**
  * MoviEase - Base Styles & CSS Variables
- * Color Palette: Space Indigo, Powder Blue, Vanilla Custard
+ * ✅ UPDATED: New Color Palette from Design
+ * Color Palette: Space Indigo (#18183A), Powder Blue (#A6C0DD), Vanilla Custard (#FDFAB0)
  */
 
 :root {
     /* === NEW COLOR PALETTE === */
     /* Primary - Space Indigo */
-    --color-primary: #1e3a5f;
-    --color-primary-light: #2d5a8f;
-    --color-primary-dark: #0f1e3a;
-    --color-primary-hover: #264d7a;
+    --color-primary: #18183A;
+    --color-primary-light: #2d2d5f;
+    --color-primary-dark: #0a0a1a;
+    --color-primary-hover: #20204a;
     
     /* Secondary - Powder Blue */
-    --color-secondary: #b0d4e3;
-    --color-secondary-light: #d4ebf5;
-    --color-secondary-dark: #8bb9cc;
-    --color-secondary-hover: #9ac8db;
+    --color-secondary: #A6C0DD;
+    --color-secondary-light: #c5d9ed;
+    --color-secondary-dark: #7a9bba;
+    --color-secondary-hover: #8fb4d4;
     
     /* Accent - Vanilla Custard */
-    --color-accent: #f4e8c1;
-    --color-accent-light: #f9f3dd;
-    --color-accent-dark: #e6d8a8;
+    --color-accent: #FDFAB0;
+    --color-accent-light: #fffed5;
+    --color-accent-dark: #e8e59a;
     
     /* Action Colors */
     --color-love: #ff6b9d;
@@ -29,10 +30,10 @@
     --color-pass: #ef4444;
     
     /* Neutrals */
-    --color-background: #0a0e1a;
-    --color-surface: #141824;
-    --color-surface-elevated: #1a1f2e;
-    --color-border: rgba(176, 212, 227, 0.1);
+    --color-background: #0a0a0f;
+    --color-surface: #141418;
+    --color-surface-elevated: #1a1a22;
+    --color-border: rgba(166, 192, 221, 0.1);
     
     /* Text */
     --color-text-primary: #ffffff;
@@ -46,11 +47,11 @@
     --gradient-surface: linear-gradient(180deg, var(--color-surface), var(--color-surface-elevated));
     
     /* Shadows */
-    --shadow-sm: 0 1px 2px 0 rgba(30, 58, 95, 0.05);
-    --shadow-md: 0 4px 6px -1px rgba(30, 58, 95, 0.1);
-    --shadow-lg: 0 10px 15px -3px rgba(30, 58, 95, 0.2);
-    --shadow-xl: 0 20px 25px -5px rgba(30, 58, 95, 0.3);
-    --shadow-glow: 0 0 20px rgba(176, 212, 227, 0.3);
+    --shadow-sm: 0 1px 2px 0 rgba(24, 24, 58, 0.05);
+    --shadow-md: 0 4px 6px -1px rgba(24, 24, 58, 0.1);
+    --shadow-lg: 0 10px 15px -3px rgba(24, 24, 58, 0.2);
+    --shadow-xl: 0 20px 25px -5px rgba(24, 24, 58, 0.3);
+    --shadow-glow: 0 0 20px rgba(166, 192, 221, 0.3);
     
     /* Spacing */
     --spacing-xs: 0.25rem;
@@ -226,7 +227,7 @@ input, textarea, select {
 input:focus, textarea:focus, select:focus {
     outline: none;
     border-color: var(--color-secondary);
-    box-shadow: 0 0 0 3px rgba(176, 212, 227, 0.1);
+    box-shadow: 0 0 0 3px rgba(166, 192, 221, 0.1);
 }
 
 input::placeholder, textarea::placeholder {
