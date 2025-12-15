@@ -4,7 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MoviEase - Discover Your Next Favorite Film</title>
+    <meta name="description" content="Discover your next favorite film with ease. Swipe through personalized movie recommendations with streaming platform filters and content safety.">
     <link rel="stylesheet" href="styles/base.css">
+    <link rel="stylesheet" href="styles/components.css">
+    <link rel="stylesheet" href="styles/animations.css">
+    <link rel="stylesheet" href="styles/utilities.css">
+    
     <style>
         body {
             display: flex;
@@ -106,13 +111,18 @@
             cursor: pointer;
         }
 
+        .auth-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
         .auth-btn-google {
             background: white;
             color: #1e3a5f;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         }
 
-        .auth-btn-google:hover {
+        .auth-btn-google:hover:not(:disabled) {
             transform: translateY(-2px);
             box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
         }
@@ -123,7 +133,7 @@
             box-shadow: 0 4px 12px rgba(30, 58, 95, 0.4);
         }
 
-        .auth-btn-guest:hover {
+        .auth-btn-guest:hover:not(:disabled) {
             transform: translateY(-2px);
             box-shadow: 0 8px 20px rgba(30, 58, 95, 0.5);
             filter: brightness(1.1);
@@ -179,13 +189,17 @@
             box-shadow: 0 0 0 3px rgba(176, 212, 227, 0.1);
         }
 
+        .form-group input::placeholder {
+            color: rgba(176, 212, 227, 0.4);
+        }
+
         .auth-btn-email {
             background: linear-gradient(135deg, #b0d4e3, #d4ebf5);
             color: #1e3a5f;
             box-shadow: 0 4px 12px rgba(176, 212, 227, 0.3);
         }
 
-        .auth-btn-email:hover {
+        .auth-btn-email:hover:not(:disabled) {
             transform: translateY(-2px);
             box-shadow: 0 8px 20px rgba(176, 212, 227, 0.4);
             filter: brightness(1.05);
@@ -217,6 +231,11 @@
             flex-shrink: 0;
         }
 
+        /* Hidden app container */
+        #app-container {
+            display: none;
+        }
+
         @media (max-width: 480px) {
             .login-container {
                 padding: 1rem;
@@ -233,7 +252,8 @@
     </style>
 </head>
 <body>
-    <div class="login-container">
+    <!-- Login Page -->
+    <div class="login-container" id="login-container">
         <div class="login-card">
             <div class="logo">
                 <div class="logo-icon">🎬</div>
@@ -297,6 +317,43 @@
         </div>
     </div>
 
+    <!-- App Container (hidden initially, shown after login) -->
+    <div id="app-container"></div>
+
+    <!-- Load main app script -->
     <script type="module" src="scripts/main.js"></script>
 </body>
 </html>
+```
+
+---
+
+## What This Does
+
+### 1. **Complete MoviEase Branding**
+- New logo with gradient text
+- Tagline: "Discover your next favorite film with ease"
+- Feature highlights at bottom
+
+### 2. **Color Palette Applied**
+- Background: Space Indigo gradient (#0a0e1a → #1e3a5f → #0f1e3a)
+- Card: Space Indigo with transparency
+- Accents: Powder Blue borders and text
+- Buttons: Space Indigo and Powder Blue themes
+- Vanilla Custard: Subtle gradient in logo
+
+### 3. **Modern Design**
+- Animated particle background
+- Glass-morphism effect (backdrop blur)
+- Smooth animations and transitions
+- Responsive design for mobile
+
+### 4. **How It Works**
+```
+index.html (login page)
+    ↓
+scripts/main.js (initializes services)
+    ↓
+scripts/app-init.js (handles auth & navigation)
+    ↓
+Tabs render dynamically in #app-container
