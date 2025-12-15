@@ -1,7 +1,7 @@
 /**
  * MoviEase - Profile Tab
  * User Settings & Preferences
- * ✅ FIXED: Proper scrolling
+ * ✅ FIXED: Removed duplicate scrolling wrapper
  * ✅ MoviEase branding and Space Indigo/Powder Blue colors
  * ✅ Ultra-compact trigger warnings layout
  */
@@ -11,7 +11,6 @@ import { userProfileService } from '../services/user-profile-revised.js';
 import { STREAMING_PLATFORMS } from '../config/streaming-platforms.js';
 import { TRIGGER_CATEGORIES } from '../config/trigger-categories.js';
 
-// ✅ TMDB-supported regions only
 const TMDB_REGIONS = [
     { code: 'US', name: 'United States', flag: '🇺🇸' },
     { code: 'GB', name: 'United Kingdom', flag: '🇬🇧' },
@@ -60,12 +59,7 @@ export class ProfileTab {
         console.log('[ProfileTab] Rendering profile for:', user.email);
         
         this.container.innerHTML = `
-            <div style="
-                height: 100%;
-                overflow-y: auto;
-                overflow-x: hidden;
-                -webkit-overflow-scrolling: touch;
-            ">
+            <div style="width: 100%;">
                 <div class="profile-container" style="padding: 1.5rem 1rem 6rem; max-width: 600px; margin: 0 auto;">
                     <!-- User Info -->
                     <div style="text-align: center; margin-bottom: 2rem;">
@@ -193,7 +187,6 @@ export class ProfileTab {
         `;
     }
 
-    // ✅ ULTRA-COMPACT: Proper width constraints to prevent overflow
     renderTriggerWarningsSection(profile) {
         const categoriesHTML = TRIGGER_CATEGORIES.map(category => {
             const isEnabled = profile.triggerWarnings.enabledCategories.includes(category.id);
@@ -259,7 +252,6 @@ export class ProfileTab {
                     Filter content by warnings (${profile.triggerWarnings.enabledCategories.length} active)
                 </p>
                 
-                <!-- Show All Toggle -->
                 <div style="margin-bottom: 0.875rem; padding: 0.625rem 0.75rem; background: rgba(30, 58, 95, 0.3); border: 1px solid rgba(176, 212, 227, 0.1); border-radius: 0.625rem; display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;">
                     <div style="flex: 1; min-width: 0;">
                         <div style="color: white; font-weight: 600; font-size: 0.8125rem;">Show All Warnings</div>
@@ -271,7 +263,6 @@ export class ProfileTab {
                     </label>
                 </div>
 
-                <!-- Categories in 2 columns - ULTRA COMPACT -->
                 <div style="
                     display: grid;
                     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -313,10 +304,7 @@ export class ProfileTab {
     renderError() {
         this.container.innerHTML = `
             <div style="
-                height: 100%;
-                overflow-y: auto;
-                overflow-x: hidden;
-                -webkit-overflow-scrolling: touch;
+                width: 100%;
                 display: flex;
                 align-items: center;
                 justify-content: center;
@@ -338,7 +326,6 @@ export class ProfileTab {
         const style = document.createElement('style');
         style.id = 'profile-toggle-styles';
         style.textContent = `
-            /* Regular Toggle Switch (for platforms and show all) */
             .toggle-switch {
                 position: relative;
                 display: inline-block;
@@ -385,7 +372,6 @@ export class ProfileTab {
                 transform: translateX(20px);
             }
 
-            /* ✅ ULTRA-COMPACT Toggle Switch (for trigger warnings) */
             .toggle-switch-small {
                 position: relative;
                 display: inline-block;
@@ -432,14 +418,12 @@ export class ProfileTab {
                 transform: translateX(16px);
             }
 
-            /* Hover effects */
             .platform-toggle-item:hover,
             .trigger-toggle-item:hover {
                 background: rgba(30, 58, 95, 0.4);
                 border-color: rgba(176, 212, 227, 0.2);
             }
 
-            /* Region select styling */
             #region-select:hover {
                 background: rgba(30, 58, 95, 0.5);
                 border-color: rgba(176, 212, 227, 0.3);
@@ -461,7 +445,6 @@ export class ProfileTab {
     }
 
     attachEventListeners() {
-        // Theme toggle
         const themeToggle = document.getElementById('theme-toggle');
         if (themeToggle) {
             themeToggle.addEventListener('change', (e) => {
@@ -478,7 +461,6 @@ export class ProfileTab {
             });
         }
 
-        // Region select
         const regionSelect = document.getElementById('region-select');
         if (regionSelect) {
             regionSelect.addEventListener('change', (e) => {
@@ -488,7 +470,6 @@ export class ProfileTab {
             });
         }
 
-        // Platform checkboxes
         const platformCheckboxes = document.querySelectorAll('.platform-checkbox');
         platformCheckboxes.forEach(checkbox => {
             checkbox.addEventListener('change', (e) => {
@@ -501,7 +482,6 @@ export class ProfileTab {
             });
         });
 
-        // Trigger warning checkboxes
         const triggerCheckboxes = document.querySelectorAll('.trigger-checkbox');
         triggerCheckboxes.forEach(checkbox => {
             checkbox.addEventListener('change', (e) => {
@@ -519,7 +499,6 @@ export class ProfileTab {
             });
         });
 
-        // Show all warnings toggle
         const showAllCheckbox = document.getElementById('show-all-warnings');
         if (showAllCheckbox) {
             showAllCheckbox.addEventListener('change', (e) => {
@@ -528,7 +507,6 @@ export class ProfileTab {
             });
         }
 
-        // Logout button
         const logoutBtn = document.getElementById('logout-btn');
         if (logoutBtn) {
             logoutBtn.addEventListener('click', async () => {
