@@ -2,6 +2,7 @@
  * MoviEase - App Initialization
  * Discover your next favorite film with ease
  * 
+ * ✅ FIXED: Proper scrolling at app-container level
  * ✅ FIXED: Better error handling and container checks
  * ✅ IMPROVED AUTH WAIT: 5 seconds for Google redirect
  * ✅ Handles onboarding flow for new users
@@ -185,6 +186,9 @@ class MoviEaseApp {
             container.style.position = 'relative';
             container.style.zIndex = '9999';
         });
+        
+        // ✅ Remove app-active class
+        document.body.classList.remove('app-active');
         
         if (this.container) {
             this.container.style.display = 'none';
@@ -647,8 +651,14 @@ class MoviEaseApp {
             container.style.display = 'none';
         });
         
-        if (this.container) this.container.style.display = 'block';
+        // ✅ Add body class to prevent double scrolling
+        document.body.classList.add('app-active');
+        
+        if (this.container) {
+            this.container.style.display = 'block';
+        }
         if (this.bottomNav) this.bottomNav.style.display = 'block';
+        
         const header = document.getElementById('app-header');
         if (header) header.style.display = 'block';
         
