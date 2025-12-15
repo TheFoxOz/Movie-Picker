@@ -5,6 +5,7 @@
  * ✅ IMPROVED AUTH WAIT: 5 seconds for Google redirect
  * ✅ Handles onboarding flow for new users
  * ✅ Manages tab navigation and rendering
+ * ✅ MoviEase branding and colors
  */
 
 import { onboardingFlow } from './components/onboarding-flow.js';
@@ -361,7 +362,6 @@ class MoviEaseApp {
                     border-top: 1px solid rgba(176, 212, 227, 0.15);
                     backdrop-filter: blur(20px);
                     z-index: 100;
-                    padding: 0.5rem 0;
                     display: none;
                 }
 
@@ -372,7 +372,8 @@ class MoviEaseApp {
                     max-width: 600px;
                     margin: 0 auto;
                     height: 100%;
-                    padding: 0 1rem;
+                    padding: 0 0.5rem;
+                    position: relative;
                 }
 
                 .nav-btn {
@@ -385,49 +386,39 @@ class MoviEaseApp {
                     padding: 0.5rem;
                     background: transparent;
                     border: none;
-                    border-radius: 0.75rem;
-                    color: rgba(176, 212, 227, 0.6);
+                    color: rgba(176, 212, 227, 0.5);
                     font-size: 0.75rem;
                     font-weight: 600;
                     cursor: pointer;
                     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-                    position: relative;
+                    border-radius: 0.75rem;
                 }
 
                 .nav-btn:hover {
-                    color: rgba(176, 212, 227, 0.9);
-                    transform: translateY(-2px);
+                    color: rgba(176, 212, 227, 0.8);
+                    background: rgba(176, 212, 227, 0.05);
                 }
 
                 .nav-btn.active {
                     color: #b0d4e3;
-                    font-weight: 700;
-                }
-
-                .nav-btn.active::after {
-                    content: '';
-                    position: absolute;
-                    bottom: -0.5rem;
-                    left: 50%;
-                    transform: translateX(-50%);
-                    width: 4px;
-                    height: 4px;
-                    background: #b0d4e3;
-                    border-radius: 50%;
-                    box-shadow: 0 0 8px rgba(176, 212, 227, 0.6);
                 }
 
                 .nav-icon {
                     font-size: 1.5rem;
-                    transition: transform 0.3s;
+                    transition: transform 0.2s;
                 }
 
                 .nav-btn:hover .nav-icon {
                     transform: scale(1.1);
                 }
 
-                .nav-btn.active .nav-icon {
-                    filter: drop-shadow(0 0 8px rgba(176, 212, 227, 0.4));
+                /* Special styling for center swipe button */
+                #swipe-btn-wrapper {
+                    position: absolute;
+                    left: 50%;
+                    top: 50%;
+                    transform: translate(-50%, -50%);
+                    z-index: 10;
                 }
 
                 #swipe-btn {
@@ -436,22 +427,38 @@ class MoviEaseApp {
                     background: linear-gradient(135deg, #1e3a5f, #2d5a8f);
                     border: 3px solid #b0d4e3;
                     border-radius: 50%;
-                    margin: 0 0.5rem;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    cursor: pointer;
+                    transition: all 0.3s;
                     box-shadow: 0 8px 24px rgba(176, 212, 227, 0.3);
+                    color: white;
+                    font-size: 2rem;
                 }
 
                 #swipe-btn:hover {
                     transform: scale(1.1);
-                    box-shadow: 0 12px 32px rgba(176, 212, 227, 0.4);
+                    box-shadow: 0 12px 32px rgba(176, 212, 227, 0.5);
                 }
 
-                #swipe-btn .nav-icon {
-                    font-size: 2rem;
+                #swipe-btn:active {
+                    transform: scale(0.95);
+                }
+
+                /* Create space for center button */
+                .nav-btn:nth-child(2) {
+                    margin-right: 3rem;
+                }
+
+                .nav-btn:nth-child(3) {
+                    margin-left: 3rem;
                 }
 
                 @media (max-width: 480px) {
                     .nav-btn {
                         font-size: 0.65rem;
+                        padding: 0.25rem;
                     }
                     
                     .nav-icon {
@@ -461,38 +468,50 @@ class MoviEaseApp {
                     #swipe-btn {
                         width: 3.5rem;
                         height: 3.5rem;
+                        font-size: 1.75rem;
                     }
                 }
             </style>
             <div class="nav-container">
-                ${this.renderNavButton('home', '🏠', 'Home')}
-                ${this.renderNavButton('swipe', '👆', 'Swipe', true)}
-                ${this.renderNavButton('library', '📚', 'Library')}
-                ${this.renderNavButton('matches', '🤝', 'Matches')}
-                ${this.renderNavButton('profile', '👤', 'Profile')}
+                <button class="nav-btn" data-tab="home">
+                    <span class="nav-icon">🏠</span>
+                    <span>Home</span>
+                </button>
+                
+                <button class="nav-btn" data-tab="library">
+                    <span class="nav-icon">📚</span>
+                    <span>Library</span>
+                </button>
+                
+                <!-- Center swipe button -->
+                <div id="swipe-btn-wrapper">
+                    <button id="swipe-btn" data-tab="swipe">
+                        <span>👆</span>
+                    </button>
+                </div>
+                
+                <button class="nav-btn" data-tab="matches">
+                    <span class="nav-icon">🤝</span>
+                    <span>Matches</span>
+                </button>
+                
+                <button class="nav-btn" data-tab="profile">
+                    <span class="nav-icon">👤</span>
+                    <span>Profile</span>
+                </button>
             </div>
         `;
         document.body.appendChild(nav);
         return nav;
     }
 
-    renderNavButton(tabName, icon, label, isSwipeBtn = false) {
-        const isActive = this.currentTab === tabName;
-        const btnId = isSwipeBtn ? 'id="swipe-btn"' : '';
-        const activeClass = isActive ? 'active' : '';
-        
-        return `
-            <button class="nav-btn ${activeClass}" ${btnId} data-tab="${tabName}">
-                <span class="nav-icon">${icon}</span>
-                <span>${label}</span>
-            </button>
-        `;
-    }
-
     setupNavigationListeners() {
         this.bottomNav.addEventListener('click', (e) => {
-            const btn = e.target.closest('.nav-btn');
-            if (btn) this.navigateToTab(btn.dataset.tab);
+            const btn = e.target.closest('.nav-btn, #swipe-btn');
+            if (btn) {
+                const tab = btn.dataset.tab;
+                if (tab) this.navigateToTab(tab);
+            }
         });
     }
 
@@ -514,6 +533,20 @@ class MoviEaseApp {
                 btn.classList.remove('active');
             }
         });
+        
+        // Handle swipe button separately
+        const swipeBtn = this.bottomNav.querySelector('#swipe-btn');
+        if (swipeBtn) {
+            if (this.currentTab === 'swipe') {
+                swipeBtn.style.background = 'linear-gradient(135deg, #b0d4e3, #d4ebf5)';
+                swipeBtn.style.borderColor = '#1e3a5f';
+                swipeBtn.style.color = '#1e3a5f';
+            } else {
+                swipeBtn.style.background = 'linear-gradient(135deg, #1e3a5f, #2d5a8f)';
+                swipeBtn.style.borderColor = '#b0d4e3';
+                swipeBtn.style.color = 'white';
+            }
+        }
     }
 
     async renderCurrentTab() {
