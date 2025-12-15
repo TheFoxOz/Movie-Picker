@@ -1,208 +1,320 @@
 /**
- * DoesTheDogDie.com API Service - VERCEL PROXY VERSION
- * ✅ Uses Vercel serverless function to bypass CORS
- * ✅ No more unreliable CORS proxies
- * Fetches trigger warnings for movies
+ * DoesTheDogDie Service - Trigger Warning Integration
+ * ✅ Uses Vercel serverless proxy to bypass CORS
+ * ✅ Improved error handling with graceful fallbacks
+ * ✅ Better search with title normalization
  */
-
-import { ENV } from '../config/env.js';
-
-// ✅ Use Vercel serverless function as proxy (instead of corsproxy.io)
-const API_BASE = '/api/trigger-warnings';
 
 class DoesTheDogDieService {
     constructor() {
-        this.cache = new Map(); // Cache results to avoid repeated API calls
+        this.baseURL = '/api/trigger-warnings'; // Vercel proxy endpoint
+        this.cache = new Map();
+        this.cacheExpiry = 24 * 60 * 60 * 1000; // 24 hours
     }
 
     /**
-     * Search for a movie by title
+     * Normalize movie title for better matching
+     * Removes special characters, extra spaces, and common suffixes
      */
-    async searchByTitle(title) {
-        const cacheKey = `title:${title.toLowerCase()}`;
-        if (this.cache.has(cacheKey)) {
-            if (ENV && ENV.DEBUG_MODE) {
-                console.log(`[DDD] Cache hit for: ${title}`);
-            }
-            return this.cache.get(cacheKey);
-        }
-
-        try {
-            if (ENV && ENV.DEBUG_MODE) {
-                console.log(`[DDD] Searching for: ${title}`);
-            }
-            
-            // ✅ CHANGED: Use Vercel proxy endpoint instead of CORS proxy
-            const url = `${API_BASE}?action=search-title&title=${encodeURIComponent(title)}`;
-            const response = await fetch(url);
-
-            if (!response.ok) {
-                console.warn(`[DDD] Search failed for: ${title} (${response.status})`);
-                return null;
-            }
-
-            const data = await response.json();
-            const result = data.items?.[0] || null; // Get first match
-            
-            this.cache.set(cacheKey, result);
-            
-            if (ENV && ENV.DEBUG_MODE) {
-                console.log(`[DDD] Found: ${result?.name || 'No match'}`);
-            }
-            
-            return result;
-
-        } catch (error) {
-            console.error('[DDD] Search error:', error);
-            return null;
-        }
+    normalizeTitle(title) {
+        if (!title) return '';
+        
+        return title
+            .toLowerCase()
+            .replace(/[:\-–—]/g, '') // Remove colons, hyphens, dashes
+            .replace(/\s+/g, ' ') // Normalize spaces
+            .replace(/\(.*?\)/g, '') // Remove anything in parentheses
+            .trim();
     }
 
     /**
-     * Search for a movie by IMDB ID
-     */
-    async searchByIMDB(imdbId) {
-        const cacheKey = `imdb:${imdbId}`;
-        if (this.cache.has(cacheKey)) {
-            if (ENV && ENV.DEBUG_MODE) {
-                console.log(`[DDD] Cache hit for IMDB: ${imdbId}`);
-            }
-            return this.cache.get(cacheKey);
-        }
-
-        try {
-            if (ENV && ENV.DEBUG_MODE) {
-                console.log(`[DDD] Searching by IMDB: ${imdbId}`);
-            }
-            
-            // ✅ CHANGED: Use Vercel proxy endpoint
-            const url = `${API_BASE}?action=search-imdb&imdbId=${imdbId}`;
-            const response = await fetch(url);
-
-            if (!response.ok) {
-                console.warn(`[DDD] Search failed for IMDB: ${imdbId} (${response.status})`);
-                return null;
-            }
-
-            const data = await response.json();
-            const result = data.items?.[0] || null;
-            
-            this.cache.set(cacheKey, result);
-            
-            if (ENV && ENV.DEBUG_MODE) {
-                console.log(`[DDD] Found: ${result?.name || 'No match'}`);
-            }
-            
-            return result;
-
-        } catch (error) {
-            console.error('[DDD] IMDB search error:', error);
-            return null;
-        }
-    }
-
-    /**
-     * Get trigger warnings for a specific movie/show
-     */
-    async getTriggerWarnings(dddId) {
-        const cacheKey = `warnings:${dddId}`;
-        if (this.cache.has(cacheKey)) {
-            if (ENV && ENV.DEBUG_MODE) {
-                console.log(`[DDD] Cache hit for warnings: ${dddId}`);
-            }
-            return this.cache.get(cacheKey);
-        }
-
-        try {
-            if (ENV && ENV.DEBUG_MODE) {
-                console.log(`[DDD] Fetching warnings for ID: ${dddId}`);
-            }
-            
-            // ✅ CHANGED: Use Vercel proxy endpoint
-            const url = `${API_BASE}?action=get-warnings&dddId=${dddId}`;
-            const response = await fetch(url);
-
-            if (!response.ok) {
-                console.warn(`[DDD] Failed to fetch warnings for: ${dddId} (${response.status})`);
-                return [];
-            }
-
-            const data = await response.json();
-            
-            // Extract trigger warnings from topics
-            const warnings = [];
-            if (data.topicItemStats) {
-                for (const topic of data.topicItemStats) {
-                    // Only include topics with YES votes (indicates trigger is present)
-                    if (topic.yesSum > topic.noSum) {
-                        warnings.push({
-                            name: topic.topic?.name || 'Unknown',
-                            description: topic.topic?.description,
-                            yesVotes: topic.yesSum,
-                            noVotes: topic.noSum
-                        });
-                    }
-                }
-            }
-            
-            this.cache.set(cacheKey, warnings);
-            
-            if (ENV && ENV.DEBUG_MODE) {
-                console.log(`[DDD] Found ${warnings.length} trigger warnings`);
-            }
-            
-            return warnings;
-
-        } catch (error) {
-            console.error('[DDD] Warnings fetch error:', error);
-            return [];
-        }
-    }
-
-    /**
-     * Get trigger warnings for a movie by title
-     * (Convenience method that combines search + warnings)
+     * Get trigger warnings for a movie
+     * @param {string} title - Movie title
+     * @param {string} imdbId - Optional IMDB ID for better accuracy
+     * @returns {Promise<Array>} Array of warnings
      */
     async getWarningsForMovie(title, imdbId = null) {
+        if (!title) {
+            console.warn('[DDD] No title provided');
+            return [];
+        }
+
+        // Check cache first
+        const cacheKey = imdbId || title;
+        const cached = this.cache.get(cacheKey);
+        
+        if (cached && Date.now() - cached.timestamp < this.cacheExpiry) {
+            console.log(`[DDD] Using cached warnings for: ${title}`);
+            return cached.warnings;
+        }
+
         try {
-            // Try IMDB first if available
-            let movie = null;
+            // Strategy 1: Try IMDB ID first (most accurate)
             if (imdbId) {
-                movie = await this.searchByIMDB(imdbId);
-            }
-            
-            // Fallback to title search
-            if (!movie) {
-                movie = await this.searchByTitle(title);
-            }
-
-            if (!movie || !movie.id) {
-                if (ENV && ENV.DEBUG_MODE) {
-                    console.log(`[DDD] No match found for: ${title}`);
+                console.log(`[DDD] Searching by IMDB ID: ${imdbId}`);
+                const warnings = await this.searchByImdbId(imdbId);
+                
+                if (warnings && warnings.length > 0) {
+                    this.cacheResult(cacheKey, warnings);
+                    return warnings;
                 }
-                return [];
             }
 
-            // Fetch warnings for the movie
-            const warnings = await this.getTriggerWarnings(movie.id);
-            return warnings;
+            // Strategy 2: Try exact title match
+            console.log(`[DDD] Searching by title: ${title}`);
+            const exactMatch = await this.searchByTitle(title);
+            
+            if (exactMatch && exactMatch.length > 0) {
+                this.cacheResult(cacheKey, exactMatch);
+                return exactMatch;
+            }
+
+            // Strategy 3: Try normalized title (remove special chars)
+            const normalizedTitle = this.normalizeTitle(title);
+            if (normalizedTitle !== title.toLowerCase()) {
+                console.log(`[DDD] Trying normalized title: ${normalizedTitle}`);
+                const normalizedMatch = await this.searchByTitle(normalizedTitle);
+                
+                if (normalizedMatch && normalizedMatch.length > 0) {
+                    this.cacheResult(cacheKey, normalizedMatch);
+                    return normalizedMatch;
+                }
+            }
+
+            // No warnings found - cache empty result to avoid repeated API calls
+            console.log(`[DDD] No warnings found for: ${title}`);
+            this.cacheResult(cacheKey, []);
+            return [];
 
         } catch (error) {
-            console.error('[DDD] Error getting warnings:', error);
+            console.error('[DDD] Error fetching warnings:', error);
+            // Cache empty result to prevent repeated failed attempts
+            this.cacheResult(cacheKey, []);
             return [];
         }
     }
 
     /**
-     * Clear cache
+     * Search by IMDB ID (most reliable)
+     */
+    async searchByImdbId(imdbId) {
+        try {
+            const response = await fetch(`${this.baseURL}?action=search-imdb&imdbId=${encodeURIComponent(imdbId)}`);
+            
+            if (!response.ok) {
+                if (response.status === 404) {
+                    console.log(`[DDD] No DDD entry for IMDB: ${imdbId}`);
+                    return [];
+                }
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            const data = await response.json();
+            
+            if (data.mediaId) {
+                return await this.getWarnings(data.mediaId);
+            }
+
+            return [];
+        } catch (error) {
+            console.warn(`[DDD] IMDB search failed: ${error.message}`);
+            return [];
+        }
+    }
+
+    /**
+     * Search by title
+     */
+    async searchByTitle(title) {
+        try {
+            const response = await fetch(`${this.baseURL}?action=search-title&title=${encodeURIComponent(title)}`);
+            
+            if (!response.ok) {
+                if (response.status === 404) {
+                    // 404 is normal - means movie not in DDD database
+                    return [];
+                }
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            const data = await response.json();
+            
+            // DDD API returns array of search results
+            if (Array.isArray(data) && data.length > 0) {
+                const firstResult = data[0];
+                if (firstResult.id) {
+                    return await this.getWarnings(firstResult.id);
+                }
+            }
+
+            return [];
+        } catch (error) {
+            // Don't log 404s as errors - they're expected for movies not in DDD
+            if (!error.message.includes('404')) {
+                console.warn(`[DDD] Title search failed for "${title}": ${error.message}`);
+            }
+            return [];
+        }
+    }
+
+    /**
+     * Get warnings for a specific media ID
+     */
+    async getWarnings(mediaId) {
+        try {
+            const response = await fetch(`${this.baseURL}?action=get-warnings&mediaId=${mediaId}`);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            const data = await response.json();
+            
+            // Extract warnings from DDD response format
+            if (data.topicItemStats && Array.isArray(data.topicItemStats)) {
+                const warnings = data.topicItemStats
+                    .filter(item => item.yesSum > 0) // Only include confirmed warnings
+                    .map(item => ({
+                        category: this.mapDDDCategory(item.topic?.name || 'Unknown'),
+                        description: item.topic?.name || 'Unknown warning',
+                        severity: this.calculateSeverity(item.yesSum, item.noSum),
+                        votes: {
+                            yes: item.yesSum || 0,
+                            no: item.noSum || 0
+                        }
+                    }));
+
+                console.log(`[DDD] ✅ Found ${warnings.length} warnings for media ${mediaId}`);
+                return warnings;
+            }
+
+            return [];
+        } catch (error) {
+            console.error(`[DDD] Failed to get warnings for media ${mediaId}:`, error);
+            return [];
+        }
+    }
+
+    /**
+     * Map DoesTheDogDie category names to our trigger warning categories
+     */
+    mapDDDCategory(dddCategory) {
+        const categoryMap = {
+            // Animal harm
+            'animal death': 'Animal Harm',
+            'dog dies': 'Animal Harm',
+            'cat dies': 'Animal Harm',
+            'animal abuse': 'Animal Harm',
+            
+            // Violence
+            'blood': 'Violence',
+            'gore': 'Violence',
+            'gun violence': 'Violence',
+            'physical violence': 'Violence',
+            'torture': 'Violence',
+            
+            // Sexual violence
+            'sexual assault': 'Sexual Violence',
+            'rape': 'Sexual Violence',
+            'sexual harassment': 'Sexual Violence',
+            
+            // Death
+            'death': 'Death',
+            'child death': 'Child Harm',
+            'parent death': 'Death',
+            
+            // Mental health
+            'suicide': 'Mental Health',
+            'self harm': 'Mental Health',
+            'panic attacks': 'Mental Health',
+            'mental illness': 'Mental Health',
+            
+            // Jump scares
+            'jump scares': 'Jump Scares',
+            'scary': 'Jump Scares',
+            
+            // Substance abuse
+            'alcohol': 'Substance Abuse',
+            'drug use': 'Substance Abuse',
+            
+            // Domestic abuse
+            'domestic violence': 'Domestic Abuse',
+            'child abuse': 'Child Harm',
+            
+            // Medical trauma
+            'medical procedures': 'Medical Trauma',
+            'needles': 'Medical Trauma',
+            'hospital': 'Medical Trauma',
+            
+            // Discrimination
+            'racism': 'Hate/Discrimination',
+            'homophobia': 'Hate/Discrimination',
+            'transphobia': 'Hate/Discrimination',
+            'sexism': 'Hate/Discrimination',
+            
+            // Body horror
+            'body horror': 'Body Horror',
+            'mutilation': 'Body Horror'
+        };
+
+        const normalized = dddCategory.toLowerCase();
+        
+        for (const [key, category] of Object.entries(categoryMap)) {
+            if (normalized.includes(key)) {
+                return category;
+            }
+        }
+
+        // Default to general warning
+        return 'Other';
+    }
+
+    /**
+     * Calculate severity based on yes/no votes
+     */
+    calculateSeverity(yesVotes, noVotes) {
+        const total = yesVotes + noVotes;
+        if (total === 0) return 'low';
+        
+        const yesPercentage = (yesVotes / total) * 100;
+        
+        if (yesPercentage >= 75) return 'high';
+        if (yesPercentage >= 50) return 'medium';
+        return 'low';
+    }
+
+    /**
+     * Cache results to minimize API calls
+     */
+    cacheResult(key, warnings) {
+        this.cache.set(key, {
+            warnings,
+            timestamp: Date.now()
+        });
+    }
+
+    /**
+     * Clear expired cache entries
+     */
+    clearExpiredCache() {
+        const now = Date.now();
+        for (const [key, value] of this.cache.entries()) {
+            if (now - value.timestamp >= this.cacheExpiry) {
+                this.cache.delete(key);
+            }
+        }
+    }
+
+    /**
+     * Clear all cache
      */
     clearCache() {
         this.cache.clear();
-        if (ENV && ENV.DEBUG_MODE) {
-            console.log('[DDD] Cache cleared');
-        }
+        console.log('[DDD] Cache cleared');
     }
 }
 
-// Export singleton instance
-export const doesTheDogDieService = new DoesTheDogDieService();
+// Create singleton instance
+const doesTheDogDieService = new DoesTheDogDieService();
+
+export { doesTheDogDieService };
