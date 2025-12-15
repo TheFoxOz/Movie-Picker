@@ -2,11 +2,11 @@
  * MoviEase - Main Application Entry Point
  * Discover your next favorite film with ease
  * 
+ * ✅ FIXED: Correct import name (MoviEaseApp not MoviePickerApp)
  * ✅ GOOGLE REDIRECT FIX: Properly waits for redirect to complete
  * ✅ Initializes TMDB and Firebase services
  * ✅ Handles auth state propagation
  */
-
 import { ENV } from './config/env.js';
 import { tmdbService } from './services/tmdb.js';
 import { authService } from './services/auth-service.js';
@@ -62,8 +62,8 @@ async function startApp() {
     // ✅ Give auth state a moment to propagate
     await new Promise(resolve => setTimeout(resolve, 500));
     
-    // Import and initialize the main app
-    const { MoviePickerApp } = await import('./app-init.js');
+    // ✅ FIXED: Import the correct class name
+    const { MoviEaseApp } = await import('./app-init.js');
     
     console.log('✅ MoviEase ready! Discover your next favorite film 🎬');
 }
