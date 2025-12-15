@@ -3,6 +3,7 @@
  * ✅ FIXED: Removed duplicate platform logic
  * ✅ FIXED: Proper platform detection from multiple sources
  * ✅ FIXED: Updated color references to new palette
+ * ✅ FIXED: Syntax error in filterByUserPlatforms
  */
 
 import { doesTheDogDieService } from './does-the-dog-die.js';
@@ -74,7 +75,6 @@ class TMDBService {
         return `${this.imageBaseURL}/${size}${path}`;
     }
 
-    // ✅ FIX: Fetch watch providers (streaming platforms) for a movie
     async getWatchProviders(movieId) {
         if (!movieId) {
             console.warn('[TMDB] No movie ID provided for watch providers');
@@ -153,7 +153,6 @@ class TMDBService {
         }
     }
 
-    // ✅ FIX: Robust platform filtering with multiple source checks
     filterByUserPlatforms(movies) {
         if (!movies || movies.length === 0) {
             return [];
@@ -174,9 +173,7 @@ class TMDBService {
         }
         
         // Strategy 2: Try store.getState()
-        if (!selectedPlatforms || selected
-
-Platforms.length === 0) {
+        if (!selectedPlatforms || selectedPlatforms.length === 0) {
             try {
                 const state = store.getState();
                 const prefs = state.preferences || {};
@@ -238,23 +235,19 @@ Platforms.length === 0) {
         return filtered;
     }
 
-    // ✅ FIX: Check if movie should be blocked based on trigger warnings
     isMovieBlocked(movie) {
         if (!movie || !movie.triggerWarnings) {
-            return false; // No warnings, not blocked
+            return false;
         }
 
         const userProfile = userProfileService?.getProfile();
         const enabledCategories = userProfile?.triggerWarnings?.enabledCategories || [];
         
-        // If no categories enabled, don't block anything
         if (enabledCategories.length === 0) {
             return false;
         }
 
-        // Check if movie has any warnings in enabled (blocked) categories
         const hasBlockedWarning = movie.triggerWarnings.some(warning => {
-            // Warning might be a string (category name) or object with category property
             const category = typeof warning === 'string' ? warning : warning.category;
             return enabledCategories.includes(category);
         });
@@ -266,7 +259,6 @@ Platforms.length === 0) {
         return hasBlockedWarning;
     }
 
-    // ✅ FIX: Filter out movies with blocked trigger warnings
     filterBlockedMovies(movies) {
         if (!movies || movies.length === 0) {
             return [];
@@ -281,7 +273,6 @@ Platforms.length === 0) {
         return filtered;
     }
 
-    // ✅ FIX: Apply ALL filters (platform + triggers)
     applyUserFilters(movies) {
         if (!movies || movies.length === 0) {
             return [];
@@ -289,10 +280,7 @@ Platforms.length === 0) {
 
         console.log(`[TMDB] Applying filters to ${movies.length} movies...`);
         
-        // Apply platform filtering
         let filtered = this.filterByUserPlatforms(movies);
-        
-        // Apply trigger warning blocking
         filtered = this.filterBlockedMovies(filtered);
         
         console.log(`[TMDB] ✅ After filtering: ${filtered.length} movies remain`);
@@ -300,12 +288,10 @@ Platforms.length === 0) {
         return filtered;
     }
 
-    // ✅ FIX: Use only doesTheDogDieService for trigger warnings
     async fetchTriggerWarnings(movie) {
         if (!movie || !movie.id || movie.warningsLoaded) return;
 
         try {
-            // Silently fetch warnings (only log successes)
             const warnings = await doesTheDogDieService.getWarningsForMovie(
                 movie.title,
                 movie.imdb_id || null
@@ -315,11 +301,9 @@ Platforms.length === 0) {
             movie.warningsLoaded = true;
             movie.hasTriggerWarnings = warnings.length > 0;
 
-            // Only log when warnings are found
             if (warnings.length > 0) {
                 console.log(`[TMDB] ✅ ${warnings.length} warnings loaded for: ${movie.title}`);
                 
-                // Update card badge if exists
                 document.dispatchEvent(new CustomEvent('trigger-warnings-loaded', {
                     detail: { movieId: movie.id, warnings }
                 }));
@@ -332,7 +316,6 @@ Platforms.length === 0) {
         }
     }
 
-    // ✅ UPDATED: Discover movies with region filtering
     async discoverMovies(options = {}) {
         const userProfile = userProfileService?.getProfile();
         
@@ -347,7 +330,6 @@ Platforms.length === 0) {
             watch_region: userProfile?.region || 'US'
         });
 
-        // Add optional filters
         if (options.withGenres) {
             params.append('with_genres', options.withGenres);
         }
@@ -381,7 +363,6 @@ Platforms.length === 0) {
         }
     }
 
-    // ✅ UPDATED: Get popular movies with region filtering
     async getPopularMovies(page = 1) {
         const userProfile = userProfileService?.getProfile();
         
@@ -407,7 +388,6 @@ Platforms.length === 0) {
         }
     }
 
-    // ✅ UPDATED: Get trending movies with region filtering
     async getTrendingMovies(timeWindow = 'week', page = 1) {
         const userProfile = userProfileService?.getProfile();
         
@@ -493,7 +473,6 @@ Platforms.length === 0) {
         return movies.map(movie => this.processMovie(movie));
     }
 
-    // ✅ FIX: Removed duplicate platform assignment logic
     processMovie(movie) {
         // Extract certification if available
         let certification = null;
@@ -521,30 +500,23 @@ Platforms.length === 0) {
             backdropURL: this.getImageURL(movie.backdrop_path, 'w780'),
             adult: movie.adult,
             originalLanguage: movie.original_language,
-            // Additional details if available
             runtime: movie.runtime,
             budget: movie.budget,
             revenue: movie.revenue,
             status: movie.status,
             tagline: movie.tagline,
             homepage: movie.homepage,
-            // ✅ FIX: Add certification
             certification: certification,
-            // Credits
             cast: movie.credits?.cast?.slice(0, 10),
             crew: movie.credits?.crew,
             director: movie.credits?.crew?.find(p => p.job === 'Director'),
-            // Videos
             trailer: movie.videos?.results?.find(v => 
                 v.type === 'Trailer' && v.site === 'YouTube'
             ),
-            // Similar/Recommended
             similar: movie.similar?.results,
             recommendations: movie.recommendations?.results,
-            // ✅ FIX: Platform availability (single source of truth)
-            availableOn: [], // Will be populated by getWatchProviders
-            platform: null, // Will be set after watch providers fetched
-            // Trigger warnings (will be populated separately)
+            availableOn: [],
+            platform: null,
             triggerWarnings: [],
             hasTriggerWarnings: false,
             triggerWarningCount: 0,
@@ -552,7 +524,6 @@ Platforms.length === 0) {
         };
     }
 
-    // Helper to batch load trigger warnings for multiple movies
     async loadTriggerWarningsForMovies(movies, options = {}) {
         const { maxConcurrent = 3, delay = 100 } = options;
         
@@ -567,7 +538,6 @@ Platforms.length === 0) {
             await Promise.all(promises);
             results.push(...batch);
             
-            // Rate limiting delay
             if (i + maxConcurrent < movies.length) {
                 await new Promise(resolve => setTimeout(resolve, delay));
             }
@@ -581,7 +551,6 @@ Platforms.length === 0) {
         return results;
     }
 
-    // ✅ FIX: Batch load watch providers and SET platform field
     async loadWatchProvidersForMovies(movies, options = {}) {
         const { maxConcurrent = 5, delay = 50 } = options;
         
@@ -594,11 +563,9 @@ Platforms.length === 0) {
                 batch.map(async (movie) => {
                     movie.availableOn = await this.getWatchProviders(movie.id);
                     
-                    // ✅ FIX: Set platform field (single source of truth)
                     if (movie.availableOn && movie.availableOn.length > 0) {
-                        movie.platform = movie.availableOn[0]; // First available platform
+                        movie.platform = movie.availableOn[0];
                     } else {
-                        // Check if movie is unreleased
                         const year = movie.releaseDate?.split('-')[0] || movie.year;
                         const currentYear = new Date().getFullYear();
                         
@@ -611,7 +578,6 @@ Platforms.length === 0) {
                 })
             );
             
-            // Rate limiting delay
             if (i + maxConcurrent < movies.length) {
                 await new Promise(resolve => setTimeout(resolve, delay));
             }
@@ -621,7 +587,6 @@ Platforms.length === 0) {
         return movies;
     }
 
-    // Clear cache
     clearCache() {
         this.cache.movies.clear();
         this.cache.triggerWarnings.clear();
@@ -630,7 +595,6 @@ Platforms.length === 0) {
     }
 }
 
-// Create singleton instance
 const tmdbService = new TMDBService();
 
 export { tmdbService, TMDBService };
