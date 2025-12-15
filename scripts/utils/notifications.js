@@ -1,7 +1,9 @@
 /**
- * Notification System
- * Toast-style notifications for user feedback
- * ✅ FIX #4: Fixed ENV reference from ENV.APP.debug to ENV.DEBUG_MODE
+ * MoviEase - Notification System
+ * Toast-style notifications with Space Indigo & Powder Blue theme
+ * 
+ * ✅ Updated with MoviEase branding and color palette
+ * ✅ Fixed ENV reference from ENV.APP.debug to ENV.DEBUG_MODE
  */
 
 import { ENV } from '../config/env.js';
@@ -31,9 +33,8 @@ class NotificationManager {
         `;
         document.body.appendChild(this.container);
 
-        // ✅ FIX #4: Changed from ENV.APP.debug to ENV.DEBUG_MODE
         if (ENV && ENV.DEBUG_MODE) {
-            console.log('[Notifications] Manager initialized');
+            console.log('[MoviEase Notifications] Manager initialized');
         }
     }
 
@@ -55,9 +56,8 @@ class NotificationManager {
             options
         };
 
-        // ✅ FIX #4: Changed from ENV.APP.debug to ENV.DEBUG_MODE
         if (ENV && ENV.DEBUG_MODE) {
-            console.log('[Notifications] Showing:', notification);
+            console.log('[MoviEase Notifications] Showing:', notification);
         }
 
         this.notifications.push(notification);
@@ -107,22 +107,24 @@ class NotificationManager {
         element.id = `notification-${notification.id}`;
         element.className = `notification notification-${notification.type}`;
         
-        // Style based on type
+        // Style based on type with MoviEase colors
         const styles = this.getStyles(notification.type);
         
         element.style.cssText = `
             background: ${styles.background};
             border: 1px solid ${styles.border};
+            border-left: 4px solid ${styles.accent};
             border-radius: 0.75rem;
             padding: 1rem 1.25rem;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 10px 25px rgba(30, 58, 95, 0.4);
+            backdrop-filter: blur(12px);
             display: flex;
             align-items: center;
             gap: 0.75rem;
             pointer-events: auto;
             cursor: pointer;
-            animation: slideIn 0.3s ease-out;
-            transition: all 0.3s ease;
+            animation: slideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             min-width: 280px;
             max-width: 400px;
         `;
@@ -130,24 +132,25 @@ class NotificationManager {
         // Icon
         const icon = this.getIcon(notification.type);
         element.innerHTML = `
-            <div style="flex-shrink: 0; font-size: 1.25rem;">
+            <div style="flex-shrink: 0; font-size: 1.25rem; color: ${styles.iconColor};">
                 ${icon}
             </div>
-            <div style="flex: 1; color: white; font-size: 0.9375rem; line-height: 1.4;">
+            <div style="flex: 1; color: rgba(255, 255, 255, 0.95); font-size: 0.9375rem; line-height: 1.5; font-weight: 500;">
                 ${notification.message}
             </div>
             <button class="notification-close" style="
                 flex-shrink: 0;
-                background: rgba(255, 255, 255, 0.1);
+                background: rgba(176, 212, 227, 0.1);
                 border: none;
                 border-radius: 0.375rem;
-                color: white;
+                color: rgba(176, 212, 227, 0.9);
                 cursor: pointer;
                 padding: 0.25rem 0.5rem;
                 font-size: 0.875rem;
-                transition: background 0.2s;
-            " onmouseover="this.style.background='rgba(255,255,255,0.2)'" 
-               onmouseout="this.style.background='rgba(255,255,255,0.1)'">
+                transition: all 0.2s;
+                font-weight: 600;
+            " onmouseover="this.style.background='rgba(176,212,227,0.2)'; this.style.color='#b0d4e3';" 
+               onmouseout="this.style.background='rgba(176,212,227,0.1)'; this.style.color='rgba(176,212,227,0.9)';">
                 ✕
             </button>
         `;
@@ -171,25 +174,33 @@ class NotificationManager {
     }
 
     /**
-     * Get styles for notification type
+     * Get styles for notification type with MoviEase colors
      */
     getStyles(type) {
         const styles = {
             success: {
-                background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.95), rgba(5, 150, 105, 0.95))',
-                border: 'rgba(16, 185, 129, 0.5)'
+                background: 'linear-gradient(135deg, rgba(30, 58, 95, 0.95), rgba(26, 31, 46, 0.95))',
+                border: 'rgba(176, 212, 227, 0.2)',
+                accent: '#4ade80',
+                iconColor: '#4ade80'
             },
             error: {
-                background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.95), rgba(220, 38, 38, 0.95))',
-                border: 'rgba(239, 68, 68, 0.5)'
+                background: 'linear-gradient(135deg, rgba(30, 58, 95, 0.95), rgba(26, 31, 46, 0.95))',
+                border: 'rgba(176, 212, 227, 0.2)',
+                accent: '#ef4444',
+                iconColor: '#ef4444'
             },
             warning: {
-                background: 'linear-gradient(135deg, rgba(251, 191, 36, 0.95), rgba(245, 158, 11, 0.95))',
-                border: 'rgba(251, 191, 36, 0.5)'
+                background: 'linear-gradient(135deg, rgba(30, 58, 95, 0.95), rgba(26, 31, 46, 0.95))',
+                border: 'rgba(176, 212, 227, 0.2)',
+                accent: '#fbbf24',
+                iconColor: '#fbbf24'
             },
             info: {
-                background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.95), rgba(37, 99, 235, 0.95))',
-                border: 'rgba(59, 130, 246, 0.5)'
+                background: 'linear-gradient(135deg, rgba(30, 58, 95, 0.95), rgba(26, 31, 46, 0.95))',
+                border: 'rgba(176, 212, 227, 0.2)',
+                accent: '#b0d4e3',
+                iconColor: '#b0d4e3'
             }
         };
 
@@ -217,13 +228,12 @@ class NotificationManager {
         const element = document.getElementById(`notification-${id}`);
         if (!element) return;
 
-        // ✅ FIX #4: Changed from ENV.APP.debug to ENV.DEBUG_MODE
         if (ENV && ENV.DEBUG_MODE) {
-            console.log('[Notifications] Dismissing:', id);
+            console.log('[MoviEase Notifications] Dismissing:', id);
         }
 
         // Slide out animation
-        element.style.animation = 'slideOut 0.3s ease-out';
+        element.style.animation = 'slideOut 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
         
         setTimeout(() => {
             element.remove();
@@ -235,9 +245,8 @@ class NotificationManager {
      * Dismiss all notifications
      */
     dismissAll() {
-        // ✅ FIX #4: Changed from ENV.APP.debug to ENV.DEBUG_MODE
         if (ENV && ENV.DEBUG_MODE) {
-            console.log('[Notifications] Dismissing all');
+            console.log('[MoviEase Notifications] Dismissing all');
         }
 
         this.notifications.forEach(n => this.dismiss(n.id));
@@ -249,7 +258,7 @@ class NotificationManager {
     showLoading(message = 'Loading...') {
         const id = this.show(
             `<div style="display: flex; align-items: center; gap: 0.75rem;">
-                <div style="width: 16px; height: 16px; border: 2px solid rgba(255, 255, 255, 0.3); border-top-color: white; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                <div style="width: 16px; height: 16px; border: 2px solid rgba(176, 212, 227, 0.3); border-top-color: #b0d4e3; border-radius: 50%; animation: spin 1s linear infinite;"></div>
                 <span>${message}</span>
             </div>`,
             'info',
@@ -277,9 +286,8 @@ class NotificationManager {
         element.remove();
         this.renderNotification(notification);
 
-        // ✅ FIX #4: Changed from ENV.APP.debug to ENV.DEBUG_MODE
         if (ENV && ENV.DEBUG_MODE) {
-            console.log('[Notifications] Updated:', id);
+            console.log('[MoviEase Notifications] Updated:', id);
         }
     }
 
@@ -292,14 +300,13 @@ class NotificationManager {
             this.container.remove();
         }
 
-        // ✅ FIX #4: Changed from ENV.APP.debug to ENV.DEBUG_MODE
         if (ENV && ENV.DEBUG_MODE) {
-            console.log('[Notifications] Manager destroyed');
+            console.log('[MoviEase Notifications] Manager destroyed');
         }
     }
 }
 
-// Add CSS animations
+// Add CSS animations with MoviEase theme
 const style = document.createElement('style');
 style.textContent = `
     @keyframes slideIn {
@@ -335,7 +342,26 @@ style.textContent = `
 
     .notification:hover {
         transform: translateX(-4px);
-        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+        box-shadow: 0 12px 32px rgba(30, 58, 95, 0.5), 0 0 20px rgba(176, 212, 227, 0.2);
+        border-color: rgba(176, 212, 227, 0.3);
+    }
+
+    .notification:active {
+        transform: translateX(-2px);
+    }
+
+    /* Subtle pulse animation for active notifications */
+    @keyframes pulse {
+        0%, 100% {
+            box-shadow: 0 10px 25px rgba(30, 58, 95, 0.4);
+        }
+        50% {
+            box-shadow: 0 10px 25px rgba(30, 58, 95, 0.4), 0 0 20px rgba(176, 212, 227, 0.15);
+        }
+    }
+
+    .notification {
+        animation: slideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1), pulse 2s ease-in-out infinite;
     }
 
     @media (max-width: 640px) {
@@ -348,6 +374,11 @@ style.textContent = `
 
         .notification {
             min-width: auto !important;
+            padding: 0.875rem 1rem !important;
+        }
+
+        .notification .notification-close {
+            padding: 0.2rem 0.4rem !important;
         }
     }
 `;
