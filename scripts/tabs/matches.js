@@ -1,7 +1,7 @@
 /**
  * Matches Tab - Friend Movie Matches
+ * ✅ FIXED: Proper scrolling
  * ✅ FIXED: Real-time Firestore listener for friend swipe history
- * ✅ FIXED: Proper friend data loading and syncing
  */
 
 import { tmdbService } from '../services/tmdb.js';
@@ -18,7 +18,7 @@ class MatchesTab {
         this.matches = [];
         this.selectedFriend = null;
         this.isLoading = false;
-        this.friendListeners = new Map(); // Track Firestore listeners
+        this.friendListeners = new Map();
     }
 
     async init(container) {
@@ -33,6 +33,7 @@ class MatchesTab {
             <div class="matches-content" style="
                 height: 100%;
                 overflow-y: auto;
+                overflow-x: hidden;
                 -webkit-overflow-scrolling: touch;
                 padding: 1rem;
                 padding-bottom: 6rem;
@@ -41,10 +42,10 @@ class MatchesTab {
                     <h1 style="
                         font-size: 1.75rem;
                         font-weight: 700;
-                        color: #FDFAB0;
+                        color: white;
                         margin-bottom: 0.5rem;
                     ">🤝 Movie Matches</h1>
-                    <p style="color: #A6C0DD; font-size: 0.95rem;">
+                    <p style="color: rgba(176, 212, 227, 0.7); font-size: 0.95rem;">
                         Find movies you and your friends both liked
                     </p>
                 </div>
@@ -57,7 +58,7 @@ class MatchesTab {
                     <h2 class="section-title" style="
                         font-size: 1.25rem;
                         font-weight: 600;
-                        color: #FDFAB0;
+                        color: white;
                         margin-bottom: 1rem;
                     "></h2>
                     <div id="matches-grid" class="movie-grid" style="
@@ -71,10 +72,10 @@ class MatchesTab {
                     display: none;
                     text-align: center;
                     padding: 3rem 1rem;
-                    color: #A6C0DD;
+                    color: rgba(176, 212, 227, 0.7);
                 ">
                     <p style="font-size: 3rem; margin-bottom: 1rem;">👥</p>
-                    <h3 style="color: #FDFAB0; margin-bottom: 0.5rem;">No Friends Yet</h3>
+                    <h3 style="color: white; margin-bottom: 0.5rem;">No Friends Yet</h3>
                     <p>Add friends to find movie matches!</p>
                 </div>
             </div>
@@ -87,14 +88,15 @@ class MatchesTab {
                 <div class="spinner" style="
                     width: 40px;
                     height: 40px;
-                    border: 4px solid #A6C0DD;
-                    border-top-color: #FDFAB0;
+                    border: 4px solid rgba(176, 212, 227, 0.2);
+                    border-top-color: #b0d4e3;
                     border-radius: 50%;
                     animation: spin 1s linear infinite;
                     margin: 0 auto 1rem;
                 "></div>
-                <p style="color: #A6C0DD;">Loading friends...</p>
+                <p style="color: rgba(176, 212, 227, 0.7);">Loading friends...</p>
             </div>
+            <style>@keyframes spin { to { transform: rotate(360deg); }}</style>
         `;
     }
 
@@ -138,7 +140,6 @@ class MatchesTab {
 
     async loadFriendData(friendId) {
         try {
-            // Get initial friend data
             const friendDoc = await getDoc(doc(db, 'users', friendId));
             
             if (!friendDoc.exists()) {
@@ -165,12 +166,10 @@ class MatchesTab {
     }
 
     setupFriendListener(friendId, friendObject) {
-        // Clean up existing listener if any
         if (this.friendListeners.has(friendId)) {
             this.friendListeners.get(friendId)();
         }
 
-        // Set up new listener
         const friendRef = doc(db, 'users', friendId);
         const unsubscribe = onSnapshot(friendRef, (docSnapshot) => {
             if (docSnapshot.exists()) {
@@ -179,7 +178,6 @@ class MatchesTab {
                 
                 console.log(`[Matches] Updated swipe history for ${friendObject.displayName}: ${friendObject.swipeHistory.length} swipes`);
                 
-                // If this friend is currently selected, refresh matches
                 if (this.selectedFriend && this.selectedFriend.id === friendId) {
                     this.showMatchesForFriend(friendObject);
                 }
@@ -214,19 +212,19 @@ class MatchesTab {
     }
 
     renderFriendCard(friend) {
-        const photoUrl = friend.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(friend.displayName)}&background=A6C0DD&color=18183A`;
+        const photoUrl = friend.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(friend.displayName)}&background=b0d4e3&color=1e3a5f`;
         const swipeCount = friend.swipeHistory?.length || 0;
 
         return `
             <div class="friend-card" data-friend-id="${friend.id}" style="
-                background: linear-gradient(135deg, #18183A 0%, #2d2d5f 100%);
+                background: linear-gradient(135deg, #1e3a5f 0%, #2d5a8f 100%);
                 border-radius: 12px;
                 padding: 1rem;
                 text-align: center;
                 cursor: pointer;
                 transition: all 0.2s ease;
                 border: 2px solid transparent;
-            " onmouseover="this.style.borderColor='#A6C0DD'; this.style.transform='translateY(-4px)';" 
+            " onmouseover="this.style.borderColor='#b0d4e3'; this.style.transform='translateY(-4px)';" 
                onmouseout="this.style.borderColor='transparent'; this.style.transform='translateY(0)';">
                 <img 
                     src="${photoUrl}" 
@@ -237,14 +235,14 @@ class MatchesTab {
                         border-radius: 50%;
                         object-fit: cover;
                         margin: 0 auto 0.75rem;
-                        border: 3px solid #A6C0DD;
+                        border: 3px solid #b0d4e3;
                         display: block;
                     "
                 >
                 <h3 style="
                     font-size: 0.95rem;
                     font-weight: 600;
-                    color: #FDFAB0;
+                    color: white;
                     margin: 0 0 0.25rem 0;
                     overflow: hidden;
                     text-overflow: ellipsis;
@@ -252,7 +250,7 @@ class MatchesTab {
                 ">${friend.displayName}</h3>
                 <p style="
                     font-size: 0.8rem;
-                    color: #A6C0DD;
+                    color: rgba(176, 212, 227, 0.8);
                     margin: 0;
                 ">${swipeCount} swipes</p>
             </div>
@@ -279,7 +277,7 @@ class MatchesTab {
                         grid-column: 1 / -1;
                         text-align: center;
                         padding: 2rem;
-                        color: #A6C0DD;
+                        color: rgba(176, 212, 227, 0.7);
                     ">
                         <p style="font-size: 2rem; margin-bottom: 0.5rem;">🎬</p>
                         <p>No matches yet. Keep swiping!</p>
@@ -288,7 +286,6 @@ class MatchesTab {
                 return;
             }
 
-            // Load movie details with providers
             const moviesWithDetails = await Promise.all(
                 matches.map(async (matchedMovie) => {
                     const movie = await tmdbService.getMovieDetails(matchedMovie.id);
@@ -306,7 +303,7 @@ class MatchesTab {
         } catch (error) {
             console.error('[Matches] Error calculating matches:', error);
             matchesGrid.innerHTML = `
-                <div style="grid-column: 1 / -1; text-align: center; padding: 2rem; color: #A6C0DD;">
+                <div style="grid-column: 1 / -1; text-align: center; padding: 2rem; color: rgba(176, 212, 227, 0.7);">
                     Failed to load matches
                 </div>
             `;
@@ -317,7 +314,6 @@ class MatchesTab {
         const currentUser = authService.getCurrentUser();
         if (!currentUser) return [];
 
-        // Get current user's swipe history
         const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
         if (!userDoc.exists()) return [];
 
@@ -327,7 +323,6 @@ class MatchesTab {
 
         console.log(`[Matches] User swipes: ${userSwipes.length}, Friend swipes: ${friendSwipes.length}`);
 
-        // Find movies both users liked
         const userLikes = new Set(
             userSwipes
                 .filter(swipe => swipe.liked)
@@ -343,7 +338,6 @@ class MatchesTab {
 
         console.log(`[Matches] Found ${matches.length} mutual likes`);
 
-        // Sort by most recent
         matches.sort((a, b) => b.timestamp - a.timestamp);
 
         return matches;
@@ -353,7 +347,7 @@ class MatchesTab {
         return Array(count).fill(0).map(() => `
             <div class="movie-card loading" style="
                 aspect-ratio: 2/3;
-                background: linear-gradient(90deg, #2d2d5f 0%, #3d3d7f 50%, #2d2d5f 100%);
+                background: linear-gradient(90deg, #1e3a5f 0%, #2d5a8f 50%, #1e3a5f 100%);
                 background-size: 200% 100%;
                 animation: shimmer 1.5s infinite;
                 border-radius: 8px;
@@ -380,7 +374,7 @@ class MatchesTab {
                 border-radius: 8px;
                 overflow: hidden;
                 transition: transform 0.2s ease;
-                background: #18183A;
+                background: #1e3a5f;
             " onmouseover="this.style.transform='scale(1.05)';" 
                onmouseout="this.style.transform='scale(1)';">
                 <img 
@@ -393,8 +387,8 @@ class MatchesTab {
                     position: absolute;
                     top: 8px;
                     right: 8px;
-                    background: rgba(24, 24, 58, 0.9);
-                    color: #FDFAB0;
+                    background: rgba(30, 58, 95, 0.9);
+                    color: #f4e8c1;
                     padding: 4px 8px;
                     border-radius: 6px;
                     font-size: 0.8rem;
@@ -407,26 +401,25 @@ class MatchesTab {
                     bottom: 0;
                     left: 0;
                     right: 0;
-                    background: linear-gradient(to top, rgba(24,24,58,0.95), transparent);
+                    background: linear-gradient(to top, rgba(30, 58, 95, 0.95), transparent);
                     padding: 0.75rem;
                 ">
                     <h3 style="
                         font-size: 0.9rem;
                         font-weight: 600;
-                        color: #FDFAB0;
+                        color: white;
                         margin: 0 0 4px 0;
                         overflow: hidden;
                         text-overflow: ellipsis;
                         white-space: nowrap;
                     ">${movie.title}</h3>
-                    <p style="font-size: 0.75rem; color: #A6C0DD; margin: 0;">${platform}</p>
+                    <p style="font-size: 0.75rem; color: rgba(176, 212, 227, 0.8); margin: 0;">${platform}</p>
                 </div>
             </div>
         `;
     }
 
     attachEventListeners() {
-        // Friend selection
         this.container.addEventListener('click', async (e) => {
             const friendCard = e.target.closest('.friend-card');
             if (friendCard) {
@@ -438,12 +431,11 @@ class MatchesTab {
                 return;
             }
 
-            // Movie card click
             const movieCard = e.target.closest('.movie-card');
             if (movieCard && !movieCard.classList.contains('loading')) {
                 const movieId = parseInt(movieCard.dataset.movieId);
                 const movie = this.matches.find(m => m.id === movieId);
-                if (movie) {
+                if (movie && showMovieModal) {
                     await showMovieModal(movie);
                 }
             }
@@ -462,7 +454,7 @@ class MatchesTab {
         const friendsList = document.getElementById('friends-list');
         if (friendsList) {
             friendsList.innerHTML = `
-                <div style="text-align: center; padding: 2rem; color: #A6C0DD;">
+                <div style="text-align: center; padding: 2rem; color: rgba(176, 212, 227, 0.7);">
                     <p>❌ ${message}</p>
                 </div>
             `;
@@ -470,7 +462,6 @@ class MatchesTab {
     }
 
     cleanup() {
-        // Unsubscribe from all Firestore listeners
         this.friendListeners.forEach(unsubscribe => unsubscribe());
         this.friendListeners.clear();
         
