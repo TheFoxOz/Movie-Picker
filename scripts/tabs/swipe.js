@@ -4,6 +4,7 @@
  * ✅ Shows first card immediately with placeholder data
  * ✅ Enriches platform data in background
  * ✅ Filters out cinema-only movies
+ * ✅ COLOR FIX: Powder Blue + Vanilla Custard gradients
  * ✅ MoviEase branding and colors
  */
 
@@ -85,7 +86,7 @@ export class SwipeTab {
                     <p style="font-size: 1.125rem; color: rgba(176, 212, 227, 0.8); margin: 0 0 2rem 0; max-width: 400px;">
                         You've swiped through all available movies. Check your Library to see your picks!
                     </p>
-                    <button id="goto-library" style="padding: 1rem 2rem; background: linear-gradient(135deg, #1e3a5f, #2d5a8f); border: none; border-radius: 1rem; color: white; font-size: 1rem; font-weight: 700; cursor: pointer; transition: transform 0.2s; box-shadow: 0 4px 12px rgba(176, 212, 227, 0.3);">
+                    <button id="goto-library" style="padding: 1rem 2rem; background: linear-gradient(135deg, #b0d4e3, #f4e8c1); border: none; border-radius: 1rem; color: #1a1f2e; font-size: 1rem; font-weight: 700; cursor: pointer; transition: transform 0.2s; box-shadow: 0 4px 12px rgba(176, 212, 227, 0.3);">
                         View My Library
                     </button>
                 </div>
@@ -314,7 +315,7 @@ export class SwipeTab {
                             <p style="color: rgba(176, 212, 227, 0.6); margin-bottom: 1.5rem;">
                                 ${err.message || 'Unknown error'}
                             </p>
-                            <button onclick="location.reload()" style="padding: 0.75rem 1.5rem; background: linear-gradient(135deg, #1e3a5f, #2d5a8f); border: none; border-radius: 0.75rem; color: white; font-weight: 700; cursor: pointer;">
+                            <button onclick="location.reload()" style="padding: 0.75rem 1.5rem; background: linear-gradient(135deg, #b0d4e3, #f4e8c1); border: none; border-radius: 0.75rem; color: #1a1f2e; font-weight: 700; cursor: pointer;">
                                 Reload App
                             </button>
                         </div>
