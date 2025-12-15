@@ -1,6 +1,7 @@
 /**
  * MoviEase - Profile Tab
  * User Settings & Preferences
+ * ✅ FIXED: Proper scrolling
  * ✅ MoviEase branding and Space Indigo/Powder Blue colors
  * ✅ Ultra-compact trigger warnings layout
  */
@@ -59,25 +60,32 @@ export class ProfileTab {
         console.log('[ProfileTab] Rendering profile for:', user.email);
         
         this.container.innerHTML = `
-            <div class="profile-container" style="padding: 1.5rem 1rem 6rem; max-width: 600px; margin: 0 auto;">
-                <!-- User Info -->
-                <div style="text-align: center; margin-bottom: 2rem;">
-                    <div style="width: 80px; height: 80px; background: linear-gradient(135deg, #1e3a5f, #2d5a8f); border-radius: 50%; margin: 0 auto 1rem; display: flex; align-items: center; justify-content: center; font-size: 2rem; color: white; box-shadow: 0 4px 12px rgba(176, 212, 227, 0.3);">
-                        ${user.photoURL ? `<img src="${user.photoURL}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">` : this.getInitials(user.displayName || user.email)}
+            <div style="
+                height: 100%;
+                overflow-y: auto;
+                overflow-x: hidden;
+                -webkit-overflow-scrolling: touch;
+            ">
+                <div class="profile-container" style="padding: 1.5rem 1rem 6rem; max-width: 600px; margin: 0 auto;">
+                    <!-- User Info -->
+                    <div style="text-align: center; margin-bottom: 2rem;">
+                        <div style="width: 80px; height: 80px; background: linear-gradient(135deg, #1e3a5f, #2d5a8f); border-radius: 50%; margin: 0 auto 1rem; display: flex; align-items: center; justify-content: center; font-size: 2rem; color: white; box-shadow: 0 4px 12px rgba(176, 212, 227, 0.3);">
+                            ${user.photoURL ? `<img src="${user.photoURL}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">` : this.getInitials(user.displayName || user.email)}
+                        </div>
+                        <h1 style="font-size: 1.5rem; font-weight: 700; color: white; margin-bottom: 0.5rem;">
+                            ${user.displayName || 'MoviEase User'}
+                        </h1>
+                        <p style="color: rgba(176, 212, 227, 0.6); font-size: 0.875rem;">
+                            ${user.email || 'null'}
+                        </p>
                     </div>
-                    <h1 style="font-size: 1.5rem; font-weight: 700; color: white; margin-bottom: 0.5rem;">
-                        ${user.displayName || 'MoviEase User'}
-                    </h1>
-                    <p style="color: rgba(176, 212, 227, 0.6); font-size: 0.875rem;">
-                        ${user.email || 'null'}
-                    </p>
-                </div>
 
-                ${this.renderThemeSection()}
-                ${this.renderRegionSection(profile)}
-                ${this.renderPlatformsSection(profile)}
-                ${this.renderTriggerWarningsSection(profile)}
-                ${this.renderAccountSection()}
+                    ${this.renderThemeSection()}
+                    ${this.renderRegionSection(profile)}
+                    ${this.renderPlatformsSection(profile)}
+                    ${this.renderTriggerWarningsSection(profile)}
+                    ${this.renderAccountSection()}
+                </div>
             </div>
         `;
 
@@ -304,7 +312,19 @@ export class ProfileTab {
 
     renderError() {
         this.container.innerHTML = `
-            <div style="display: flex; align-items: center; justify-content: center; height: calc(100vh - 15rem); flex-direction: column; gap: 1rem; padding: 2rem; text-align: center;">
+            <div style="
+                height: 100%;
+                overflow-y: auto;
+                overflow-x: hidden;
+                -webkit-overflow-scrolling: touch;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                flex-direction: column;
+                gap: 1rem;
+                padding: 2rem;
+                text-align: center;
+            ">
                 <div style="font-size: 3rem;">⚠️</div>
                 <div style="color: white; font-weight: 700; font-size: 1.25rem;">Not Logged In</div>
                 <div style="color: rgba(176, 212, 227, 0.6); font-size: 0.875rem;">Please log in to view your profile</div>
