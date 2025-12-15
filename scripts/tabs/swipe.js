@@ -1,7 +1,8 @@
 /**
- * Swipe Tab Component – NO CINEMA-ONLY MOVIES
- * ✅ Only shows movies available on user's enabled streaming platforms
- * ✅ Filters out "Cinema", "Coming Soon", and "Not Available" movies
+ * Swipe Tab Component – OPTIMIZED LOADING
+ * ✅ Shows first card immediately with placeholder data
+ * ✅ Enriches platform data in background
+ * ✅ Filters out cinema-only movies
  */
 
 import { store } from "../state/store.js";
@@ -185,6 +186,7 @@ export class SwipeTab {
         document.head.appendChild(style);
     }
 
+    // === OPTIMIZED: Faster first card ===
     async loadMoviesWithRetry(attempt = 1) {
         if (this.isLoading) {
             console.log('[SwipeTab] Already loading movies, skipping...');
@@ -202,71 +204,22 @@ export class SwipeTab {
                 throw new Error("TMDB service not initialized");
             }
 
-            const lists = await Promise.all([
-                tmdb.getPopularMovies(1).catch(err => {
-                    console.warn("[SwipeTab] Popular movies failed:", err.message);
-                    return [];
-                }),
-                tmdb.getTrendingMovies('week').catch(err => {
-                    console.warn("[SwipeTab] Trending movies failed:", err.message);
-                    return [];
-                }),
-                tmdb.discoverMovies({ sortBy: 'vote_average.desc', minVotes: 1000, page: 1 }).catch(err => {
-                    console.warn("[SwipeTab] Top rated movies failed:", err.message);
-                    return { movies: [] };
-                })
+            console.log(`[SwipeTab] Loading initial movies (quick load)...`);
+
+            // Only fetch trending + popular (fastest)
+            const [trendingRes, popularRes] = await Promise.all([
+                tmdb.getTrendingMovies('week').catch(() => []),
+                tmdb.getPopularMovies(1).catch(() => [])
             ]);
 
-            const popularMovies = lists[0] || [];
-            const trendingMovies = lists[1] || [];
-            const topRatedMovies = lists[2]?.movies || [];
-            
+            let movies = [...trendingRes, ...popularRes];
+
+            // Dedupe
             const map = new Map();
-            [...popularMovies, ...trendingMovies, ...topRatedMovies].forEach(m => {
-                if (m && m.id) {
-                    map.set(m.id, m);
-                }
-            });
+            movies.forEach(m => m?.id && map.set(m.id, m));
+            movies = Array.from(map.values());
 
-            let movies = Array.from(map.values());
-            console.log(`[SwipeTab] Loaded ${movies.length} unique movies`);
-
-            // Enrich movies with platform availability data
-            console.log('[SwipeTab] Fetching platform data for movies...');
-            movies = await this.enrichWithPlatformData(movies);
-
-            // ✅ NEW: Filter out cinema-only movies FIRST
-            const beforeCinemaFilter = movies.length;
-            movies = movies.filter(movie => {
-                // Keep if movie has at least one streaming platform
-                if (movie.availableOn && movie.availableOn.length > 0) {
-                    return true;
-                }
-                
-                // Remove if cinema-only, coming soon, or not available
-                const platform = movie.platform;
-                if (platform === 'Cinema' || platform === 'Coming Soon' || platform === 'Not Available') {
-                    console.log(`[SwipeTab] Filtering out cinema-only movie: ${movie.title}`);
-                    return false;
-                }
-                
-                return true;
-            });
-            console.log(`[SwipeTab] Cinema filter: ${beforeCinemaFilter} → ${movies.length} movies`);
-
-            // Apply platform filtering
-            if (tmdb.filterByUserPlatforms) {
-                const beforePlatformFilter = movies.length;
-                movies = tmdb.filterByUserPlatforms(movies);
-                console.log(`[SwipeTab] Platform filter: ${beforePlatformFilter} → ${movies.length} movies`);
-            }
-
-            // Apply trigger warning blocking
-            if (tmdb.filterBlockedMovies) {
-                const beforeTriggerFilter = movies.length;
-                movies = tmdb.filterBlockedMovies(movies);
-                console.log(`[SwipeTab] Trigger filter: ${beforeTriggerFilter} → ${movies.length} movies`);
-            }
+            console.log(`[SwipeTab] Loaded ${movies.length} quick movies`);
 
             // Filter out already swiped movies
             const state = store.getState();
@@ -276,20 +229,72 @@ export class SwipeTab {
             swipeHistory.forEach(swipe => {
                 if (swipe && swipe.movie && swipe.movie.id) {
                     swipedMovieIds.add(String(swipe.movie.id));
-                } else {
-                    console.warn('[SwipeTab] Skipping invalid swipe entry:', swipe);
                 }
             });
 
-            this.movieQueue = movies.filter(movie => {
+            movies = movies.filter(movie => {
                 if (!movie || !movie.id) {
-                    console.warn('[SwipeTab] Skipping invalid movie:', movie);
                     return false;
                 }
                 return !swipedMovieIds.has(String(movie.id));
             });
-            
-            console.log(`[SwipeTab] ${this.movieQueue.length} movies after filtering swiped`);
+
+            // Show first card immediately (no platform data yet)
+            this.movieQueue = movies.map(m => ({
+                ...m,
+                availableOn: [],
+                platform: 'Loading...',
+                triggerWarnings: [],
+                warningsLoaded: false
+            }));
+
+            this.showNextCard(); // ← Show card NOW
+
+            // Then enrich in background
+            setTimeout(async () => {
+                console.log('[SwipeTab] Enriching platform data in background...');
+                await this.enrichWithPlatformData(this.movieQueue);
+                
+                // Apply cinema-only filter
+                const beforeCinemaFilter = this.movieQueue.length;
+                this.movieQueue = this.movieQueue.filter(movie => {
+                    // Keep if movie has at least one streaming platform
+                    if (movie.availableOn && movie.availableOn.length > 0) {
+                        return true;
+                    }
+                    
+                    // Remove if cinema-only, coming soon, or not available
+                    const platform = movie.platform;
+                    if (platform === 'Cinema' || platform === 'Coming Soon' || platform === 'Not Available') {
+                        console.log(`[SwipeTab] Filtering out cinema-only movie: ${movie.title}`);
+                        return false;
+                    }
+                    
+                    return true;
+                });
+                console.log(`[SwipeTab] Cinema filter: ${beforeCinemaFilter} → ${this.movieQueue.length} movies`);
+                
+                // Apply platform filtering
+                if (tmdb.filterByUserPlatforms) {
+                    const beforePlatformFilter = this.movieQueue.length;
+                    this.movieQueue = tmdb.filterByUserPlatforms(this.movieQueue);
+                    console.log(`[SwipeTab] Platform filter: ${beforePlatformFilter} → ${this.movieQueue.length} movies`);
+                }
+
+                // Apply trigger warning blocking
+                if (tmdb.filterBlockedMovies) {
+                    const beforeTriggerFilter = this.movieQueue.length;
+                    this.movieQueue = tmdb.filterBlockedMovies(this.movieQueue);
+                    console.log(`[SwipeTab] Trigger filter: ${beforeTriggerFilter} → ${this.movieQueue.length} movies`);
+                }
+                
+                // Trigger warnings (non-blocking)
+                this.movieQueue.forEach(movie => {
+                    if (tmdb.fetchTriggerWarnings) {
+                        tmdb.fetchTriggerWarnings(movie).catch(() => {});
+                    }
+                });
+            }, 500);
 
             if (this.movieQueue.length < 10 && attempt <= 3) {
                 console.log(`[SwipeTab] Need more movies, retrying (${this.movieQueue.length} < 10)...`);
