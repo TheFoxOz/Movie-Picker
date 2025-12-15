@@ -40,7 +40,7 @@ export class LibraryTab {
         this.currentPage = 1;
         this.hasMorePages = true;
         this.scrollListener = null;
-        this.filterModalOpen = false; // Track filter modal state
+        this.filterModalOpen = false;
     }
 
     filterMoviesByPreferences(movies) {
@@ -173,7 +173,10 @@ export class LibraryTab {
         if (this.scrollListener) window.removeEventListener('scroll', this.scrollListener);
         
         this.scrollListener = () => {
-            const { scrollTop, scrollHeight, clientHeight } = document.documentElement;
+            const scrollContainer = this.container.querySelector('.library-scroll-container');
+            if (!scrollContainer) return;
+            
+            const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
             const scrolledToBottom = scrollHeight - scrollTop - clientHeight;
             
             if (scrolledToBottom < 1500 && !this.isLoading && this.hasMorePages) {
@@ -182,20 +185,35 @@ export class LibraryTab {
             }
         };
         
-        window.addEventListener('scroll', this.scrollListener);
+        const scrollContainer = this.container.querySelector('.library-scroll-container');
+        if (scrollContainer) {
+            scrollContainer.addEventListener('scroll', this.scrollListener);
+        }
         
         setTimeout(() => {
-            const { scrollHeight, clientHeight } = document.documentElement;
-            if (scrollHeight <= clientHeight && this.hasMorePages && !this.isLoading) {
-                console.log('[Scroll] Content too short, loading more...');
-                this.loadMovies(this.currentPage + 1).then(() => this.updateMoviesGrid());
+            if (scrollContainer) {
+                const { scrollHeight, clientHeight } = scrollContainer;
+                if (scrollHeight <= clientHeight && this.hasMorePages && !this.isLoading) {
+                    console.log('[Scroll] Content too short, loading more...');
+                    this.loadMovies(this.currentPage + 1).then(() => this.updateMoviesGrid());
+                }
             }
         }, 500);
     }
 
     renderLoading() {
         return `
-            <div style="display:flex;align-items:center;justify-content:center;height:calc(100vh-10rem);flex-direction:column;gap:1rem;">
+            <div style="
+                height: 100%;
+                overflow-y: auto;
+                overflow-x: hidden;
+                -webkit-overflow-scrolling: touch;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                flex-direction: column;
+                gap: 1rem;
+            ">
                 <div style="width:48px;height:48px;border:4px solid rgba(255,46,99,0.3);border-top-color:#ff2e63;border-radius:50%;animation:spin 1s linear infinite;"></div>
                 <p style="color:rgba(255,255,255,0.7);">Loading infinite library...</p>
             </div>
@@ -222,7 +240,6 @@ export class LibraryTab {
         `.replace(/\s+/g, ' ').trim();
     }
 
-    // ✅ NEW: Check if any filters are active
     hasActiveFilters() {
         return this.currentFilter !== 'all' ||
                this.currentGenre !== 'all' ||
@@ -233,7 +250,6 @@ export class LibraryTab {
                this.searchQuery !== '';
     }
 
-    // ✅ NEW: Reset all filters
     resetAllFilters() {
         this.currentFilter = 'all';
         this.currentGenre = 'all';
@@ -243,7 +259,6 @@ export class LibraryTab {
         this.hideTriggerWarnings = false;
         this.searchQuery = '';
         
-        // Update search input
         const searchInput = this.container.querySelector('#search-input');
         if (searchInput) {
             searchInput.value = '';
@@ -265,7 +280,13 @@ export class LibraryTab {
         const hasFilters = this.hasActiveFilters();
 
         this.container.innerHTML = `
-            <div style="padding:1.5rem 1rem 6rem;">
+            <div class="library-scroll-container" style="
+                height: 100%;
+                overflow-y: auto;
+                overflow-x: hidden;
+                -webkit-overflow-scrolling: touch;
+                padding: 1.5rem 1rem 6rem;
+            ">
                 <!-- Header with Filter Button -->
                 <div style="margin-bottom:1.5rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;">
                     <div style="flex:1;">
@@ -325,7 +346,7 @@ export class LibraryTab {
                 `}
             </div>
 
-            <!-- ✅ NEW: Filter Modal/Sidebar -->
+            <!-- Filter Modal/Sidebar -->
             <div id="filter-modal" style="
                 position: fixed;
                 top: 0;
@@ -471,7 +492,7 @@ export class LibraryTab {
                 </div>
             </div>
 
-            <!-- ✅ NEW: Modal Backdrop -->
+            <!-- Modal Backdrop -->
             <div id="filter-backdrop" style="
                 position: fixed;
                 inset: 0;
@@ -486,7 +507,6 @@ export class LibraryTab {
         this.attachListeners();
     }
 
-    // ✅ NEW: Count active filters
     getActiveFilterCount() {
         let count = 0;
         if (this.currentFilter !== 'all') count++;
@@ -499,7 +519,6 @@ export class LibraryTab {
         return count;
     }
 
-    // ✅ NEW: Toggle filter modal
     toggleFilterModal(open) {
         const modal = this.container.querySelector('#filter-modal');
         const backdrop = this.container.querySelector('#filter-backdrop');
@@ -579,7 +598,6 @@ export class LibraryTab {
                     </div>`;
         }
 
-        // ✅ CHANGED: 8 movies per row instead of 6
         return `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:0.875rem;">
             ${this.filteredMovies.map(movie => this.renderMovieCard(movie)).join('')}
         </div>`;
@@ -631,7 +649,7 @@ export class LibraryTab {
             });
         }
 
-        // ✅ NEW: Filter modal toggle
+        // Filter modal toggle
         const toggleFiltersBtn = this.container.querySelector('#toggle-filters-btn');
         if (toggleFiltersBtn) {
             toggleFiltersBtn.addEventListener('click', () => this.toggleFilterModal(true));
@@ -647,7 +665,7 @@ export class LibraryTab {
             backdrop.addEventListener('click', () => this.toggleFilterModal(false));
         }
 
-        // ✅ NEW: Reset filters button
+        // Reset filters button
         const resetFiltersBtn = this.container.querySelector('#reset-filters-btn');
         if (resetFiltersBtn) {
             resetFiltersBtn.addEventListener('click', () => {
@@ -710,7 +728,6 @@ export class LibraryTab {
             triggerToggle.addEventListener('click', () => {
                 this.hideTriggerWarnings = !this.hideTriggerWarnings;
                 this.updateMoviesGrid();
-                // Don't close modal - user might want to adjust more filters
             });
         }
 
@@ -797,8 +814,9 @@ export class LibraryTab {
     }
 
     destroy() {
-        if (this.scrollListener) {
-            window.removeEventListener('scroll', this.scrollListener);
+        const scrollContainer = this.container.querySelector('.library-scroll-container');
+        if (scrollContainer && this.scrollListener) {
+            scrollContainer.removeEventListener('scroll', this.scrollListener);
             this.scrollListener = null;
         }
         
