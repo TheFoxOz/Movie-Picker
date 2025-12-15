@@ -2,7 +2,7 @@
  * MoviEase - Home Tab
  * Personalized movie feed with horizontal scrolling rows
  * ✅ MoviEase branding and colors
- * ✅ Proper scrolling functionality
+ * ✅ FIXED: Proper scrolling functionality
  * ✅ Visible section headers
  */
 
@@ -18,13 +18,20 @@ export class HomeTab {
         console.log('[Home] Rendering home tab...');
         this.container = container;
 
-        // Show loading state
+        // Show loading state with scrolling wrapper
         this.container.innerHTML = `
-            <div style="display: flex; align-items: center; justify-content: center; height: calc(100vh - 10rem); flex-direction: column; gap: 1rem;">
-                <div style="width: 48px; height: 48px; border: 4px solid rgba(176, 212, 227, 0.2); border-top-color: #b0d4e3; border-radius: 50%; animation: spin 1s linear infinite;"></div>
-                <p style="color: rgba(176, 212, 227, 0.7); font-size: 0.875rem;">Loading your personalized feed...</p>
+            <div style="
+                height: 100%;
+                overflow-y: auto;
+                overflow-x: hidden;
+                -webkit-overflow-scrolling: touch;
+            ">
+                <div style="display: flex; align-items: center; justify-content: center; height: calc(100vh - 10rem); flex-direction: column; gap: 1rem;">
+                    <div style="width: 48px; height: 48px; border: 4px solid rgba(176, 212, 227, 0.2); border-top-color: #b0d4e3; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                    <p style="color: rgba(176, 212, 227, 0.7); font-size: 0.875rem;">Loading your personalized feed...</p>
+                </div>
+                <style>@keyframes spin { to { transform: rotate(360deg); }}</style>
             </div>
-            <style>@keyframes spin { to { transform: rotate(360deg); }}</style>
         `;
 
         try {
@@ -46,13 +53,20 @@ export class HomeTab {
         } catch (error) {
             console.error('[Home] Failed to load content:', error);
             this.container.innerHTML = `
-                <div style="display: flex; align-items: center; justify-content: center; height: calc(100vh - 10rem); flex-direction: column; gap: 1rem; padding: 2rem; text-align: center;">
-                    <div style="font-size: 3rem;">⚠️</div>
-                    <h3 style="color: white; font-size: 1.25rem; font-weight: 700;">Failed to Load Content</h3>
-                    <p style="color: rgba(176, 212, 227, 0.6); font-size: 0.875rem;">Please try refreshing the page</p>
-                    <button onclick="location.reload()" style="padding: 0.75rem 1.5rem; background: linear-gradient(135deg, #1e3a5f, #2d5a8f); border: none; border-radius: 0.75rem; color: white; font-weight: 600; cursor: pointer; margin-top: 1rem;">
-                        Refresh
-                    </button>
+                <div style="
+                    height: 100%;
+                    overflow-y: auto;
+                    overflow-x: hidden;
+                    -webkit-overflow-scrolling: touch;
+                ">
+                    <div style="display: flex; align-items: center; justify-content: center; height: calc(100vh - 10rem); flex-direction: column; gap: 1rem; padding: 2rem; text-align: center;">
+                        <div style="font-size: 3rem;">⚠️</div>
+                        <h3 style="color: white; font-size: 1.25rem; font-weight: 700;">Failed to Load Content</h3>
+                        <p style="color: rgba(176, 212, 227, 0.6); font-size: 0.875rem;">Please try refreshing the page</p>
+                        <button onclick="location.reload()" style="padding: 0.75rem 1.5rem; background: linear-gradient(135deg, #1e3a5f, #2d5a8f); border: none; border-radius: 0.75rem; color: white; font-weight: 600; cursor: pointer; margin-top: 1rem;">
+                            Refresh
+                        </button>
+                    </div>
                 </div>
             `;
         }
@@ -84,7 +98,13 @@ export class HomeTab {
         const sectionsHTML = sections.map(section => this.renderSection(section)).join('');
 
         this.container.innerHTML = `
-            <div style="padding: 1.5rem 0 6rem; overflow-y: auto; height: calc(100vh - 5rem); -webkit-overflow-scrolling: touch;">
+            <div style="
+                height: 100%;
+                overflow-y: auto;
+                overflow-x: hidden;
+                -webkit-overflow-scrolling: touch;
+                padding: 1.5rem 0 6rem;
+            ">
                 <!-- Header -->
                 <div style="padding: 0 1rem 1.5rem;">
                     <h1 style="font-size: 1.75rem; font-weight: 800; background: linear-gradient(135deg, #b0d4e3, #f4e8c1); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin: 0 0 0.5rem;">
