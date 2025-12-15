@@ -1,6 +1,8 @@
 /**
- * Profile Tab - User Settings & Preferences
- * ✅ ULTRA-COMPACT: Trigger warnings properly constrained to match parent width
+ * MoviEase - Profile Tab
+ * User Settings & Preferences
+ * ✅ MoviEase branding and Space Indigo/Powder Blue colors
+ * ✅ Ultra-compact trigger warnings layout
  */
 
 import { authService } from '../services/auth-service.js';
@@ -60,14 +62,14 @@ export class ProfileTab {
             <div class="profile-container" style="padding: 1.5rem 1rem 6rem; max-width: 600px; margin: 0 auto;">
                 <!-- User Info -->
                 <div style="text-align: center; margin-bottom: 2rem;">
-                    <div style="width: 80px; height: 80px; background: linear-gradient(135deg, #ff2e63, #d90062); border-radius: 50%; margin: 0 auto 1rem; display: flex; align-items: center; justify-content: center; font-size: 2rem; color: white;">
-                        ${this.getInitials(user.displayName || user.email)}
+                    <div style="width: 80px; height: 80px; background: linear-gradient(135deg, #1e3a5f, #2d5a8f); border-radius: 50%; margin: 0 auto 1rem; display: flex; align-items: center; justify-content: center; font-size: 2rem; color: white; box-shadow: 0 4px 12px rgba(176, 212, 227, 0.3);">
+                        ${user.photoURL ? `<img src="${user.photoURL}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">` : this.getInitials(user.displayName || user.email)}
                     </div>
                     <h1 style="font-size: 1.5rem; font-weight: 700; color: white; margin-bottom: 0.5rem;">
-                        ${user.displayName || 'Movie Picker User'}
+                        ${user.displayName || 'MoviEase User'}
                     </h1>
-                    <p style="color: rgba(255, 255, 255, 0.6); font-size: 0.875rem;">
-                        ${user.email}
+                    <p style="color: rgba(176, 212, 227, 0.6); font-size: 0.875rem;">
+                        ${user.email || 'null'}
                     </p>
                 </div>
 
@@ -87,13 +89,13 @@ export class ProfileTab {
         const isDark = this.currentTheme === 'dark';
         
         return `
-            <div class="settings-section" style="background: rgba(255, 255, 255, 0.05); border-radius: 1rem; padding: 1.5rem; margin-bottom: 1.5rem;">
+            <div class="settings-section" style="background: linear-gradient(135deg, rgba(30, 58, 95, 0.3), rgba(26, 31, 46, 0.3)); border: 1px solid rgba(176, 212, 227, 0.1); border-radius: 1rem; padding: 1.5rem; margin-bottom: 1.5rem;">
                 <div style="display: flex; align-items: center; justify-content: space-between;">
                     <div>
                         <h2 style="font-size: 1.125rem; font-weight: 700; color: white; margin: 0 0 0.25rem 0; display: flex; align-items: center; gap: 0.5rem;">
                             ${isDark ? '🌙' : '☀️'} Theme
                         </h2>
-                        <p style="color: rgba(255, 255, 255, 0.6); font-size: 0.875rem; margin: 0;">
+                        <p style="color: rgba(176, 212, 227, 0.6); font-size: 0.875rem; margin: 0;">
                             ${isDark ? 'Dark Mode' : 'Light Mode'}
                         </p>
                     </div>
@@ -108,17 +110,17 @@ export class ProfileTab {
 
     renderRegionSection(profile) {
         const regionsHTML = TMDB_REGIONS.map(region => 
-            `<option value="${region.code}" ${profile.region === region.code ? 'selected' : ''} style="background: #1a1a2e; color: white;">
+            `<option value="${region.code}" ${profile.region === region.code ? 'selected' : ''} style="background: #1a1f2e; color: white;">
                 ${region.flag} ${region.name}
             </option>`
         ).join('');
 
         return `
-            <div class="settings-section" style="background: rgba(255, 255, 255, 0.05); border-radius: 1rem; padding: 1.5rem; margin-bottom: 1.5rem;">
+            <div class="settings-section" style="background: linear-gradient(135deg, rgba(30, 58, 95, 0.3), rgba(26, 31, 46, 0.3)); border: 1px solid rgba(176, 212, 227, 0.1); border-radius: 1rem; padding: 1.5rem; margin-bottom: 1.5rem;">
                 <h2 style="font-size: 1.125rem; font-weight: 700; color: white; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
                     🌍 Region
                 </h2>
-                <p style="color: rgba(255, 255, 255, 0.6); font-size: 0.875rem; margin-bottom: 1rem;">
+                <p style="color: rgba(176, 212, 227, 0.6); font-size: 0.875rem; margin-bottom: 1rem;">
                     Affects movie availability and streaming options
                 </p>
                 <select 
@@ -126,8 +128,8 @@ export class ProfileTab {
                     style="
                         width: 100%;
                         padding: 0.875rem;
-                        background: rgba(255, 255, 255, 0.1);
-                        border: 1px solid rgba(255, 255, 255, 0.2);
+                        background: rgba(30, 58, 95, 0.4);
+                        border: 1px solid rgba(176, 212, 227, 0.2);
                         border-radius: 0.75rem;
                         color: white;
                         font-size: 0.9375rem;
@@ -151,8 +153,8 @@ export class ProfileTab {
                     align-items: center;
                     justify-content: space-between;
                     padding: 0.75rem 1rem;
-                    background: rgba(255, 255, 255, 0.05);
-                    border: 1px solid rgba(255, 255, 255, 0.1);
+                    background: rgba(30, 58, 95, 0.3);
+                    border: 1px solid rgba(176, 212, 227, 0.1);
                     border-radius: 0.75rem;
                     cursor: pointer;
                     transition: all 0.2s;
@@ -169,11 +171,11 @@ export class ProfileTab {
         }).join('');
 
         return `
-            <div class="settings-section" style="background: rgba(255, 255, 255, 0.05); border-radius: 1rem; padding: 1.5rem; margin-bottom: 1.5rem;">
+            <div class="settings-section" style="background: linear-gradient(135deg, rgba(30, 58, 95, 0.3), rgba(26, 31, 46, 0.3)); border: 1px solid rgba(176, 212, 227, 0.1); border-radius: 1rem; padding: 1.5rem; margin-bottom: 1.5rem;">
                 <h2 style="font-size: 1.125rem; font-weight: 700; color: white; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
                     📺 Streaming Platforms
                 </h2>
-                <p style="color: rgba(255, 255, 255, 0.6); font-size: 0.875rem; margin-bottom: 1rem;">
+                <p style="color: rgba(176, 212, 227, 0.6); font-size: 0.875rem; margin-bottom: 1rem;">
                     Your active subscriptions (${profile.selectedPlatforms.length} selected)
                 </p>
                 <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem;">
@@ -193,8 +195,8 @@ export class ProfileTab {
                     align-items: center;
                     justify-content: space-between;
                     padding: 0.5rem 0.625rem;
-                    background: rgba(255, 255, 255, 0.05);
-                    border: 1px solid rgba(255, 255, 255, 0.1);
+                    background: rgba(30, 58, 95, 0.3);
+                    border: 1px solid rgba(176, 212, 227, 0.1);
                     border-radius: 0.5rem;
                     cursor: pointer;
                     transition: all 0.2s;
@@ -221,7 +223,7 @@ export class ProfileTab {
                             ${category.name}
                         </div>
                         <div style="
-                            color: rgba(255, 255, 255, 0.4);
+                            color: rgba(176, 212, 227, 0.5);
                             font-size: 0.5625rem;
                             white-space: nowrap;
                             overflow: hidden;
@@ -241,19 +243,19 @@ export class ProfileTab {
         }).join('');
 
         return `
-            <div class="settings-section" style="background: rgba(255, 255, 255, 0.05); border-radius: 1rem; padding: 1.5rem; margin-bottom: 1.5rem;">
+            <div class="settings-section" style="background: linear-gradient(135deg, rgba(30, 58, 95, 0.3), rgba(26, 31, 46, 0.3)); border: 1px solid rgba(176, 212, 227, 0.1); border-radius: 1rem; padding: 1.5rem; margin-bottom: 1.5rem;">
                 <h2 style="font-size: 1.125rem; font-weight: 700; color: white; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
                     ⚠️ Trigger Warnings
                 </h2>
-                <p style="color: rgba(255, 255, 255, 0.6); font-size: 0.875rem; margin-bottom: 1rem;">
+                <p style="color: rgba(176, 212, 227, 0.6); font-size: 0.875rem; margin-bottom: 1rem;">
                     Filter content by warnings (${profile.triggerWarnings.enabledCategories.length} active)
                 </p>
                 
                 <!-- Show All Toggle -->
-                <div style="margin-bottom: 0.875rem; padding: 0.625rem 0.75rem; background: rgba(255, 255, 255, 0.05); border-radius: 0.625rem; display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;">
+                <div style="margin-bottom: 0.875rem; padding: 0.625rem 0.75rem; background: rgba(30, 58, 95, 0.3); border: 1px solid rgba(176, 212, 227, 0.1); border-radius: 0.625rem; display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;">
                     <div style="flex: 1; min-width: 0;">
                         <div style="color: white; font-weight: 600; font-size: 0.8125rem;">Show All Warnings</div>
-                        <div style="color: rgba(255, 255, 255, 0.5); font-size: 0.6875rem;">Display regardless of selection</div>
+                        <div style="color: rgba(176, 212, 227, 0.5); font-size: 0.6875rem;">Display regardless of selection</div>
                     </div>
                     <label class="toggle-switch" style="flex-shrink: 0;">
                         <input type="checkbox" id="show-all-warnings" ${profile.triggerWarnings.showAllWarnings ? 'checked' : ''}>
@@ -276,7 +278,7 @@ export class ProfileTab {
 
     renderAccountSection() {
         return `
-            <div class="settings-section" style="background: rgba(255, 255, 255, 0.05); border-radius: 1rem; padding: 1.5rem; margin-bottom: 1.5rem;">
+            <div class="settings-section" style="background: linear-gradient(135deg, rgba(30, 58, 95, 0.3), rgba(26, 31, 46, 0.3)); border: 1px solid rgba(176, 212, 227, 0.1); border-radius: 1rem; padding: 1.5rem; margin-bottom: 1.5rem;">
                 <h2 style="font-size: 1.125rem; font-weight: 700; color: white; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
                     ⚙️ Account
                 </h2>
@@ -284,16 +286,16 @@ export class ProfileTab {
                 <button id="logout-btn" style="
                     width: 100%;
                     padding: 1rem;
-                    background: linear-gradient(135deg, #ff2e63, #d90062);
-                    border: none;
+                    background: linear-gradient(135deg, #1e3a5f, #2d5a8f);
+                    border: 2px solid #b0d4e3;
                     border-radius: 0.75rem;
                     color: white;
                     font-weight: 700;
                     font-size: 0.9375rem;
                     cursor: pointer;
                     transition: all 0.2s;
-                    box-shadow: 0 4px 12px rgba(255, 46, 99, 0.3);
-                " onmouseover="this.style.transform='scale(1.02)'; this.style.boxShadow='0 6px 16px rgba(255, 46, 99, 0.4)'" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 4px 12px rgba(255, 46, 99, 0.3)'">
+                    box-shadow: 0 4px 12px rgba(176, 212, 227, 0.3);
+                " onmouseover="this.style.transform='scale(1.02)'; this.style.boxShadow='0 6px 16px rgba(176, 212, 227, 0.4)'; this.style.background='linear-gradient(135deg, #2d5a8f, #1e3a5f)'" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 4px 12px rgba(176, 212, 227, 0.3)'; this.style.background='linear-gradient(135deg, #1e3a5f, #2d5a8f)'">
                     🚪 Sign Out
                 </button>
             </div>
@@ -305,7 +307,7 @@ export class ProfileTab {
             <div style="display: flex; align-items: center; justify-content: center; height: calc(100vh - 15rem); flex-direction: column; gap: 1rem; padding: 2rem; text-align: center;">
                 <div style="font-size: 3rem;">⚠️</div>
                 <div style="color: white; font-weight: 700; font-size: 1.25rem;">Not Logged In</div>
-                <div style="color: rgba(255, 255, 255, 0.6); font-size: 0.875rem;">Please log in to view your profile</div>
+                <div style="color: rgba(176, 212, 227, 0.6); font-size: 0.875rem;">Please log in to view your profile</div>
             </div>
         `;
     }
@@ -338,7 +340,7 @@ export class ProfileTab {
                 left: 0;
                 right: 0;
                 bottom: 0;
-                background: rgba(255, 255, 255, 0.2);
+                background: rgba(176, 212, 227, 0.2);
                 transition: 0.3s;
                 border-radius: 28px;
             }
@@ -356,7 +358,7 @@ export class ProfileTab {
             }
 
             input:checked + .toggle-slider {
-                background: linear-gradient(135deg, #ff2e63, #d90062);
+                background: linear-gradient(135deg, #1e3a5f, #2d5a8f);
             }
 
             input:checked + .toggle-slider:before {
@@ -385,7 +387,7 @@ export class ProfileTab {
                 left: 0;
                 right: 0;
                 bottom: 0;
-                background: rgba(255, 255, 255, 0.2);
+                background: rgba(176, 212, 227, 0.2);
                 transition: 0.3s;
                 border-radius: 20px;
             }
@@ -403,7 +405,7 @@ export class ProfileTab {
             }
 
             input:checked + .toggle-slider-small {
-                background: linear-gradient(135deg, #ff2e63, #d90062);
+                background: linear-gradient(135deg, #1e3a5f, #2d5a8f);
             }
 
             input:checked + .toggle-slider-small:before {
@@ -413,24 +415,24 @@ export class ProfileTab {
             /* Hover effects */
             .platform-toggle-item:hover,
             .trigger-toggle-item:hover {
-                background: rgba(255, 255, 255, 0.08);
-                border-color: rgba(255, 255, 255, 0.2);
+                background: rgba(30, 58, 95, 0.4);
+                border-color: rgba(176, 212, 227, 0.2);
             }
 
             /* Region select styling */
             #region-select:hover {
-                background: rgba(255, 255, 255, 0.15);
-                border-color: rgba(255, 255, 255, 0.3);
+                background: rgba(30, 58, 95, 0.5);
+                border-color: rgba(176, 212, 227, 0.3);
             }
 
             #region-select:focus {
                 outline: none;
-                border-color: #ff2e63;
-                box-shadow: 0 0 0 3px rgba(255, 46, 99, 0.2);
+                border-color: #b0d4e3;
+                box-shadow: 0 0 0 3px rgba(176, 212, 227, 0.2);
             }
 
             #region-select option {
-                background: #1a1a2e;
+                background: #1a1f2e;
                 color: white;
                 padding: 0.5rem;
             }
@@ -536,13 +538,14 @@ export class ProfileTab {
             left: 50%;
             transform: translateX(-50%);
             padding: 0.875rem 1.5rem;
-            background: ${isError ? '#dc2626' : '#10b981'};
+            background: ${isError ? 'linear-gradient(135deg, #dc2626, #b91c1c)' : 'linear-gradient(135deg, #1e3a5f, #2d5a8f)'};
+            border: 1px solid ${isError ? 'rgba(220, 38, 38, 0.3)' : 'rgba(176, 212, 227, 0.3)'};
             color: white;
             border-radius: 0.75rem;
             font-weight: 600;
             font-size: 0.875rem;
             z-index: 10000;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 4px 12px rgba(30, 58, 95, 0.4);
             animation: slideUp 0.3s ease-out;
         `;
         
