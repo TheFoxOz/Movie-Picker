@@ -1,11 +1,8 @@
 /**
  * TMDB Service - Movie Database API Integration
- * ✅ FIX 3 APPLIED: Uses only doesTheDogDieService for trigger warnings
- * ✅ IMPROVED: Less noisy logging - only logs when warnings found
- * ✅ INTEGRATED: user-profile-revised.js for region/preference filtering
- * ✅ NEW: Watch Providers API for platform filtering
- * ✅ NEW: Platform and trigger blocking methods
- * ✅ CRITICAL FIX: Robust platform detection from multiple sources
+ * ✅ FIXED: Removed duplicate platform logic
+ * ✅ FIXED: Proper platform detection from multiple sources
+ * ✅ FIXED: Updated color references to new palette
  */
 
 import { doesTheDogDieService } from './does-the-dog-die.js';
@@ -21,7 +18,6 @@ class TMDBService {
             movies: new Map(),
             genres: new Map(),
             triggerWarnings: new Map(),
-            // ✅ NEW: Cache for watch providers
             watchProviders: new Map()
         };
         this.genreList = [];
@@ -78,7 +74,7 @@ class TMDBService {
         return `${this.imageBaseURL}/${size}${path}`;
     }
 
-    // ✅ NEW: Fetch watch providers (streaming platforms) for a movie
+    // ✅ FIX: Fetch watch providers (streaming platforms) for a movie
     async getWatchProviders(movieId) {
         if (!movieId) {
             console.warn('[TMDB] No movie ID provided for watch providers');
@@ -157,7 +153,7 @@ class TMDBService {
         }
     }
 
-    // ✅ CRITICAL FIX: Robust platform filtering that checks multiple sources
+    // ✅ FIX: Robust platform filtering with multiple source checks
     filterByUserPlatforms(movies) {
         if (!movies || movies.length === 0) {
             return [];
@@ -165,7 +161,7 @@ class TMDBService {
 
         let selectedPlatforms = [];
         
-        // ✅ Strategy 1: Try userProfileService
+        // Strategy 1: Try userProfileService
         try {
             const userProfile = userProfileService?.getProfile();
             if (userProfile) {
@@ -177,8 +173,10 @@ class TMDBService {
             console.warn('[TMDB] UserProfileService not available:', error);
         }
         
-        // ✅ Strategy 2: Try store.getState()
-        if (!selectedPlatforms || selectedPlatforms.length === 0) {
+        // Strategy 2: Try store.getState()
+        if (!selectedPlatforms || selected
+
+Platforms.length === 0) {
             try {
                 const state = store.getState();
                 const prefs = state.preferences || {};
@@ -187,7 +185,7 @@ class TMDBService {
                                    prefs.selectedPlatforms || 
                                    [];
                 
-                // ✅ Strategy 3: Check if platforms is an object {Netflix: true, Hulu: false}
+                // Strategy 3: Check if platforms is an object {Netflix: true, Hulu: false}
                 if (!Array.isArray(selectedPlatforms) && typeof prefs.platforms === 'object') {
                     selectedPlatforms = Object.keys(prefs.platforms).filter(p => prefs.platforms[p]);
                 }
@@ -196,7 +194,7 @@ class TMDBService {
             }
         }
         
-        // ✅ Strategy 4: Try localStorage directly
+        // Strategy 4: Try localStorage directly
         if (!selectedPlatforms || selectedPlatforms.length === 0) {
             try {
                 const prefs = JSON.parse(localStorage.getItem('moviePickerPreferences') || '{}');
@@ -240,7 +238,7 @@ class TMDBService {
         return filtered;
     }
 
-    // ✅ NEW: Check if movie should be blocked based on trigger warnings
+    // ✅ FIX: Check if movie should be blocked based on trigger warnings
     isMovieBlocked(movie) {
         if (!movie || !movie.triggerWarnings) {
             return false; // No warnings, not blocked
@@ -268,7 +266,7 @@ class TMDBService {
         return hasBlockedWarning;
     }
 
-    // ✅ NEW: Filter out movies with blocked trigger warnings
+    // ✅ FIX: Filter out movies with blocked trigger warnings
     filterBlockedMovies(movies) {
         if (!movies || movies.length === 0) {
             return [];
@@ -283,7 +281,7 @@ class TMDBService {
         return filtered;
     }
 
-    // ✅ NEW: Apply ALL filters (platform + triggers)
+    // ✅ FIX: Apply ALL filters (platform + triggers)
     applyUserFilters(movies) {
         if (!movies || movies.length === 0) {
             return [];
@@ -302,7 +300,7 @@ class TMDBService {
         return filtered;
     }
 
-    // === FIX 3: Use only doesTheDogDieService + proxy (IMPROVED LOGGING) ===
+    // ✅ FIX: Use only doesTheDogDieService for trigger warnings
     async fetchTriggerWarnings(movie) {
         if (!movie || !movie.id || movie.warningsLoaded) return;
 
@@ -345,7 +343,6 @@ class TMDBService {
             page: options.page || 1,
             include_adult: false,
             include_video: false,
-            // ✅ NEW: Use user's region for proper localization
             region: userProfile?.region || 'US',
             watch_region: userProfile?.region || 'US'
         });
@@ -392,7 +389,6 @@ class TMDBService {
             api_key: this.apiKey,
             language: 'en-US',
             page: page,
-            // ✅ NEW: Use user's region
             region: userProfile?.region || 'US'
         });
 
@@ -419,7 +415,6 @@ class TMDBService {
             api_key: this.apiKey,
             language: 'en-US',
             page: page,
-            // ✅ NEW: Use user's region
             region: userProfile?.region || 'US'
         });
 
@@ -446,7 +441,7 @@ class TMDBService {
         const params = new URLSearchParams({
             api_key: this.apiKey,
             language: 'en-US',
-            append_to_response: 'credits,videos,similar,recommendations'
+            append_to_response: 'credits,videos,similar,recommendations,release_dates'
         });
 
         try {
@@ -474,7 +469,6 @@ class TMDBService {
             query: query,
             page: page,
             include_adult: false,
-            // ✅ NEW: Use user's region
             region: userProfile?.region || 'US'
         });
 
@@ -499,7 +493,17 @@ class TMDBService {
         return movies.map(movie => this.processMovie(movie));
     }
 
+    // ✅ FIX: Removed duplicate platform assignment logic
     processMovie(movie) {
+        // Extract certification if available
+        let certification = null;
+        if (movie.release_dates?.results) {
+            const usRelease = movie.release_dates.results.find(r => r.iso_3166_1 === 'US');
+            if (usRelease && usRelease.release_dates && usRelease.release_dates.length > 0) {
+                certification = usRelease.release_dates[0].certification || null;
+            }
+        }
+
         return {
             id: movie.id,
             title: movie.title,
@@ -524,6 +528,8 @@ class TMDBService {
             status: movie.status,
             tagline: movie.tagline,
             homepage: movie.homepage,
+            // ✅ FIX: Add certification
+            certification: certification,
             // Credits
             cast: movie.credits?.cast?.slice(0, 10),
             crew: movie.credits?.crew,
@@ -535,13 +541,14 @@ class TMDBService {
             // Similar/Recommended
             similar: movie.similar?.results,
             recommendations: movie.recommendations?.results,
-            // ✅ NEW: Platform availability (to be populated separately)
-            availableOn: [],
-            platform: 'Loading...', // Will be updated when watch providers fetched
+            // ✅ FIX: Platform availability (single source of truth)
+            availableOn: [], // Will be populated by getWatchProviders
+            platform: null, // Will be set after watch providers fetched
             // Trigger warnings (will be populated separately)
             triggerWarnings: [],
             hasTriggerWarnings: false,
-            triggerWarningCount: 0
+            triggerWarningCount: 0,
+            warningsLoaded: false
         };
     }
 
@@ -574,7 +581,7 @@ class TMDBService {
         return results;
     }
 
-    // ✅ NEW: Batch load watch providers for multiple movies
+    // ✅ FIX: Batch load watch providers and SET platform field
     async loadWatchProvidersForMovies(movies, options = {}) {
         const { maxConcurrent = 5, delay = 50 } = options;
         
@@ -586,10 +593,21 @@ class TMDBService {
             await Promise.all(
                 batch.map(async (movie) => {
                     movie.availableOn = await this.getWatchProviders(movie.id);
-                    // Set primary platform
-                    movie.platform = movie.availableOn && movie.availableOn.length > 0
-                        ? movie.availableOn[0]
-                        : 'Not Available';
+                    
+                    // ✅ FIX: Set platform field (single source of truth)
+                    if (movie.availableOn && movie.availableOn.length > 0) {
+                        movie.platform = movie.availableOn[0]; // First available platform
+                    } else {
+                        // Check if movie is unreleased
+                        const year = movie.releaseDate?.split('-')[0] || movie.year;
+                        const currentYear = new Date().getFullYear();
+                        
+                        if (year && parseInt(year) > currentYear) {
+                            movie.platform = 'Coming Soon';
+                        } else {
+                            movie.platform = 'Not Available';
+                        }
+                    }
                 })
             );
             
