@@ -20,7 +20,7 @@ export default async function handler(req, res) {
     const { action, title, imdbId, dddId } = req.query;
 
     // Get API key from environment variable
-    const DDD_API_KEY = process.env.DDD_API_KEY || process.env.DTD_API_KEY;
+    const DDD_API_KEY = process.env.VITE_DTD_API_KEY || process.env.DTD_API_KEY;
     
     if (!DDD_API_KEY) {
         console.error('[API] DoesTheDogDie API key not configured');
