@@ -1,16 +1,13 @@
 /**
  * Vercel Serverless Function - DoesTheDogDie Proxy
- * ✅ Bypasses CORS by proxying requests from backend
- * ✅ FIXED: Proper error handling and API key detection
- * ✅ FIXED: Returns empty warnings array on errors (prevents app crashes)
- * 
- * Deploy this to /api/trigger-warnings.js in your Vercel project
+ * ✅ FIXED: Parameter names match frontend calls
+ * ✅ FIXED: Proper JSON response format
  */
 
 export default async function handler(req, res) {
     // Enable CORS
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-API-Key');
     
     // Handle preflight
@@ -18,16 +15,15 @@ export default async function handler(req, res) {
         return res.status(200).end();
     }
 
-    const { action, title, imdbId, dddId } = req.query;
+    const { action, title, imdbId, mediaId } = req.query;
 
-    // ✅ FIXED: Check multiple environment variable names
+    // Check for API key
     const DDD_API_KEY = process.env.DTD_API_KEY || 
                         process.env.VITE_DTD_API_KEY || 
                         process.env.DOES_THE_DOG_DIE_API_KEY;
     
     if (!DDD_API_KEY) {
         console.error('[API] DoesTheDogDie API key not configured');
-        // ✅ Return empty warnings instead of error (prevents app crashes)
         return res.status(200).json({ 
             items: [],
             warnings: [],
@@ -63,13 +59,13 @@ export default async function handler(req, res) {
                 break;
                 
             case 'get-warnings':
-                if (!dddId) {
+                if (!mediaId) {
                     return res.status(400).json({ 
-                        error: 'DDD ID required',
+                        error: 'Media ID required',
                         warnings: []
                     });
                 }
-                url = `${DDD_BASE_URL}/media/${dddId}`;
+                url = `${DDD_BASE_URL}/media/${mediaId}`;
                 break;
                 
             default:
@@ -89,14 +85,11 @@ export default async function handler(req, res) {
                 'X-API-KEY': DDD_API_KEY,
                 'User-Agent': 'MoviEase/1.0'
             },
-            // ✅ Add timeout to prevent hanging
-            signal: AbortSignal.timeout(10000) // 10 second timeout
+            signal: AbortSignal.timeout(10000)
         });
 
         if (!response.ok) {
             console.error('[API] DDD API error:', response.status, response.statusText);
-            
-            // ✅ Return empty warnings instead of error
             return res.status(200).json({ 
                 items: [],
                 warnings: [],
@@ -107,20 +100,17 @@ export default async function handler(req, res) {
 
         const data = await response.json();
         
-        console.log('[API] ✅ Success:', action, '- Items:', data?.items?.length || 0);
+        console.log('[API] ✅ Success:', action, '- Response:', JSON.stringify(data).substring(0, 100));
         
-        // ✅ Ensure warnings array exists
+        // Ensure warnings array exists
         if (!data.warnings) {
             data.warnings = [];
         }
         
-        // Return the data
         return res.status(200).json(data);
 
     } catch (error) {
         console.error('[API] Proxy error:', error.message);
-        
-        // ✅ Return empty warnings instead of error (graceful degradation)
         return res.status(200).json({ 
             items: [],
             warnings: [],
