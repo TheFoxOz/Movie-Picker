@@ -4,6 +4,7 @@
  * 
  * ✅ FIXED: Proper scrolling at app-container level
  * ✅ FIXED: Better error handling and container checks
+ * ✅ FIXED: Matches tab uses init() instead of render()
  * ✅ IMPROVED AUTH WAIT: 5 seconds for Google redirect
  * ✅ Handles onboarding flow for new users
  * ✅ Manages tab navigation and rendering
@@ -15,7 +16,7 @@ import { SwipeTab } from './tabs/swipe.js';
 import { LibraryTab } from './tabs/library.js';
 import { ProfileTab } from './tabs/profile.js';
 import { HomeTab } from './tabs/home.js';
-import { MatchesTab } from './tabs/matches.js';
+import { matchesTab } from './tabs/matches.js';
 import { store } from './state/store.js';
 import { authService } from './services/auth-service.js';
 import { userProfileService } from './services/user-profile-revised.js';
@@ -60,7 +61,7 @@ class MoviEaseApp {
             home: new HomeTab(),
             swipe: new SwipeTab(),
             library: new LibraryTab(),
-            matches: new MatchesTab(),
+            matches: matchesTab,  // ✅ Use singleton instance
             profile: new ProfileTab()
         };
         
@@ -435,8 +436,8 @@ class MoviEaseApp {
                 #swipe-btn {
                     width: 4rem;
                     height: 4rem;
-                    background: linear-gradient(135deg, #1e3a5f, #2d5a8f);
-                    border: 3px solid #b0d4e3;
+                    background: linear-gradient(135deg, #b0d4e3, #f4e8c1);
+                    border: 3px solid #1a1f2e;
                     border-radius: 50%;
                     display: flex;
                     align-items: center;
@@ -444,7 +445,7 @@ class MoviEaseApp {
                     cursor: pointer;
                     transition: all 0.3s;
                     box-shadow: 0 8px 24px rgba(176, 212, 227, 0.3);
-                    color: white;
+                    color: #1a1f2e;
                     font-size: 2rem;
                 }
 
@@ -455,6 +456,11 @@ class MoviEaseApp {
 
                 #swipe-btn:active {
                     transform: scale(0.95);
+                }
+
+                #swipe-btn.active {
+                    background: linear-gradient(135deg, #f4e8c1, #b0d4e3);
+                    border-color: #b0d4e3;
                 }
 
                 /* Create space for center button */
@@ -549,13 +555,9 @@ class MoviEaseApp {
         const swipeBtn = this.bottomNav.querySelector('#swipe-btn');
         if (swipeBtn) {
             if (this.currentTab === 'swipe') {
-                swipeBtn.style.background = 'linear-gradient(135deg, #b0d4e3, #d4ebf5)';
-                swipeBtn.style.borderColor = '#1e3a5f';
-                swipeBtn.style.color = '#1e3a5f';
+                swipeBtn.classList.add('active');
             } else {
-                swipeBtn.style.background = 'linear-gradient(135deg, #1e3a5f, #2d5a8f)';
-                swipeBtn.style.borderColor = '#b0d4e3';
-                swipeBtn.style.color = 'white';
+                swipeBtn.classList.remove('active');
             }
         }
     }
@@ -597,7 +599,27 @@ class MoviEaseApp {
         this.container.innerHTML = '';
         this.container.style.display = 'block';
         
-        if (typeof tab.render === 'function') {
+        // ✅ FIXED: Matches tab uses init() instead of render()
+        if (this.currentTab === 'matches') {
+            try {
+                console.log(`[MoviEase] Initializing Matches tab`);
+                await tab.init(this.container);
+                console.log(`[MoviEase] ✅ Matches tab initialized`);
+            } catch (error) {
+                console.error(`[MoviEase] Error initializing Matches tab:`, error);
+                this.container.innerHTML = `
+                    <div style="padding: 2rem; text-align: center;">
+                        <div style="font-size: 3rem; margin-bottom: 1rem;">⚠️</div>
+                        <h3 style="color: white; margin-bottom: 1rem;">Oops! Something went wrong</h3>
+                        <p style="color: rgba(176, 212, 227, 0.7); margin-bottom: 0.5rem;">Error: ${error.message}</p>
+                        <p style="color: rgba(176, 212, 227, 0.5); font-size: 0.875rem; margin-bottom: 1.5rem;">Tab: matches</p>
+                        <button onclick="location.reload()" style="margin-top: 1.5rem; padding: 0.75rem 1.5rem; background: linear-gradient(135deg, #b0d4e3, #f4e8c1); border: none; border-radius: 0.75rem; color: #1a1f2e; font-weight: 600; cursor: pointer;">
+                            Reload App
+                        </button>
+                    </div>
+                `;
+            }
+        } else if (typeof tab.render === 'function') {
             try {
                 console.log(`[MoviEase] Rendering tab: ${this.currentTab}`);
                 await tab.render(this.container);
@@ -610,7 +632,7 @@ class MoviEaseApp {
                         <h3 style="color: white; margin-bottom: 1rem;">Oops! Something went wrong</h3>
                         <p style="color: rgba(176, 212, 227, 0.7); margin-bottom: 0.5rem;">Error: ${error.message}</p>
                         <p style="color: rgba(176, 212, 227, 0.5); font-size: 0.875rem; margin-bottom: 1.5rem;">Tab: ${this.currentTab}</p>
-                        <button onclick="location.reload()" style="margin-top: 1.5rem; padding: 0.75rem 1.5rem; background: linear-gradient(135deg, #1e3a5f, #2d5a8f); border: none; border-radius: 0.75rem; color: white; font-weight: 600; cursor: pointer;">
+                        <button onclick="location.reload()" style="margin-top: 1.5rem; padding: 0.75rem 1.5rem; background: linear-gradient(135deg, #b0d4e3, #f4e8c1); border: none; border-radius: 0.75rem; color: #1a1f2e; font-weight: 600; cursor: pointer;">
                             Reload App
                         </button>
                     </div>
@@ -629,7 +651,7 @@ class MoviEaseApp {
                         <h3 style="color: white; margin-bottom: 1rem;">Oops! Something went wrong</h3>
                         <p style="color: rgba(176, 212, 227, 0.7); margin-bottom: 0.5rem;">Error: ${error.message}</p>
                         <p style="color: rgba(176, 212, 227, 0.5); font-size: 0.875rem; margin-bottom: 1.5rem;">Tab: ${this.currentTab}</p>
-                        <button onclick="location.reload()" style="margin-top: 1.5rem; padding: 0.75rem 1.5rem; background: linear-gradient(135deg, #1e3a5f, #2d5a8f); border: none; border-radius: 0.75rem; color: white; font-weight: 600; cursor: pointer;">
+                        <button onclick="location.reload()" style="margin-top: 1.5rem; padding: 0.75rem 1.5rem; background: linear-gradient(135deg, #b0d4e3, #f4e8c1); border: none; border-radius: 0.75rem; color: #1a1f2e; font-weight: 600; cursor: pointer;">
                             Reload App
                         </button>
                     </div>
