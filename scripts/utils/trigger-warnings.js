@@ -3,7 +3,7 @@
  * Handles categorization and display of trigger warnings
  */
 
-import { TRIGGER_CATEGORIES } from '../config/trigger-categories.js';
+import { TRIGGER_CATEGORIES, mapWarningToCategory } from '../config/trigger-categories.js';
 
 /**
  * Get enabled trigger categories from user profile
@@ -32,76 +32,80 @@ export function shouldShowAllWarnings() {
 }
 
 /**
- * Categorize warnings by enabled categories
+ * Categorize warnings from DoesTheDogDie API
  * Returns object with:
- * - enabledCategories: Array of category names that match user's enabled list
- * - categoryCount: Number of unique enabled categories found
- * - allWarnings: All warnings (for "show all" mode)
+ * - categories: Set of unique category IDs found
+ * - categoryNames: Array of category names
+ * - categoryCount: Number of unique categories
  */
 export function categorizeWarnings(warnings) {
     if (!warnings || warnings.length === 0) {
         return {
-            enabledCategories: [],
-            categoryCount: 0,
-            allWarnings: []
+            categories: new Set(),
+            categoryNames: [],
+            categoryCount: 0
         };
     }
 
     const enabledCats = getEnabledCategories();
     const categoriesFound = new Set();
+    const categoryNamesFound = new Set();
     
     warnings.forEach(warning => {
-        const category = warning.category || warning.name || '';
+        const warningName = warning.name || warning.category || warning;
         
-        // Check if this warning matches any enabled category
-        if (enabledCats.some(enabledCat => 
-            category.toLowerCase().includes(enabledCat.toLowerCase())
-        )) {
-            categoriesFound.add(category);
+        // Map warning to category
+        const category = mapWarningToCategory(warningName);
+        
+        if (category) {
+            // Check if this category is enabled by user
+            if (enabledCats.length === 0 || enabledCats.includes(category.id)) {
+                categoriesFound.add(category.id);
+                categoryNamesFound.add(category.name);
+            }
         }
     });
 
     return {
-        enabledCategories: Array.from(categoriesFound),
-        categoryCount: categoriesFound.size,
-        allWarnings: warnings
+        categories: categoriesFound,
+        categoryNames: Array.from(categoryNamesFound),
+        categoryCount: categoriesFound.size
     };
 }
 
 /**
  * Render trigger warning badge HTML
- * Returns HTML string for badge (or null if no warnings to show)
+ * Returns HTML string for badge (or empty string if no warnings to show)
  */
 export function renderTriggerBadge(movie, options = {}) {
     const {
         size = 'medium',  // 'small', 'medium', 'large'
-        showTooltip = true,
         position = 'top-left'  // 'top-left', 'top-right', etc.
     } = options;
 
     if (!movie.triggerWarnings || movie.triggerWarnings.length === 0) {
-        return null;
+        return '';
     }
 
-    const { enabledCategories, categoryCount } = categorizeWarnings(movie.triggerWarnings);
+    const { categoryNames, categoryCount } = categorizeWarnings(movie.triggerWarnings);
     
     // Only show badge if there are matching categories
     if (categoryCount === 0) {
-        return null;
+        return '';
     }
 
     const sizes = {
-        small: { padding: '3px 6px', fontSize: '0.65rem', icon: '0.75rem' },
-        medium: { padding: '0.375rem 0.625rem', fontSize: '0.75rem', icon: '0.875rem' },
-        large: { padding: '0.5rem 0.75rem', fontSize: '0.875rem', icon: '1rem' }
+        small: { padding: '3px 5px', fontSize: '0.6rem', icon: '0.65rem' },
+        medium: { padding: '3px 6px', fontSize: '0.65rem', icon: '0.75rem' },
+        large: { padding: '0.375rem 0.625rem', fontSize: '0.75rem', icon: '0.875rem' }
     };
 
     const sizeStyle = sizes[size] || sizes.medium;
-    const tooltipText = enabledCategories.join(', ');
+    const tooltipText = categoryNames.join(', ');
 
     return `
         <div 
-            class="trigger-warning-badge ${showTooltip ? 'has-tooltip' : ''}"
+            class="trigger-warning-badge has-tooltip"
             data-categories="${tooltipText}"
             style="
                 position: absolute;
@@ -110,20 +114,31 @@ export function renderTriggerBadge(movie, options = {}) {
                 background: rgba(239, 68, 68, 0.95);
                 color: white;
                 padding: ${sizeStyle.padding};
-                border-radius: 6px;
+                border-radius: 4px;
                 font-size: ${sizeStyle.fontSize};
                 font-weight: 700;
                 display: flex;
                 align-items: center;
-                gap: 4px;
+                gap: 3px;
                 z-index: 10;
                 box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
                 cursor: help;
             "
-            title="${tooltipText}"
         >
             <span style="font-size: ${sizeStyle.icon};">⚠️</span>
             <span>${categoryCount}</span>
         </div>
     `;
+}
+
+/**
+ * Get simple badge count without HTML (for use in notifications, etc)
+ */
+export function getBadgeCount(movie) {
+    if (!movie.triggerWarnings || movie.triggerWarnings.length === 0) {
+        return 0;
+    }
+    
+    const { categoryCount } = categorizeWarnings(movie.triggerWarnings);
+    return categoryCount;
 }
