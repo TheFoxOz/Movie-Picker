@@ -1,0 +1,87 @@
+/**
+ * Trigger Warning Badge Styles
+ * Tooltips and hover effects
+ */
+
+/* Badge hover effect */
+.trigger-warning-badge {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.trigger-warning-badge:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.5);
+}
+
+/* Tooltip on hover (desktop) */
+.trigger-warning-badge.has-tooltip::before {
+    content: attr(data-categories);
+    position: absolute;
+    bottom: calc(100% + 0.5rem);
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(26, 31, 46, 0.98);
+    color: white;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+    z-index: 1000;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+/* Tooltip arrow */
+.trigger-warning-badge.has-tooltip::after {
+    content: '';
+    position: absolute;
+    bottom: calc(100% + 0.125rem);
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 6px solid rgba(26, 31, 46, 0.98);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+    z-index: 1000;
+}
+
+/* Show tooltip on hover */
+.trigger-warning-badge.has-tooltip:hover::before,
+.trigger-warning-badge.has-tooltip:hover::after {
+    opacity: 1;
+}
+
+/* Mobile: Show tooltip on touch (no hover) */
+@media (hover: none) and (pointer: coarse) {
+    .trigger-warning-badge.has-tooltip::before,
+    .trigger-warning-badge.has-tooltip::after {
+        display: none;
+    }
+    
+    /* Show badge count prominently on mobile */
+    .trigger-warning-badge {
+        font-size: 0.8rem;
+    }
+}
+
+/* Pulse animation for new warnings */
+@keyframes pulse-warning {
+    0%, 100% {
+        box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+    }
+    50% {
+        box-shadow: 0 4px 16px rgba(239, 68, 68, 0.6);
+    }
+}
+
+.trigger-warning-badge.new {
+    animation: pulse-warning 2s ease-in-out 3;
+}
