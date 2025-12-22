@@ -2,6 +2,7 @@ import { store } from '../state/store.js';
 import { tmdbService } from '../services/tmdb.js';
 import { movieModal } from '../components/movie-modal.js';
 import { ENV } from '../config/env.js';
+import { renderTriggerBadge } from '../utils/trigger-warnings.js';
 
 const GENRE_IDS = {
     ACTION: 28,
@@ -607,9 +608,8 @@ export class LibraryTab {
         const hasTrailer = movie.trailerKey && movie.trailerKey.trim() !== '';
         const trailerUrl = hasTrailer ? `https://www.youtube.com/watch?v=${movie.trailerKey}` : null;
         
-        // ✅ Trigger warnings
-        const warnings = movie.triggerWarnings || [];
-        const hasWarnings = warnings.length > 0;
+        // ✅ NEW: Universal trigger warning badge
+        const triggerBadgeHTML = renderTriggerBadge(movie, { size: 'small', position: 'top-left' });
         
         // ✅ Platform
         const platform = movie.platform || movie.availableOn?.[0] || 'Not Available';
@@ -663,30 +663,14 @@ export class LibraryTab {
                         </button>
                     ` : ''}
                     
-                    <!-- ✅ Trigger Warning Badge (Top Left) -->
-                    ${hasWarnings ? `
-                        <div style="
-                            position: absolute;
-                            top: 0.5rem;
-                            left: 0.5rem;
-                            background: rgba(239, 68, 68, 0.95);
-                            color: white;
-                            padding: 3px 5px;
-                            border-radius: 4px;
-                            font-size: 0.6rem;
-                            font-weight: 700;
-                            z-index: 10;
-                            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-                        " title="${warnings.join(', ')}">
-                            ⚠️ ${warnings.length}
-                        </div>
-                    ` : ''}
+                    <!-- ✅ NEW: Universal Trigger Warning Badge -->
+                    ${triggerBadgeHTML}
                     
                     <!-- Rating -->
                     ${rating ? `
                         <div style="
                             position:absolute;
-                            top:${hasWarnings ? '2.5rem' : '0.5rem'};
+                            top:${triggerBadgeHTML ? '2.5rem' : '0.5rem'};
                             right:0.5rem;
                             padding:0.25rem 0.5rem;
                             background:rgba(251,191,36,0.9);
