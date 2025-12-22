@@ -1,9 +1,8 @@
 /**
  * Authentication Service – Firebase V10 Modernized
- * ✅ FIXED: Proper redirect handling after Google sign-in
+ * ✅ FIXED: Proper redirect handling with initialization sequence
+ * ✅ FIXED: Race condition resolved - checks redirect BEFORE auth listener
  * ✅ FIXED: Navigation to onboarding (new users) or swipe (returning users)
- * • Fixes Cross-Origin-Opener-Policy error for Google Sign-In (using redirect)
- * • Ensures all Firestore/Auth calls use modern v10 module syntax
  */
 
 // ---------------------------------------------------------------------
@@ -14,15 +13,14 @@ import { auth, db } from './firebase-config.js';
 import { store } from '../state/store.js';
 import { notify } from '../utils/notifications.js';
 
-
 // ---------------------------------------------------------------------
 // 2. Firebase v10 Auth Imports
 // ---------------------------------------------------------------------
 
 import { 
     GoogleAuthProvider, 
-    signInWithRedirect,   // Used for the robust sign-in method
-    getRedirectResult,    // Used to retrieve the result after redirect (CRITICAL)
+    signInWithRedirect,
+    getRedirectResult,
     createUserWithEmailAndPassword, 
     signInWithEmailAndPassword,
     signInAnonymously, 
@@ -30,20 +28,18 @@ import {
     updateProfile 
 } from 'firebase/auth';
 
-
 // ---------------------------------------------------------------------
 // 3. Firebase v10 Firestore Imports
 // ---------------------------------------------------------------------
 
 import { 
-    serverTimestamp,      // For storing creation timestamps
-    doc,                  // For creating document references
-    getDoc,               // For fetching a document once
-    setDoc,               // For setting or merging document data
-    updateDoc,            // For updating specific fields
-    onSnapshot            // For realtime listeners
+    serverTimestamp,
+    doc,
+    getDoc,
+    setDoc,
+    updateDoc,
+    onSnapshot
 } from 'firebase/firestore';
-
 
 // ---------------------------------------------------------------------
 // 4. AuthService Class
@@ -53,6 +49,28 @@ class AuthService {
     constructor() {
         this.currentUser = null;
         this.unsubscribers = [];
+        this.redirectResultChecked = false;
+        // ✅ Don't setup auth listener in constructor
+        // Will be set up after redirect check
+    }
+
+    // ✅ NEW: Initialize auth service (call this first!)
+    async initialize() {
+        console.log('[Auth] Initializing auth service...');
+        
+        // ✅ CRITICAL: Check redirect result FIRST, before auth listener
+        try {
+            const result = await this.handleRedirectResult();
+            
+            if (result) {
+                console.log('[Auth] ✅ Redirect result processed, user signed in');
+                // Auth state listener will handle the rest
+            }
+        } catch (error) {
+            console.error('[Auth] Error handling redirect:', error);
+        }
+        
+        // ✅ NOW setup auth listener (after redirect check)
         this.setupAuthListener();
     }
 
@@ -78,35 +96,40 @@ class AuthService {
                     isAuthenticated: true
                 });
 
-                // ✅ NEW: Auto-redirect logic (only if on login/landing page)
-                const currentHash = window.location.hash;
-                if (!currentHash || currentHash === '#' || currentHash === '#login') {
-                    await this.handleAuthRedirect(user);
+                // ✅ Only auto-redirect if NOT processing a redirect result
+                if (this.redirectResultChecked) {
+                    const currentHash = window.location.hash;
+                    if (!currentHash || currentHash === '#' || currentHash === '#login') {
+                        await this.handleAuthRedirect(user);
+                    }
                 }
             } else {
-                this.currentUser = null;
-                this.cleanup();
+                // ✅ Only process signout if we've already checked for redirect
+                if (this.redirectResultChecked) {
+                    this.currentUser = null;
+                    this.cleanup();
 
-                store.setState({
-                    userId: null,
-                    userEmail: null,
-                    userName: null,
-                    isAuthenticated: false,
-                    friends: [],
-                    groups: []
-                });
-                console.log('[Auth] User signed out');
+                    store.setState({
+                        userId: null,
+                        userEmail: null,
+                        userName: null,
+                        isAuthenticated: false,
+                        friends: [],
+                        groups: []
+                    });
+                    console.log('[Auth] User signed out');
 
-                // Redirect to login only if not already there
-                const currentHash = window.location.hash;
-                if (currentHash && currentHash !== '#login' && currentHash !== '#') {
-                    window.location.hash = '#login';
+                    // Redirect to login only if not already there
+                    const currentHash = window.location.hash;
+                    if (currentHash && currentHash !== '#login' && currentHash !== '#') {
+                        window.location.hash = '#login';
+                    }
                 }
             }
         });
     }
 
-    // ✅ NEW: Handle post-authentication redirect
+    // ✅ Handle post-authentication redirect
     async handleAuthRedirect(user) {
         console.log('[Auth] Handling redirect for user:', user.email || 'anonymous');
         
@@ -135,7 +158,7 @@ class AuthService {
         }
     }
 
-    // Auto-migrate old flat preferences → new nested format (fixes Home & Profile tabs)
+    // Auto-migrate old flat preferences → new nested format
     migrateAndSyncPreferences() {
         try {
             let prefs = {};
@@ -198,14 +221,13 @@ class AuthService {
                 swipeHistory: [],
                 friends: [],
                 groups: [],
-                onboardingCompleted: false,  // ← CRITICAL for redirect logic
+                onboardingCompleted: false,
                 preferences: prefs
             });
 
             localStorage.setItem('moviePickerPreferences', JSON.stringify(prefs));
-            notify.success('Welcome to Movie Picker!');
+            notify.success('Welcome to MoviEase!');
             
-            // ✅ NEW: Redirect to onboarding for new signups
             window.location.hash = '#onboarding';
             
             return { user, isNewUser: true };
@@ -225,7 +247,6 @@ class AuthService {
         try {
             await signInWithEmailAndPassword(auth, email, password);
             notify.success('Welcome back!');
-            // ✅ Redirect handled by onAuthStateChanged → handleAuthRedirect
         } catch (error) {
             const msg = {
                 'auth/user-not-found': 'No account found',
@@ -238,7 +259,7 @@ class AuthService {
         }
     }
 
-    // === GOOGLE SIGN-IN (Redirect Method FIX) ===
+    // === GOOGLE SIGN-IN (Redirect Method) ===
     async signInWithGoogle() {
         try {
             const provider = new GoogleAuthProvider();
@@ -247,7 +268,6 @@ class AuthService {
 
             console.log('[Auth] Initiating Google sign-in redirect...');
             
-            // CRITICAL: Use redirect instead of popup to avoid COOP errors
             await signInWithRedirect(auth, provider);
             // Execution stops here. The app will reload after redirect.
 
@@ -266,6 +286,9 @@ class AuthService {
         try {
             console.log('[Auth] Checking for redirect result...');
             const result = await getRedirectResult(auth);
+
+            // ✅ Mark that we've checked (even if no result)
+            this.redirectResultChecked = true;
 
             if (result) {
                 // User signed in successfully via redirect
@@ -293,18 +316,24 @@ class AuthService {
                         swipeHistory: [],
                         friends: [],
                         groups: [],
-                        onboardingCompleted: false,  // ← CRITICAL for redirect logic
+                        onboardingCompleted: false,
                         preferences: prefs
                     });
                     
                     localStorage.setItem('moviePickerPreferences', JSON.stringify(prefs));
                     
-                    // ✅ NEW: Redirect new Google users to onboarding
                     console.log('[Auth] New Google user → Redirecting to onboarding');
                     window.location.hash = '#onboarding';
                 } else {
-                    // ✅ Existing user - redirect handled by handleAuthRedirect in onAuthStateChanged
-                    console.log('[Auth] Existing Google user, redirect will be handled by auth listener');
+                    // ✅ Existing user - check onboarding status
+                    const userData = userDoc.data();
+                    if (!userData.onboardingCompleted) {
+                        console.log('[Auth] Existing user, incomplete onboarding → Redirecting to onboarding');
+                        window.location.hash = '#onboarding';
+                    } else {
+                        console.log('[Auth] Existing user, onboarding complete → Redirecting to swipe');
+                        window.location.hash = '#swipe';
+                    }
                 }
 
                 return { user, isNewUser };
@@ -314,6 +343,7 @@ class AuthService {
             return null; 
 
         } catch (error) {
+            this.redirectResultChecked = true;
             console.error('[Auth] Error handling redirect result:', error);
             const msg = {
                 'auth/account-exists-with-different-credential': 'Account exists with a different sign-in method.',
@@ -346,13 +376,12 @@ class AuthService {
                     swipeHistory: [],
                     friends: [],
                     groups: [],
-                    onboardingCompleted: false  // ← CRITICAL for redirect logic
+                    onboardingCompleted: false
                 });
             }
 
             notify.success('Welcome, Guest!');
             
-            // ✅ NEW: Guest users always go to onboarding
             console.log('[Auth] Guest user → Redirecting to onboarding');
             window.location.hash = '#onboarding';
             
@@ -458,14 +487,11 @@ class AuthService {
         try {
             const userRef = doc(db, 'users', uid);
             await updateDoc(userRef, {
-                onboardingCompleted: true,  // ← CRITICAL: Marks user as having finished onboarding
+                onboardingCompleted: true,
                 onboardingCompletedAt: serverTimestamp(),
                 preferences: prefs
             });
-            console.log('[Auth] Onboarding complete — preferences saved to Firestore');
-            
-            // ✅ REMOVED: window.location.hash = '#swipe'
-            // Navigation is handled by onboarding-flow.js via custom event
+            console.log('[Auth] ✅ Onboarding complete — preferences saved to Firestore');
             
         } catch (err) {
             console.warn('[Auth] Failed to save onboarding:', err.message);
@@ -481,4 +507,7 @@ class AuthService {
     }
 }
 
-export const authService = new AuthService();
+// ✅ Create instance but DON'T call setupAuthListener yet
+const authService = new AuthService();
+
+export { authService };
