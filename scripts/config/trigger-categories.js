@@ -1,117 +1,28 @@
 /**
  * Trigger Warning Categories Configuration
  * Defines all content warning categories used in the app
+ * ✅ Simplified to match DoesTheDogDie API structure
  */
 
 export const TRIGGER_CATEGORIES = [
-    {
-        id: 1,
-        name: 'Animal Harm',
-        icon: '🐕',
-        severity: 'high',
-        description: 'Content involving harm to animals',
-        spoilerFree: 'This movie contains scenes with animals in distress',
-        keywords: ['dog', 'cat', 'animal', 'pet', 'horse', 'dies']
-    },
-    {
-        id: 2,
-        name: 'Violence/Gore',
-        icon: '⚔️',
-        severity: 'high',
-        description: 'Graphic violence or gore',
-        spoilerFree: 'This movie contains graphic violence',
-        keywords: ['violence', 'gore', 'blood', 'murder', 'kill', 'stab', 'shoot']
-    },
-    {
-        id: 3,
-        name: 'Sexual Violence',
-        icon: '🚫',
-        severity: 'critical',
-        description: 'Sexual assault or rape',
-        spoilerFree: 'This movie contains scenes of sexual violence',
-        keywords: ['rape', 'sexual assault', 'molestation', 'abuse']
-    },
-    {
-        id: 4,
-        name: 'Death',
-        icon: '💀',
-        severity: 'medium',
-        description: 'Character deaths',
-        spoilerFree: 'Characters die in this movie',
-        keywords: ['death', 'dies', 'dead', 'corpse', 'funeral']
-    },
-    {
-        id: 5,
-        name: 'Child Harm',
-        icon: '👶',
-        severity: 'critical',
-        description: 'Harm to children',
-        spoilerFree: 'This movie contains scenes involving children in danger',
-        keywords: ['child', 'kid', 'baby', 'infant', 'minor']
-    },
-    {
-        id: 6,
-        name: 'Mental Health',
-        icon: '🧠',
-        severity: 'high',
-        description: 'Suicide, self-harm, or mental health crises',
-        spoilerFree: 'This movie contains mental health themes',
-        keywords: ['suicide', 'self-harm', 'depression', 'mental', 'overdose']
-    },
-    {
-        id: 7,
-        name: 'Jump Scares',
-        icon: '😱',
-        severity: 'low',
-        description: 'Sudden frightening moments',
-        spoilerFree: 'This movie contains jump scares',
-        keywords: ['jump scare', 'startle', 'sudden']
-    },
-    {
-        id: 8,
-        name: 'Substance Abuse',
-        icon: '🍷',
-        severity: 'medium',
-        description: 'Drug or alcohol abuse',
-        spoilerFree: 'This movie contains substance abuse',
-        keywords: ['drug', 'alcohol', 'addiction', 'substance', 'overdose']
-    },
-    {
-        id: 9,
-        name: 'Domestic Abuse',
-        icon: '🏠',
-        severity: 'critical',
-        description: 'Domestic or intimate partner violence',
-        spoilerFree: 'This movie contains domestic violence',
-        keywords: ['domestic', 'abuse', 'partner', 'spouse']
-    },
-    {
-        id: 10,
-        name: 'Medical Trauma',
-        icon: '🏥',
-        severity: 'medium',
-        description: 'Medical procedures, needles, surgery',
-        spoilerFree: 'This movie contains medical scenes',
-        keywords: ['medical', 'hospital', 'needle', 'surgery', 'blood draw']
-    },
-    {
-        id: 11,
-        name: 'Hate/Discrimination',
-        icon: '⚖️',
-        severity: 'high',
-        description: 'Racism, homophobia, or other discrimination',
-        spoilerFree: 'This movie contains discriminatory content',
-        keywords: ['racist', 'homophobic', 'slur', 'discrimination', 'hate']
-    },
-    {
-        id: 12,
-        name: 'Body Horror',
-        icon: '🦴',
-        severity: 'high',
-        description: 'Disturbing body transformation or mutilation',
-        spoilerFree: 'This movie contains body horror',
-        keywords: ['body horror', 'mutilation', 'dismember', 'disfigure']
-    }
+    { id: 'animal', name: 'Animal Harm', icon: '🐕' },
+    { id: 'violence', name: 'Violence/Gore', icon: '⚔️' },
+    { id: 'sexual', name: 'Sexual Violence', icon: '🚫' },
+    { id: 'death', name: 'Death', icon: '💀' },
+    { id: 'child', name: 'Child Harm', icon: '👶' },
+    { id: 'mental', name: 'Mental Health', icon: '🧠' },
+    { id: 'jump', name: 'Jump Scares', icon: '😱' },
+    { id: 'substance', name: 'Substance Abuse', icon: '🍷' },
+    { id: 'domestic', name: 'Domestic Abuse', icon: '🏠' },
+    { id: 'medical', name: 'Medical Trauma', icon: '🏥' },
+    { id: 'discrimination', name: 'Hate/Discrimination', icon: '⚖️' },
+    { id: 'body', name: 'Body Horror', icon: '🦴' },
+    { id: 'insects', name: 'Insects/Spiders', icon: '🕷️' },
+    { id: 'drowning', name: 'Drowning', icon: '🌊' },
+    { id: 'fire', name: 'Fire/Burning', icon: '🔥' },
+    { id: 'car', name: 'Car Accidents', icon: '🚗' },
+    { id: 'food', name: 'Eating Disorders', icon: '🍽️' },
+    { id: 'pregnancy', name: 'Pregnancy/Childbirth', icon: '🤰' }
 ];
 
 /**
@@ -119,6 +30,18 @@ export const TRIGGER_CATEGORIES = [
  */
 export function getCategoryById(id) {
     return TRIGGER_CATEGORIES.find(c => c.id === id);
+}
+
+/**
+ * Get category by name (case-insensitive partial match)
+ */
+export function getCategoryByName(name) {
+    if (!name) return null;
+    const lowerName = name.toLowerCase();
+    return TRIGGER_CATEGORIES.find(c => 
+        c.name.toLowerCase().includes(lowerName) || 
+        lowerName.includes(c.name.toLowerCase())
+    );
 }
 
 /**
@@ -138,15 +61,118 @@ export function getCategoryIcon(id) {
 }
 
 /**
- * Get severity color
+ * Map DoesTheDogDie warning to category
+ * DDD warnings come with names like "A dog dies", "There is gore", etc.
  */
-export function getSeverityColor(severity) {
-    const colors = {
-        critical: '#ef4444',
-        high: '#f59e0b',
-        medium: '#fbbf24',
-        low: '#10b981'
-    };
-    return colors[severity] || colors.medium;
+export function mapWarningToCategory(warningName) {
+    if (!warningName) return null;
+    
+    const lowerName = warningName.toLowerCase();
+    
+    // Animal keywords
+    if (/dog|cat|pet|animal|horse|bird/.test(lowerName)) {
+        return getCategoryById('animal');
+    }
+    
+    // Violence keywords
+    if (/gore|blood|violen|murder|kill|stab|shoot|fight/.test(lowerName)) {
+        return getCategoryById('violence');
+    }
+    
+    // Sexual violence keywords
+    if (/rape|sexual assault|molestat/.test(lowerName)) {
+        return getCategoryById('sexual');
+    }
+    
+    // Death keywords
+    if (/dies|death|dead|corpse|funeral/.test(lowerName)) {
+        return getCategoryById('death');
+    }
+    
+    // Child harm keywords
+    if (/child|kid|baby|minor/.test(lowerName)) {
+        return getCategoryById('child');
+    }
+    
+    // Mental health keywords
+    if (/suicide|self-harm|depression|mental/.test(lowerName)) {
+        return getCategoryById('mental');
+    }
+    
+    // Jump scares
+    if (/jump scare|startle|sudden/.test(lowerName)) {
+        return getCategoryById('jump');
+    }
+    
+    // Substance abuse
+    if (/drug|alcohol|addict|substance/.test(lowerName)) {
+        return getCategoryById('substance');
+    }
+    
+    // Domestic abuse
+    if (/domestic|abuse|spouse|partner/.test(lowerName)) {
+        return getCategoryById('domestic');
+    }
+    
+    // Medical trauma
+    if (/medical|hospital|needle|surgery|injection/.test(lowerName)) {
+        return getCategoryById('medical');
+    }
+    
+    // Discrimination
+    if (/racist|homophob|slur|discriminat|hate/.test(lowerName)) {
+        return getCategoryById('discrimination');
+    }
+    
+    // Body horror
+    if (/body horror|mutilat|dismember/.test(lowerName)) {
+        return getCategoryById('body');
+    }
+    
+    // Insects
+    if (/insect|spider|bug|crawl/.test(lowerName)) {
+        return getCategoryById('insects');
+    }
+    
+    // Drowning
+    if (/drown|underwater|suffocate/.test(lowerName)) {
+        return getCategoryById('drowning');
+    }
+    
+    // Fire
+    if (/fire|burn|flame/.test(lowerName)) {
+        return getCategoryById('fire');
+    }
+    
+    // Car accidents
+    if (/car|crash|accident|collision/.test(lowerName)) {
+        return getCategoryById('car');
+    }
+    
+    // Eating disorders
+    if (/eating disorder|anorex|bulim|vomit/.test(lowerName)) {
+        return getCategoryById('food');
+    }
+    
+    // Pregnancy
+    if (/pregnan|childbirth|miscarr/.test(lowerName)) {
+        return getCategoryById('pregnancy');
+    }
+    
+    // Default: return null (no category match)
+    return null;
 }
 
+/**
+ * Get all categories as array of names
+ */
+export function getAllCategoryNames() {
+    return TRIGGER_CATEGORIES.map(c => c.name);
+}
+
+/**
+ * Get all categories as array of IDs
+ */
+export function getAllCategoryIds() {
+    return TRIGGER_CATEGORIES.map(c => c.id);
+}
