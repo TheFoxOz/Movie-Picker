@@ -1,12 +1,12 @@
 /**
  * Onboarding Flow - FIXED
- * ✅ Skips login page if user is already authenticated (from index.html login)
- * ✅ Goes directly to platform selection for authenticated users
+ * ✅ Checks Firestore (single source of truth) for onboarding status
+ * ✅ Saves platforms in correct array format
+ * ✅ Only saves onboardingCompleted to Firestore, not localStorage
  */
 
 import { authService } from '../services/auth-service.js';
 import { store } from '../state/store.js';
-import { ENV } from '../config/env.js';
 
 export class OnboardingFlow {
     constructor() {
@@ -17,29 +17,42 @@ export class OnboardingFlow {
     async start() {
         console.log('[Onboarding] Starting onboarding flow...');
         
-        // ✅ CRITICAL FIX: Check if user is already logged in
-        if (authService.isAuthenticated()) {
-            console.log('[Onboarding] User is authenticated');
+        // ✅ FIX: Always check Firestore for onboarding status
+        if (!authService.isAuthenticated()) {
+            console.warn('[Onboarding] User not authenticated');
+            return false;
+        }
+
+        const user = authService.getCurrentUser();
+        
+        try {
+            // ✅ FIX: Check Firestore, not localStorage (single source of truth)
+            const { doc, getDoc } = await import('firebase/firestore');
+            const { db } = await import('../services/firebase-config.js');
             
-            const preferences = store.getState().preferences;
-            const hasCompletedOnboarding = preferences?.onboardingCompleted || false;
+            const userRef = doc(db, 'users', user.uid);
+            const userDoc = await getDoc(userRef);
             
-            if (hasCompletedOnboarding) {
-                console.log('[Onboarding] User already onboarded, skipping');
-                return false; // Don't show onboarding
+            if (userDoc.exists()) {
+                const userData = userDoc.data();
+                
+                if (userData.onboardingCompleted === true) {
+                    console.log('[Onboarding] User already completed onboarding (Firestore check)');
+                    return false; // Don't show onboarding
+                }
             }
             
-            // ✅ User is logged in but hasn't completed onboarding
-            // Skip login and go straight to platform selection
-            console.log('[Onboarding] User authenticated but onboarding incomplete, showing platform selection');
+            // ✅ User needs onboarding - show platform selection
+            console.log('[Onboarding] User needs onboarding, showing platform selection');
+            this.showPlatformSelection();
+            return true;
+            
+        } catch (error) {
+            console.error('[Onboarding] Error checking onboarding status:', error);
+            // On error, show onboarding (safe fallback)
             this.showPlatformSelection();
             return true;
         }
-
-        // User not logged in - this shouldn't happen because index.html handles login
-        // But keep this as fallback
-        console.warn('[Onboarding] User not authenticated - this should be handled by index.html login');
-        return false;
     }
 
     showPlatformSelection() {
@@ -122,7 +135,28 @@ export class OnboardingFlow {
     completeOnboarding() {
         console.log('[Onboarding] Completing onboarding...');
         
-        // Mark onboarding as complete in Firebase
+        // ✅ FIX: Save platforms to proper format (array, not object)
+        const selectedPlatforms = Array.from(
+            this.overlay.querySelectorAll('.platform-checkbox:checked')
+        ).map(cb => cb.dataset.platform);
+        
+        console.log('[Onboarding] Selected platforms:', selectedPlatforms);
+        
+        // ✅ FIX: Save to localStorage in correct format (platforms as array)
+        const preferences = {
+            platforms: selectedPlatforms, // ✅ Array format: ['Netflix', 'Hulu']
+            region: 'US',
+            triggerWarnings: {
+                enabledCategories: [],
+                showAllWarnings: false
+            }
+        };
+        
+        localStorage.setItem('moviePickerPreferences', JSON.stringify(preferences));
+        store.setState({ preferences });
+
+        // ✅ CRITICAL: Mark onboarding complete in Firestore (single source of truth)
+        // DO NOT save onboardingCompleted to localStorage
         const user = authService.getCurrentUser();
         if (user) {
             authService.completeOnboarding(user.uid).catch(err => {
@@ -130,19 +164,7 @@ export class OnboardingFlow {
             });
         }
 
-        // Save that onboarding is complete in local state
-        const preferences = store.getState().preferences || {};
-        preferences.onboardingCompleted = true;
-        store.setState({ preferences });
-
-        // Save to localStorage
-        try {
-            localStorage.setItem('moviePickerPreferences', JSON.stringify(preferences));
-        } catch (error) {
-            console.error('[Onboarding] Failed to save preferences:', error);
-        }
-
-        // Show success message briefly
+        // Show success message
         this.overlay.innerHTML = `
             <div style="display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 2rem;">
                 <div style="text-align: center;">
@@ -163,12 +185,11 @@ export class OnboardingFlow {
             </style>
         `;
 
-        // Remove overlay after 2 seconds
+        // Navigate to swipe tab
         setTimeout(() => {
             console.log('[Onboarding] Removing overlay and navigating to app');
             this.removeOverlay();
             
-            // Navigate to swipe tab
             window.dispatchEvent(new CustomEvent('navigate-to-tab', {
                 detail: 'swipe'
             }));
@@ -210,7 +231,7 @@ export class OnboardingFlow {
                 updateContinueButton();
             });
 
-            // Label click
+            // Label hover effects
             label.addEventListener('mouseover', () => {
                 label.style.transform = 'translateX(4px)';
             });
@@ -219,7 +240,7 @@ export class OnboardingFlow {
             });
         });
 
-        // Select all
+        // Select all button
         let allSelected = false;
         selectAllBtn?.addEventListener('click', () => {
             allSelected = !allSelected;
@@ -238,7 +259,7 @@ export class OnboardingFlow {
             updateContinueButton();
         });
 
-        // Continue button
+        // ✅ FIX: Continue button - save platforms as array, NOT object
         continueBtn?.addEventListener('click', () => {
             const selected = Array.from(checkboxes)
                 .filter(cb => cb.checked)
@@ -246,19 +267,21 @@ export class OnboardingFlow {
 
             console.log('[Onboarding] Selected platforms:', selected);
 
-            // Save to preferences
-            const preferences = store.getState().preferences || {};
-            preferences.platforms = {
-                'Netflix': selected.includes('Netflix'),
-                'Hulu': selected.includes('Hulu'),
-                'Prime Video': selected.includes('Prime Video'),
-                'Disney+': selected.includes('Disney+'),
-                'HBO Max': selected.includes('HBO Max'),
-                'Apple TV+': selected.includes('Apple TV+')
+            // ✅ FIX: Save platforms as array to localStorage
+            // DO NOT save onboardingCompleted here - only Firestore tracks that
+            const preferences = {
+                platforms: selected, // ✅ Array: ['Netflix', 'Prime Video']
+                region: 'US',
+                triggerWarnings: {
+                    enabledCategories: [],
+                    showAllWarnings: false
+                }
             };
+            
+            localStorage.setItem('moviePickerPreferences', JSON.stringify(preferences));
             store.setState({ preferences });
 
-            // Complete onboarding
+            // Complete onboarding (saves onboardingCompleted to Firestore only)
             this.completeOnboarding();
         });
     }
