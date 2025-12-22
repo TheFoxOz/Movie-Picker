@@ -2,11 +2,12 @@
  * MoviEase - Main Application Entry Point
  * Discover your next favorite film with ease
  * 
- * ✅ FIXED: Correct import name (MoviEaseApp not MoviePickerApp)
- * ✅ GOOGLE REDIRECT FIX: Properly waits for redirect to complete
+ * ✅ FIXED: Proper auth initialization sequence
+ * ✅ FIXED: Google redirect handled before auth listener
  * ✅ Initializes TMDB and Firebase services
  * ✅ Handles auth state propagation
  */
+
 import { ENV } from './config/env.js';
 import { tmdbService } from './services/tmdb.js';
 import { authService } from './services/auth-service.js';
@@ -28,24 +29,17 @@ async function initializeTMDB() {
     }
 }
 
-// === UPDATED: Better Google redirect handling ===
+// ✅ FIXED: Initialize auth with proper sequence
 async function initializeAuth() {
     try {
-        console.log('[MoviEase] Checking for Google redirect result...');
+        console.log('[MoviEase] Initializing auth service...');
         
-        const redirectResult = await authService.handleRedirectResult();
+        // ✅ CRITICAL: This checks redirect BEFORE setting up auth listener
+        await authService.initialize();
         
-        if (redirectResult) {
-            console.log('[MoviEase] Google redirect successful:', redirectResult.user.email);
-            // Give Firebase a moment to fully update auth state
-            await new Promise(resolve => setTimeout(resolve, 800));
-        } else {
-            console.log('[MoviEase] No redirect result');
-        }
-        
-        console.log('✅ Auth Service ready');
+        console.log('[MoviEase] ✅ Auth Service ready');
     } catch (error) {
-        console.error('⚠️ Auth redirect handling failed:', error);
+        console.error('⚠️ Auth initialization failed:', error);
     }
 }
 
@@ -53,16 +47,16 @@ async function initializeAuth() {
 async function startApp() {
     console.log('🚀 Initializing MoviEase services...');
     
-    // ✅ Initialize auth FIRST and WAIT for it to complete
+    // ✅ Initialize auth FIRST (handles Google redirect)
     await initializeAuth();
     
-    // Then initialize TMDB (can happen in parallel now)
+    // Then initialize TMDB
     await initializeTMDB();
     
     // ✅ Give auth state a moment to propagate
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise(resolve => setTimeout(resolve, 300));
     
-    // ✅ FIXED: Import the correct class name
+    // Import and start the app
     const { MoviEaseApp } = await import('./app-init.js');
     
     console.log('✅ MoviEase ready! Discover your next favorite film 🎬');
