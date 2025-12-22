@@ -7,11 +7,13 @@
  * ✅ ADDED: Trailer buttons and trigger warnings
  * ✅ COLOR FIX: Powder Blue + Vanilla Custard gradients
  * ✅ PLATFORM BADGE: Added to movie cards
+ * ✅ UNIVERSAL TRIGGER WARNINGS: Category-based badges with tooltips
  */
 
 import { tmdbService } from '../services/tmdb.js';
 import { store } from '../state/store.js';
 import { movieModal } from '../components/movie-modal.js';
+import { renderTriggerBadge } from '../utils/trigger-warnings.js';
 
 export class HomeTab {
     constructor() {
@@ -159,9 +161,8 @@ export class HomeTab {
         const hasTrailer = movie.trailerKey && movie.trailerKey.trim() !== '';
         const trailerUrl = hasTrailer ? `https://www.youtube.com/watch?v=${movie.trailerKey}` : null;
         
-        // ✅ Trigger warnings
-        const warnings = movie.triggerWarnings || [];
-        const hasWarnings = warnings.length > 0;
+        // ✅ NEW: Universal trigger warning badge
+        const triggerBadgeHTML = renderTriggerBadge(movie, { size: 'small', position: 'top-left' });
         
         // ✅ Platform
         const platform = movie.platform || movie.availableOn?.[0] || 'Not Available';
@@ -238,31 +239,8 @@ export class HomeTab {
                         </button>
                     ` : ''}
                     
-                    <!-- ✅ Trigger Warning Badge (Top Left) -->
-                    ${hasWarnings ? `
-                        <div 
-                            class="trigger-warning-badge"
-                            style="
-                                position: absolute;
-                                top: 0.5rem;
-                                left: 0.5rem;
-                                background: rgba(239, 68, 68, 0.95);
-                                color: white;
-                                padding: 3px 6px;
-                                border-radius: 4px;
-                                font-size: 0.65rem;
-                                font-weight: 700;
-                                display: flex;
-                                align-items: center;
-                                gap: 3px;
-                                z-index: 10;
-                                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-                            "
-                            title="${warnings.join(', ')}"
-                        >
-                            ⚠️ ${warnings.length}
-                        </div>
-                    ` : ''}
+                    <!-- ✅ NEW: Universal Trigger Warning Badge -->
+                    ${triggerBadgeHTML}
                     
                     <!-- Rating Badge -->
                     <div style="
@@ -356,4 +334,3 @@ export class HomeTab {
             .map(([genre]) => genre);
     }
 }
-
