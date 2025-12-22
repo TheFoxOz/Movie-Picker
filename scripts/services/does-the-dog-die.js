@@ -3,6 +3,7 @@
  * ✅ Uses Vercel serverless proxy to bypass CORS
  * ✅ Improved error handling with graceful fallbacks
  * ✅ Better search with title normalization
+ * ✅ FIXED: Correct API response parsing
  */
 
 class DoesTheDogDieService {
@@ -111,7 +112,13 @@ class DoesTheDogDieService {
 
             const data = await response.json();
             
-            if (data.mediaId) {
+            // ✅ FIXED: Check for items array or direct mediaId
+            if (data.items && data.items.length > 0) {
+                const firstResult = data.items[0];
+                if (firstResult.id) {
+                    return await this.getWarnings(firstResult.id);
+                }
+            } else if (data.mediaId) {
                 return await this.getWarnings(data.mediaId);
             }
 
@@ -124,6 +131,7 @@ class DoesTheDogDieService {
 
     /**
      * Search by title
+     * ✅ FIXED: Correctly parse {items: [...]} response format
      */
     async searchByTitle(title) {
         try {
@@ -139,10 +147,11 @@ class DoesTheDogDieService {
 
             const data = await response.json();
             
-            // DDD API returns array of search results
-            if (Array.isArray(data) && data.length > 0) {
-                const firstResult = data[0];
+            // ✅ FIXED: DDD API returns {items: [...]} format, not raw array
+            if (data.items && data.items.length > 0) {
+                const firstResult = data.items[0];
                 if (firstResult.id) {
+                    console.log(`[DDD] Found movie ID ${firstResult.id}, fetching warnings...`);
                     return await this.getWarnings(firstResult.id);
                 }
             }
@@ -318,5 +327,3 @@ class DoesTheDogDieService {
 const doesTheDogDieService = new DoesTheDogDieService();
 
 export { doesTheDogDieService };
-
-
