@@ -3,13 +3,13 @@
  * Discover your next favorite film with ease
  * 
  * ✅ FIXED: Desktop scrolling enabled for all tabs
+ * ✅ FIXED: MoviEase branding colors (Space Indigo, Powder Blue, Vanilla Custard)
  * ✅ FIXED: Proper scrolling at app-container level
  * ✅ FIXED: Better error handling and container checks
  * ✅ FIXED: Matches tab uses init() instead of render()
  * ✅ IMPROVED AUTH WAIT: 5 seconds for Google redirect
  * ✅ Handles onboarding flow for new users
  * ✅ Manages tab navigation and rendering
- * ✅ MoviEase branding and colors
  */
 
 import { onboardingFlow } from './components/onboarding-flow.js';
@@ -361,6 +361,7 @@ class MoviEaseApp {
             overflow-y: auto;
             overflow-x: hidden;
             -webkit-overflow-scrolling: touch;
+            background: #18183A;
             display: none;
         `;
         document.body.appendChild(container);
@@ -378,8 +379,8 @@ class MoviEaseApp {
                     left: 0;
                     right: 0;
                     height: 5rem;
-                    background: linear-gradient(180deg, rgba(20, 24, 36, 0.98) 0%, rgba(26, 31, 46, 0.98) 100%);
-                    border-top: 1px solid rgba(176, 212, 227, 0.15);
+                    background: linear-gradient(180deg, rgba(166, 192, 221, 0.95) 0%, #A6C0DD 100%);
+                    border-top: 1px solid rgba(255, 255, 255, 0.2);
                     backdrop-filter: blur(20px);
                     z-index: 100;
                     display: none;
@@ -406,7 +407,7 @@ class MoviEaseApp {
                     padding: 0.5rem;
                     background: transparent;
                     border: none;
-                    color: rgba(176, 212, 227, 0.5);
+                    color: rgba(24, 24, 58, 0.6);
                     font-size: 0.75rem;
                     font-weight: 600;
                     cursor: pointer;
@@ -415,12 +416,12 @@ class MoviEaseApp {
                 }
 
                 .nav-btn:hover {
-                    color: rgba(176, 212, 227, 0.8);
-                    background: rgba(176, 212, 227, 0.05);
+                    color: rgba(24, 24, 58, 0.9);
+                    background: rgba(255, 255, 255, 0.2);
                 }
 
                 .nav-btn.active {
-                    color: #b0d4e3;
+                    color: #18183A;
                 }
 
                 .nav-icon {
@@ -444,22 +445,22 @@ class MoviEaseApp {
                 #swipe-btn {
                     width: 4rem;
                     height: 4rem;
-                    background: linear-gradient(135deg, #b0d4e3, #f4e8c1);
-                    border: 3px solid #1a1f2e;
+                    background: linear-gradient(135deg, #DFDFB0, #F4E8C1);
+                    border: 3px solid #18183A;
                     border-radius: 50%;
                     display: flex;
                     align-items: center;
                     justify-content: center;
                     cursor: pointer;
                     transition: all 0.3s;
-                    box-shadow: 0 8px 24px rgba(176, 212, 227, 0.3);
-                    color: #1a1f2e;
+                    box-shadow: 0 8px 24px rgba(223, 223, 176, 0.4);
+                    color: #18183A;
                     font-size: 2rem;
                 }
 
                 #swipe-btn:hover {
                     transform: scale(1.1);
-                    box-shadow: 0 12px 32px rgba(176, 212, 227, 0.5);
+                    box-shadow: 0 12px 32px rgba(223, 223, 176, 0.6);
                 }
 
                 #swipe-btn:active {
@@ -467,8 +468,8 @@ class MoviEaseApp {
                 }
 
                 #swipe-btn.active {
-                    background: linear-gradient(135deg, #f4e8c1, #b0d4e3);
-                    border-color: #b0d4e3;
+                    background: linear-gradient(135deg, #F4E8C1, #DFDFB0);
+                    border-color: #DFDFB0;
                 }
 
                 /* Create space for center button */
@@ -580,8 +581,8 @@ class MoviEaseApp {
         this.container.innerHTML = `
             <div style="display: flex; align-items: center; justify-content: center; height: calc(100vh - 15rem);">
                 <div style="text-align: center;">
-                    <div style="width: 48px; height: 48px; border: 4px solid rgba(176, 212, 227, 0.2); border-top-color: #b0d4e3; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 1rem;"></div>
-                    <p style="color: rgba(176, 212, 227, 0.7); font-size: 0.875rem;">Loading...</p>
+                    <div style="width: 48px; height: 48px; border: 4px solid rgba(223, 223, 176, 0.2); border-top-color: #DFDFB0; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 1rem;"></div>
+                    <p style="color: rgba(223, 223, 176, 0.7); font-size: 0.875rem;">Loading...</p>
                 </div>
             </div>
             <style>@keyframes spin { to { transform: rotate(360deg); }}</style>
@@ -596,8 +597,8 @@ class MoviEaseApp {
             this.container.innerHTML = `
                 <div style="padding: 2rem; text-align: center;">
                     <div style="font-size: 3rem; margin-bottom: 1rem;">⚠️</div>
-                    <h3 style="color: white; margin-bottom: 1rem;">Tab Not Found</h3>
-                    <p style="color: rgba(176, 212, 227, 0.7);">The '${this.currentTab}' tab could not be loaded.</p>
+                    <h3 style="color: #DFDFB0; margin-bottom: 1rem;">Tab Not Found</h3>
+                    <p style="color: rgba(223, 223, 176, 0.7);">The '${this.currentTab}' tab could not be loaded.</p>
                 </div>
             `;
             return;
@@ -618,10 +619,10 @@ class MoviEaseApp {
                 this.container.innerHTML = `
                     <div style="padding: 2rem; text-align: center;">
                         <div style="font-size: 3rem; margin-bottom: 1rem;">⚠️</div>
-                        <h3 style="color: white; margin-bottom: 1rem;">Oops! Something went wrong</h3>
-                        <p style="color: rgba(176, 212, 227, 0.7); margin-bottom: 0.5rem;">Error: ${error.message}</p>
-                        <p style="color: rgba(176, 212, 227, 0.5); font-size: 0.875rem; margin-bottom: 1.5rem;">Tab: matches</p>
-                        <button onclick="location.reload()" style="margin-top: 1.5rem; padding: 0.75rem 1.5rem; background: linear-gradient(135deg, #b0d4e3, #f4e8c1); border: none; border-radius: 0.75rem; color: #1a1f2e; font-weight: 600; cursor: pointer;">
+                        <h3 style="color: #DFDFB0; margin-bottom: 1rem;">Oops! Something went wrong</h3>
+                        <p style="color: rgba(223, 223, 176, 0.7); margin-bottom: 0.5rem;">Error: ${error.message}</p>
+                        <p style="color: rgba(223, 223, 176, 0.5); font-size: 0.875rem; margin-bottom: 1.5rem;">Tab: matches</p>
+                        <button onclick="location.reload()" style="margin-top: 1.5rem; padding: 0.75rem 1.5rem; background: linear-gradient(135deg, #DFDFB0, #F4E8C1); border: none; border-radius: 0.75rem; color: #18183A; font-weight: 600; cursor: pointer;">
                             Reload App
                         </button>
                     </div>
@@ -637,10 +638,10 @@ class MoviEaseApp {
                 this.container.innerHTML = `
                     <div style="padding: 2rem; text-align: center;">
                         <div style="font-size: 3rem; margin-bottom: 1rem;">⚠️</div>
-                        <h3 style="color: white; margin-bottom: 1rem;">Oops! Something went wrong</h3>
-                        <p style="color: rgba(176, 212, 227, 0.7); margin-bottom: 0.5rem;">Error: ${error.message}</p>
-                        <p style="color: rgba(176, 212, 227, 0.5); font-size: 0.875rem; margin-bottom: 1.5rem;">Tab: ${this.currentTab}</p>
-                        <button onclick="location.reload()" style="margin-top: 1.5rem; padding: 0.75rem 1.5rem; background: linear-gradient(135deg, #b0d4e3, #f4e8c1); border: none; border-radius: 0.75rem; color: #1a1f2e; font-weight: 600; cursor: pointer;">
+                        <h3 style="color: #DFDFB0; margin-bottom: 1rem;">Oops! Something went wrong</h3>
+                        <p style="color: rgba(223, 223, 176, 0.7); margin-bottom: 0.5rem;">Error: ${error.message}</p>
+                        <p style="color: rgba(223, 223, 176, 0.5); font-size: 0.875rem; margin-bottom: 1.5rem;">Tab: ${this.currentTab}</p>
+                        <button onclick="location.reload()" style="margin-top: 1.5rem; padding: 0.75rem 1.5rem; background: linear-gradient(135deg, #DFDFB0, #F4E8C1); border: none; border-radius: 0.75rem; color: #18183A; font-weight: 600; cursor: pointer;">
                             Reload App
                         </button>
                     </div>
@@ -656,10 +657,10 @@ class MoviEaseApp {
                 this.container.innerHTML = `
                     <div style="padding: 2rem; text-align: center;">
                         <div style="font-size: 3rem; margin-bottom: 1rem;">⚠️</div>
-                        <h3 style="color: white; margin-bottom: 1rem;">Oops! Something went wrong</h3>
-                        <p style="color: rgba(176, 212, 227, 0.7); margin-bottom: 0.5rem;">Error: ${error.message}</p>
-                        <p style="color: rgba(176, 212, 227, 0.5); font-size: 0.875rem; margin-bottom: 1.5rem;">Tab: ${this.currentTab}</p>
-                        <button onclick="location.reload()" style="margin-top: 1.5rem; padding: 0.75rem 1.5rem; background: linear-gradient(135deg, #b0d4e3, #f4e8c1); border: none; border-radius: 0.75rem; color: #1a1f2e; font-weight: 600; cursor: pointer;">
+                        <h3 style="color: #DFDFB0; margin-bottom: 1rem;">Oops! Something went wrong</h3>
+                        <p style="color: rgba(223, 223, 176, 0.7); margin-bottom: 0.5rem;">Error: ${error.message}</p>
+                        <p style="color: rgba(223, 223, 176, 0.5); font-size: 0.875rem; margin-bottom: 1.5rem;">Tab: ${this.currentTab}</p>
+                        <button onclick="location.reload()" style="margin-top: 1.5rem; padding: 0.75rem 1.5rem; background: linear-gradient(135deg, #DFDFB0, #F4E8C1); border: none; border-radius: 0.75rem; color: #18183A; font-weight: 600; cursor: pointer;">
                             Reload App
                         </button>
                     </div>
