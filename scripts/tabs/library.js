@@ -155,9 +155,22 @@ export class LibraryTab {
                 batch.map(async (movie) => {
                     if (tmdbService.getWatchProviders) {
                         movie.availableOn = await tmdbService.getWatchProviders(movie.id);
-                        movie.platform = movie.availableOn && movie.availableOn.length > 0 
-                            ? movie.availableOn[0] 
-                            : 'Not Available';
+                        
+                        // ✅ FIXED: Smart platform assignment with "In Cinemas" support
+                        if (!movie.availableOn || movie.availableOn.length === 0) {
+                            // Check if movie is recent (released within last 6 months)
+                            const releaseDate = new Date(movie.releaseDate || movie.release_date);
+                            const sixMonthsAgo = new Date();
+                            sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+                            
+                            if (releaseDate > sixMonthsAgo) {
+                                movie.platform = 'In Cinemas';
+                            } else {
+                                movie.platform = 'Not Available';
+                            }
+                        } else {
+                            movie.platform = movie.availableOn[0];
+                        }
                     }
                 })
             );
@@ -600,7 +613,7 @@ export class LibraryTab {
     }
 
     renderMovieCard(movie) {
-        const posterUrl = movie.posterURL || movie.poster_path || `https://placehold.co/300x450/1a1a2e/ffffff?text=${encodeURIComponent(movie.title)}`;
+        const posterUrl = movie.posterURL || movie.poster_path || `https://placehold.co/300x450/18183A/DFDFB0?text=${encodeURIComponent(movie.title)}`;
         const rating = movie.rating || movie.vote_average;
         const year = movie.year || movie.releaseDate?.split('-')[0] || '';
         
@@ -611,8 +624,18 @@ export class LibraryTab {
         // ✅ NEW: Universal trigger warning badge
         const triggerBadgeHTML = renderTriggerBadge(movie, { size: 'small', position: 'top-left' });
         
-        // ✅ Platform
-        const platform = movie.platform || movie.availableOn?.[0] || 'Not Available';
+        // ✅ FIXED: Smart platform display with "In Cinemas" support
+        const platform = (() => {
+            if (movie.platform && movie.platform !== 'Not Available') return movie.platform;
+            if (movie.availableOn && movie.availableOn.length > 0) return movie.availableOn[0];
+            
+            // Check if recent release (in theaters)
+            const releaseDate = new Date(movie.releaseDate || movie.release_date);
+            const sixMonthsAgo = new Date();
+            sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+            
+            return releaseDate > sixMonthsAgo ? 'In Cinemas' : 'Not Available';
+        })();
         
         // Rating color
         let ratingColor = '#10b981';
@@ -633,7 +656,7 @@ export class LibraryTab {
                     cursor:pointer;
                 ">
                     <img src="${posterUrl}" alt="${movie.title}" style="width:100%;height:100%;object-fit:cover;"
-                         onerror="this.src='https://placehold.co/300x450/1a1a2e/ffffff?text=${encodeURIComponent(movie.title)}'">
+                         onerror="this.src='https://placehold.co/300x450/18183A/DFDFB0?text=${encodeURIComponent(movie.title)}'">
                     
                     <!-- ✅ Trailer Button (Top Right) -->
                     ${hasTrailer ? `
