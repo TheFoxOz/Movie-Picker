@@ -1,85 +1,132 @@
 /**
- * Trigger Warning Badge Styles
- * Tooltips and hover effects
+ * Universal Trigger Warning Badge Styles
+ * Category-based display with hover tooltips
  */
 
-/* Badge hover effect */
 .trigger-warning-badge {
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    position: absolute;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.5rem 0.75rem;
+    background: rgba(239, 68, 68, 0.95);
+    backdrop-filter: blur(10px);
+    border-radius: 1rem;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+    font-weight: 700;
+    color: white;
+    z-index: 5;
+    cursor: help;
+    transition: all 0.2s ease;
 }
 
+/* Size variants */
+.trigger-warning-badge.small {
+    padding: 0.375rem 0.625rem;
+    font-size: 0.75rem;
+    gap: 0.25rem;
+}
+
+.trigger-warning-badge.medium {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    gap: 0.375rem;
+}
+
+.trigger-warning-badge.large {
+    padding: 0.625rem 1rem;
+    font-size: 1rem;
+    gap: 0.5rem;
+}
+
+/* Position variants */
+.trigger-warning-badge.top-left {
+    top: 0.5rem;
+    left: 0.5rem;
+}
+
+.trigger-warning-badge.top-right {
+    top: 0.5rem;
+    right: 0.5rem;
+}
+
+.trigger-warning-badge.bottom-left {
+    bottom: 0.5rem;
+    left: 0.5rem;
+}
+
+.trigger-warning-badge.bottom-right {
+    bottom: 0.5rem;
+    right: 0.5rem;
+}
+
+/* Hover effects */
 .trigger-warning-badge:hover {
     transform: scale(1.05);
-    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.5);
+    box-shadow: 0 6px 16px rgba(239, 68, 68, 0.6);
 }
 
-/* Tooltip on hover (desktop) */
-.trigger-warning-badge.has-tooltip::before {
-    content: attr(data-categories);
+/* ✅ FIXED: Tooltip positioned BELOW badge */
+.trigger-warning-badge .tooltip {
     position: absolute;
-    bottom: calc(100% + 0.5rem);
+    top: calc(100% + 0.5rem); /* ✅ Changed from bottom to top */
     left: 50%;
     transform: translateX(-50%);
     background: rgba(26, 31, 46, 0.98);
     color: white;
-    padding: 0.5rem 0.75rem;
-    border-radius: 0.5rem;
-    font-size: 0.75rem;
+    padding: 0.75rem 1rem;
+    border-radius: 0.75rem;
+    font-size: 0.8125rem;
     font-weight: 600;
     white-space: nowrap;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.2s ease;
-    z-index: 1000;
-    border: 1px solid rgba(239, 68, 68, 0.3);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
     max-width: 200px;
     white-space: normal;
     text-align: center;
-}
-
-/* Tooltip arrow */
-.trigger-warning-badge.has-tooltip::after {
-    content: '';
-    position: absolute;
-    bottom: calc(100% + 0.125rem);
-    left: 50%;
-    transform: translateX(-50%);
-    width: 0;
-    height: 0;
-    border-left: 6px solid transparent;
-    border-right: 6px solid transparent;
-    border-top: 6px solid rgba(26, 31, 46, 0.98);
+    line-height: 1.4;
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.2s ease;
     z-index: 1000;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+    border: 1px solid rgba(239, 68, 68, 0.3);
 }
 
-/* Show tooltip on hover */
-.trigger-warning-badge.has-tooltip:hover::before,
-.trigger-warning-badge.has-tooltip:hover::after {
-    opacity: 1;
+/* ✅ FIXED: Arrow pointing UP (since tooltip is below) */
+.trigger-warning-badge .tooltip::before {
+    content: '';
+    position: absolute;
+    bottom: 100%; /* ✅ Changed from top to bottom */
+    left: 50%;
+    transform: translateX(-50%);
+    border: 6px solid transparent;
+    border-bottom-color: rgba(26, 31, 46, 0.98); /* ✅ Changed from border-top to border-bottom */
 }
 
-/* Mobile: Hide tooltip (no hover on mobile) */
+/* Show tooltip on hover (desktop only) */
+@media (hover: hover) and (pointer: fine) {
+    .trigger-warning-badge:hover .tooltip {
+        opacity: 1;
+    }
+}
+
+/* Hide tooltip on mobile/touch devices */
 @media (hover: none) and (pointer: coarse) {
-    .trigger-warning-badge.has-tooltip::before,
-    .trigger-warning-badge.has-tooltip::after {
+    .trigger-warning-badge .tooltip {
         display: none;
     }
 }
 
-/* Pulse animation for new warnings */
-@keyframes pulse-warning {
+/* Animation for new warnings */
+@keyframes pulse {
     0%, 100% {
-        box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+        transform: scale(1);
     }
     50% {
-        box-shadow: 0 4px 16px rgba(239, 68, 68, 0.6);
+        transform: scale(1.05);
     }
 }
 
 .trigger-warning-badge.new {
-    animation: pulse-warning 2s ease-in-out 3;
+    animation: pulse 2s ease-in-out 3;
 }
