@@ -3,11 +3,13 @@
  * Shows detailed movie information with TRAILER and DDD warnings
  * ✅ FIXED: Fetches full movie details including trailer
  * ✅ UNIVERSAL TRIGGER WARNINGS: Conditional display based on user preferences
+ * ✅ CENTRALIZED: Uses streaming-platforms.js for platform styling
  */
 
 import { tmdbService } from '../services/tmdb.js';
 import { ENV } from '../config/env.js';
 import { shouldShowAllWarnings, categorizeWarnings } from '../utils/trigger-warnings.js';
+import { renderPlatformBadge } from '../utils/streaming-platforms.js';
 
 class MovieModal {
     constructor() {
@@ -270,19 +272,6 @@ class MovieModal {
             })
             : [];
         
-        // Platform icon and color
-        const platformStyles = {
-            'Netflix': { icon: 'N', color: '#E50914' },
-            'Hulu': { icon: 'H', color: '#1CE783' },
-            'Prime Video': { icon: 'P', color: '#00A8E1' },
-            'Disney+': { icon: 'D', color: '#113CCF' },
-            'HBO Max': { icon: 'M', color: '#B200FF' },
-            'Apple TV+': { icon: 'A', color: '#000000' },
-            'Peacock': { icon: 'P', color: '#0057B8' },
-            'Paramount+': { icon: 'P', color: '#0064FF' }
-        };
-        const platformStyle = platformStyles[movie.platform] || { icon: '▶', color: '#6366f1' };
-        
         return `
             <div class="modal-content" style="
                 background: linear-gradient(180deg, #1a1a2e 0%, #0a0a0f 100%);
@@ -377,14 +366,7 @@ class MovieModal {
                         <div style="font-size: 0.75rem; color: rgba(255, 255, 255, 0.5); text-transform: uppercase; font-weight: 600; letter-spacing: 0.05em; margin-bottom: 0.5rem;">
                             Platform
                         </div>
-                        <div style="display: flex; align-items: center; gap: 0.5rem;">
-                            <span style="width: 28px; height: 28px; border-radius: 50%; background: ${platformStyle.color}; display: flex; align-items: center; justify-content: center; font-size: 0.875rem; color: white; font-weight: 800; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);">
-                                ${platformStyle.icon}
-                            </span>
-                            <span style="color: white; font-weight: 600;">
-                                ${movie.platform || 'Not Available'}
-                            </span>
-                        </div>
+                        ${renderPlatformBadge(movie.platform, { showName: true })}
                     </div>
                     
                     <div>
