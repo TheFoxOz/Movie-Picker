@@ -2,10 +2,12 @@
  * Movie Modal Component with Trigger Warnings
  * Shows detailed movie information with TRAILER and DDD warnings
  * ✅ FIXED: Fetches full movie details including trailer
+ * ✅ UNIVERSAL TRIGGER WARNINGS: Conditional display based on user preferences
  */
 
 import { tmdbService } from '../services/tmdb.js';
 import { ENV } from '../config/env.js';
+import { shouldShowAllWarnings, categorizeWarnings } from '../utils/trigger-warnings.js';
 
 class MovieModal {
     constructor() {
@@ -127,28 +129,76 @@ class MovieModal {
             `;
         }
 
-        return `
-            <div style="display:flex;flex-direction:column;gap:0.75rem;">
-                ${warnings.map(warning => `
-                    <div style="padding:1rem;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:0.75rem;">
-                        <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem;">
-                            <span style="color:#ef4444;font-size:1.25rem;">⚠️</span>
-                            <strong style="color:#ef4444;font-size:0.9375rem;">${warning.name || warning.category || 'Warning'}</strong>
+        // ✅ NEW: Check user preference for showing all warnings
+        const showAllWarnings = shouldShowAllWarnings();
+        
+        if (showAllWarnings) {
+            // ✅ Show full detailed warnings list
+            return `
+                <div style="display:flex;flex-direction:column;gap:0.75rem;">
+                    ${warnings.map(warning => `
+                        <div style="padding:1rem;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:0.75rem;">
+                            <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem;">
+                                <span style="color:#ef4444;font-size:1.25rem;">⚠️</span>
+                                <strong style="color:#ef4444;font-size:0.9375rem;">${warning.name || warning.category || 'Warning'}</strong>
+                            </div>
+                            ${warning.description ? `
+                                <p style="color:rgba(255,255,255,0.7);font-size:0.875rem;margin:0 0 0.5rem 0;line-height:1.5;">
+                                    ${warning.description}
+                                </p>
+                            ` : ''}
+                            ${warning.yesVotes ? `
+                                <p style="color:rgba(255,255,255,0.4);font-size:0.75rem;margin:0;">
+                                    ${warning.yesVotes} people confirmed this content
+                                </p>
+                            ` : ''}
                         </div>
-                        ${warning.description ? `
-                            <p style="color:rgba(255,255,255,0.7);font-size:0.875rem;margin:0 0 0.5rem 0;line-height:1.5;">
-                                ${warning.description}
-                            </p>
-                        ` : ''}
-                        ${warning.yesVotes ? `
-                            <p style="color:rgba(255,255,255,0.4);font-size:0.75rem;margin:0;">
-                                ${warning.yesVotes} people confirmed this content
-                            </p>
-                        ` : ''}
+                    `).join('')}
+                </div>
+            `;
+        } else {
+            // ✅ NEW: Show only category names (simplified view)
+            const { categoryNames, categoryCount } = categorizeWarnings(warnings);
+            
+            if (categoryCount === 0) {
+                return `
+                    <div style="padding:1rem;background:rgba(255,255,255,0.05);border-radius:0.75rem;text-align:center;">
+                        <p style="color:rgba(255,255,255,0.5);margin:0;font-size:0.875rem;">
+                            No trigger warnings match your preferences
+                        </p>
                     </div>
-                `).join('')}
-            </div>
-        `;
+                `;
+            }
+            
+            return `
+                <div style="display:flex;flex-direction:column;gap:0.75rem;">
+                    <div style="padding:1rem;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:0.75rem;">
+                        <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.75rem;">
+                            <span style="color:#ef4444;font-size:1.25rem;">⚠️</span>
+                            <strong style="color:#ef4444;font-size:0.9375rem;">Content Warning Categories (${categoryCount})</strong>
+                        </div>
+                        <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
+                            ${categoryNames.map(categoryName => `
+                                <span style="
+                                    padding: 0.5rem 0.75rem;
+                                    background: rgba(239, 68, 68, 0.2);
+                                    border: 1px solid rgba(239, 68, 68, 0.4);
+                                    border-radius: 0.5rem;
+                                    color: #ef4444;
+                                    font-size: 0.875rem;
+                                    font-weight: 600;
+                                ">
+                                    ${categoryName}
+                                </span>
+                            `).join('')}
+                        </div>
+                        <p style="color:rgba(255,255,255,0.5);font-size:0.75rem;margin:0.75rem 0 0 0;">
+                            Enable "Show All Warnings" in your profile to see detailed descriptions
+                        </p>
+                    </div>
+                </div>
+            `;
+        }
     }
 
     updateWarningsSection(warnings) {
@@ -422,3 +472,47 @@ class MovieModal {
 
 // Export singleton instance
 export const movieModal = new MovieModal();
+```
+
+---
+
+## **📋 Key Changes to `movie-modal.js`:**
+
+1. ✅ **Line 8:** Added `import { shouldShowAllWarnings, categorizeWarnings } from '../utils/trigger-warnings.js';`
+
+2. ✅ **Lines 125-216:** Completely rewrote `renderTriggerWarnings()` method:
+   - **Checks user preference** with `shouldShowAllWarnings()`
+   - **If enabled:** Shows full detailed warnings with descriptions and vote counts (original behavior)
+   - **If disabled:** Shows only category names as badges with a message to enable full warnings
+
+3. ✅ **New simplified view** displays:
+   - Category count (e.g., "Content Warning Categories (3)")
+   - Category badges (e.g., "Animal Harm", "Violence", "Death")
+   - Helpful message: "Enable 'Show All Warnings' in your profile to see detailed descriptions"
+
+---
+
+## **🎯 How It Works:**
+
+### **User Has "Show All Warnings" ENABLED:**
+```
+⚠️ Content Warnings
+
+⚠️ Animal Harm
+A dog is harmed or dies in this movie.
+1,234 people confirmed this content
+
+⚠️ Violence
+Graphic violence is depicted.
+567 people confirmed this content
+```
+
+### **User Has "Show All Warnings" DISABLED:**
+```
+⚠️ Content Warnings
+
+⚠️ Content Warning Categories (3)
+
+[Animal Harm] [Violence] [Death]
+
+Enable "Show All Warnings" in your profile to see detailed descriptions
