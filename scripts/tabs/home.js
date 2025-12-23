@@ -8,6 +8,7 @@
  * ✅ COLOR FIX: Powder Blue + Vanilla Custard gradients
  * ✅ PLATFORM BADGE: Added to movie cards
  * ✅ UNIVERSAL TRIGGER WARNINGS: Category-based badges with tooltips
+ * ✅ FIXED: Platform data enrichment before display
  */
 
 import { tmdbService } from '../services/tmdb.js';
@@ -46,13 +47,31 @@ export class HomeTab {
                 tmdbService.discoverMovies({ sortBy: 'vote_average.desc', minVotes: 1000, page: 1 })
             ]);
 
+            // ✅ NEW: Enrich all movies with platform data
+            console.log('[Home] Enriching movies with platform data...');
+            const allMovies = [
+                ...trending,
+                ...popular,
+                ...(topRated.movies || topRated || [])
+            ];
+            
+            // Remove duplicates
+            const uniqueMovies = Array.from(
+                new Map(allMovies.map(m => [m.id, m])).values()
+            );
+            
+            // Enrich with platform data (batch process)
+            await this.enrichWithPlatformData(uniqueMovies);
+            
+            console.log('[Home] ✅ Platform data loaded');
+
             // Get user's genre preferences from swipe history
             const state = store.getState();
             const swipeHistory = state.swipeHistory || [];
             const favoriteGenres = this.getFavoriteGenres(swipeHistory);
 
             // Render the feed
-            this.renderFeed(trending, popular, topRated.movies, favoriteGenres);
+            this.renderFeed(trending, popular, topRated.movies || topRated, favoriteGenres);
 
         } catch (error) {
             console.error('[Home] Failed to load content:', error);
@@ -69,6 +88,54 @@ export class HomeTab {
                 </div>
             `;
         }
+    }
+
+    /**
+     * Enrich movies with platform data
+     * Batched to avoid rate limiting
+     */
+    async enrichWithPlatformData(movies, options = { maxConcurrent: 5, delay: 50 }) {
+        if (!movies || movies.length === 0) return movies;
+
+        const { maxConcurrent, delay } = options;
+        
+        console.log(`[Home] Enriching ${movies.length} movies with platforms...`);
+        
+        for (let i = 0; i < movies.length; i += maxConcurrent) {
+            const batch = movies.slice(i, i + maxConcurrent);
+            
+            await Promise.all(
+                batch.map(async (movie) => {
+                    if (tmdbService.getWatchProviders) {
+                        movie.availableOn = await tmdbService.getWatchProviders(movie.id);
+                        
+                        // ✅ FIXED: Smart platform assignment
+                        if (!movie.availableOn || movie.availableOn.length === 0) {
+                            // Check if movie is recent (released within last 6 months)
+                            const releaseDate = new Date(movie.releaseDate || movie.release_date);
+                            const sixMonthsAgo = new Date();
+                            sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+                            
+                            if (releaseDate > sixMonthsAgo) {
+                                movie.platform = 'In Cinemas';
+                            } else {
+                                movie.platform = 'Not Available';
+                            }
+                        } else {
+                            movie.platform = movie.availableOn[0];
+                        }
+                    }
+                })
+            );
+            
+            // Rate limiting delay
+            if (i + maxConcurrent < movies.length) {
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+        }
+        
+        console.log('[Home] ✅ Enrichment complete');
+        return movies;
     }
 
     renderFeed(trending, popular, topRated, favoriteGenres) {
@@ -153,7 +220,7 @@ export class HomeTab {
     }
 
     renderMovieCard(movie) {
-        const posterURL = movie.posterURL || `https://via.placeholder.com/300x450/1a1f2e/b0d4e3?text=${encodeURIComponent(movie.title)}`;
+        const posterURL = movie.posterURL || `https://via.placeholder.com/300x450/18183A/DFDFB0?text=${encodeURIComponent(movie.title)}`;
         const rating = movie.rating ? movie.rating.toFixed(1) : 'N/A';
         const year = movie.releaseDate ? movie.releaseDate.split('-')[0] : '';
         
@@ -164,8 +231,18 @@ export class HomeTab {
         // ✅ NEW: Universal trigger warning badge
         const triggerBadgeHTML = renderTriggerBadge(movie, { size: 'small', position: 'top-left' });
         
-        // ✅ Platform
-        const platform = movie.platform || movie.availableOn?.[0] || 'Not Available';
+        // ✅ FIXED: Smart platform display with "In Cinemas" support
+        const platform = (() => {
+            if (movie.platform && movie.platform !== 'Not Available') return movie.platform;
+            if (movie.availableOn && movie.availableOn.length > 0) return movie.availableOn[0];
+            
+            // Check if recent release (in theaters)
+            const releaseDate = new Date(movie.releaseDate || movie.release_date);
+            const sixMonthsAgo = new Date();
+            sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+            
+            return releaseDate > sixMonthsAgo ? 'In Cinemas' : 'Not Available';
+        })();
         
         // Rating color
         let ratingColor = '#10b981';
@@ -203,7 +280,7 @@ export class HomeTab {
                             height: 100%;
                             object-fit: cover;
                         "
-                        onerror="this.src='https://via.placeholder.com/300x450/1a1f2e/b0d4e3?text=No+Poster'"
+                        onerror="this.src='https://via.placeholder.com/300x450/18183A/DFDFB0?text=No+Poster'"
                     />
                     
                     <!-- ✅ Trailer Button (Top Right) -->
