@@ -1,6 +1,7 @@
 /**
  * Universal Trigger Warning Badge Styles
  * Category-based display with hover tooltips
+ * ✅ FIXED: Tooltip selector and positioning
  */
 
 .trigger-warning-badge {
@@ -19,6 +20,7 @@
     z-index: 5;
     cursor: help;
     transition: all 0.2s ease;
+    position: relative; /* ✅ CRITICAL: Makes tooltip position relative to badge */
 }
 
 /* Size variants */
@@ -67,10 +69,11 @@
     box-shadow: 0 6px 16px rgba(239, 68, 68, 0.6);
 }
 
-/* ✅ FIXED: Tooltip positioned BELOW badge */
-.trigger-warning-badge .tooltip {
+/* ✅ FIXED: Tooltip positioned BELOW badge - using ::after pseudo-element */
+.trigger-warning-badge::after {
+    content: attr(data-tooltip);
     position: absolute;
-    top: calc(100% + 0.5rem); /* ✅ Changed from bottom to top */
+    top: calc(100% + 0.75rem);
     left: 50%;
     transform: translateX(-50%);
     background: rgba(26, 31, 46, 0.98);
@@ -80,7 +83,7 @@
     font-size: 0.8125rem;
     font-weight: 600;
     white-space: nowrap;
-    max-width: 200px;
+    max-width: 250px;
     white-space: normal;
     text-align: center;
     line-height: 1.4;
@@ -92,28 +95,34 @@
     border: 1px solid rgba(239, 68, 68, 0.3);
 }
 
-/* ✅ FIXED: Arrow pointing UP (since tooltip is below) */
-.trigger-warning-badge .tooltip::before {
+/* ✅ Arrow pointing UP (since tooltip is below) */
+.trigger-warning-badge::before {
     content: '';
     position: absolute;
-    bottom: 100%; /* ✅ Changed from top to bottom */
+    top: calc(100% + 0.25rem);
     left: 50%;
     transform: translateX(-50%);
     border: 6px solid transparent;
-    border-bottom-color: rgba(26, 31, 46, 0.98); /* ✅ Changed from border-top to border-bottom */
+    border-bottom-color: rgba(26, 31, 46, 0.98);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+    z-index: 1001;
 }
 
 /* Show tooltip on hover (desktop only) */
 @media (hover: hover) and (pointer: fine) {
-    .trigger-warning-badge:hover .tooltip {
+    .trigger-warning-badge:hover::after,
+    .trigger-warning-badge:hover::before {
         opacity: 1;
     }
 }
 
 /* Hide tooltip on mobile/touch devices */
 @media (hover: none) and (pointer: coarse) {
-    .trigger-warning-badge .tooltip {
-        display: none;
+    .trigger-warning-badge::after,
+    .trigger-warning-badge::before {
+        display: none !important;
     }
 }
 
