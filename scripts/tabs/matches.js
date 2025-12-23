@@ -6,12 +6,14 @@
  * ✅ FIXED: NULL CHECK added to prevent crashes
  * ✅ COLOR FIX: Powder Blue + Vanilla Custard gradients
  * ✅ UNIFIED CARD: Trailer + Platform + Trigger warnings
+ * ✅ UNIVERSAL TRIGGER WARNINGS: Category-based badges with tooltips
  */
 
 import { tmdbService } from '../services/tmdb.js';
 import { authService } from '../services/auth-service.js';
 import { userProfileService } from '../services/user-profile-revised.js';
 import { movieModal } from '../components/movie-modal.js';
+import { renderTriggerBadge } from '../utils/trigger-warnings.js';
 import { doc, getDoc, onSnapshot, collection, query, where } from 'firebase/firestore';
 import { db } from '../services/firebase-config.js';
 
@@ -388,9 +390,8 @@ class MatchesTab {
         const hasTrailer = movie.trailerKey && movie.trailerKey.trim() !== '';
         const trailerUrl = hasTrailer ? `https://www.youtube.com/watch?v=${movie.trailerKey}` : null;
         
-        // ✅ Trigger warnings
-        const warnings = movie.triggerWarnings || [];
-        const hasWarnings = warnings.length > 0;
+        // ✅ NEW: Universal trigger warning badge
+        const triggerBadgeHTML = renderTriggerBadge(movie, { size: 'small', position: 'top-left' });
         
         // Rating color
         let ratingColor = '#10b981';
@@ -442,29 +443,13 @@ class MatchesTab {
                     </button>
                 ` : ''}
                 
-                <!-- ✅ Trigger Warning Badge (Top Left) -->
-                ${hasWarnings ? `
-                    <div style="
-                        position: absolute;
-                        top: 0.5rem;
-                        left: 0.5rem;
-                        background: rgba(239, 68, 68, 0.95);
-                        color: white;
-                        padding: 3px 5px;
-                        border-radius: 4px;
-                        font-size: 0.6rem;
-                        font-weight: 700;
-                        z-index: 10;
-                        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-                    " title="${warnings.join(', ')}">
-                        ⚠️ ${warnings.length}
-                    </div>
-                ` : ''}
+                <!-- ✅ NEW: Universal Trigger Warning Badge -->
+                ${triggerBadgeHTML}
                 
                 <!-- Rating Badge -->
                 <div style="
                     position: absolute;
-                    top: ${hasWarnings ? '2.5rem' : '0.5rem'};
+                    top: ${triggerBadgeHTML ? '2.5rem' : '0.5rem'};
                     right: 0.5rem;
                     background: rgba(26, 31, 46, 0.9);
                     color: ${ratingColor};
@@ -568,4 +553,3 @@ class MatchesTab {
 
 const matchesTab = new MatchesTab();
 export { matchesTab, MatchesTab };
-
