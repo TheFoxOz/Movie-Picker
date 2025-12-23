@@ -27,6 +27,14 @@
             overflow: hidden;
         }
 
+        /* ✅ NEW: Prevent double scrolling when app is active */
+        body.app-active {
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+            position: fixed;
+        }
+
         /* Animated background particles */
         body::before {
             content: '';
@@ -238,12 +246,18 @@
             flex-shrink: 0;
         }
 
-        /* Hidden app container */
+        /* ✅ FIXED: App container with proper scrolling */
         #app-container {
             display: none;
             width: 100%;
-            min-height: 100vh;
-            position: relative;
+            height: calc(100vh - 5rem);
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            overflow-y: auto;
+            overflow-x: hidden;
+            -webkit-overflow-scrolling: touch;
             padding-bottom: 5rem;
         }
 
