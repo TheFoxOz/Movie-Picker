@@ -1,6 +1,7 @@
 /**
  * Trigger Warning Utilities
  * Handles categorization and display of trigger warnings
+ * ✅ FIXED: Added data-tooltip attribute for CSS ::after pseudo-element
  */
 
 import { TRIGGER_CATEGORIES, mapWarningToCategory } from '../config/trigger-categories.js';
@@ -76,6 +77,7 @@ export function categorizeWarnings(warnings) {
 /**
  * Render trigger warning badge HTML
  * Returns HTML string for badge (or empty string if no warnings to show)
+ * ✅ FIXED: Uses data-tooltip attribute for CSS ::after pseudo-element
  */
 export function renderTriggerBadge(movie, options = {}) {
     const {
@@ -105,8 +107,9 @@ export function renderTriggerBadge(movie, options = {}) {
 
     return `
         <div 
-            class="trigger-warning-badge has-tooltip"
-            data-categories="${tooltipText}"
+            class="trigger-warning-badge ${size} ${position} has-tooltip"
+            data-tooltip="${tooltipText}"
+            title="${tooltipText}"
             style="
                 position: absolute;
                 ${position.includes('top') ? 'top: 0.5rem;' : 'bottom: 0.5rem;'}
@@ -123,6 +126,7 @@ export function renderTriggerBadge(movie, options = {}) {
                 z-index: 10;
                 box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
                 cursor: help;
+                position: relative;
             "
         >
             <span style="font-size: ${sizeStyle.icon};">⚠️</span>
