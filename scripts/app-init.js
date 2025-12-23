@@ -2,6 +2,7 @@
  * MoviEase - App Initialization
  * Discover your next favorite film with ease
  * 
+ * ✅ FIXED: Desktop scrolling enabled for all tabs
  * ✅ FIXED: Proper scrolling at app-container level
  * ✅ FIXED: Better error handling and container checks
  * ✅ FIXED: Matches tab uses init() instead of render()
@@ -188,8 +189,10 @@ class MoviEaseApp {
             container.style.zIndex = '9999';
         });
         
-        // ✅ Remove app-active class
+        // ✅ Remove app-active class and restore body scrolling
         document.body.classList.remove('app-active');
+        document.body.style.overflow = '';
+        document.body.style.height = '';
         
         if (this.container) {
             this.container.style.display = 'none';
@@ -350,9 +353,14 @@ class MoviEaseApp {
         container.id = 'app-container';
         container.style.cssText = `
             width: 100%;
-            min-height: 100vh;
-            position: relative;
-            padding-bottom: 5rem;
+            height: calc(100vh - 5rem);
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            overflow-y: auto;
+            overflow-x: hidden;
+            -webkit-overflow-scrolling: touch;
             display: none;
         `;
         document.body.appendChild(container);
@@ -673,7 +681,9 @@ class MoviEaseApp {
             container.style.display = 'none';
         });
         
-        // ✅ Add body class to prevent double scrolling
+        // ✅ Prevent body scrolling when app is active
+        document.body.style.overflow = 'hidden';
+        document.body.style.height = '100vh';
         document.body.classList.add('app-active');
         
         if (this.container) {
