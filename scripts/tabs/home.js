@@ -1,14 +1,12 @@
 /**
  * MoviEase - Home Tab
- * Personalized movie feed with horizontal scrolling rows
+ * Netflix-style personalized movie feed with horizontal scrolling rows
  * ✅ MoviEase branding and colors
  * ✅ FIXED: Proper scrolling functionality
- * ✅ Visible section headers
- * ✅ ADDED: Trailer buttons and trigger warnings
- * ✅ COLOR FIX: Powder Blue + Vanilla Custard gradients
- * ✅ PLATFORM BADGE: Added to movie cards
- * ✅ UNIVERSAL TRIGGER WARNINGS: Category-based badges with tooltips
- * ✅ FIXED: Platform data enrichment before display
+ * ✅ NETFLIX-STYLE: Multiple genre rows with smart cinema filtering
+ * ✅ IN CINEMAS: Dedicated section for theatrical releases
+ * ✅ RECOMMENDED: Personalized suggestions based on likes/loves
+ * ✅ PLATFORM ENRICHMENT: Full platform data before display
  */
 
 import { tmdbService } from '../services/tmdb.js';
@@ -16,13 +14,27 @@ import { store } from '../state/store.js';
 import { movieModal } from '../components/movie-modal.js';
 import { renderTriggerBadge } from '../utils/trigger-warnings.js';
 
+const GENRE_IDS = {
+    ACTION: 28,
+    COMEDY: 35,
+    DRAMA: 18,
+    HORROR: 27,
+    SCIFI: 878,
+    THRILLER: 53,
+    ROMANCE: 10749,
+    ANIMATION: 16,
+    DOCUMENTARY: 99,
+    FANTASY: 14
+};
+
 export class HomeTab {
     constructor() {
         this.container = null;
+        this.allMovies = [];
     }
 
     async render(container) {
-        console.log('[Home] Rendering home tab...');
+        console.log('[Home] Rendering Netflix-style home tab...');
         this.container = container;
 
         // Show loading state
@@ -40,38 +52,65 @@ export class HomeTab {
         `;
 
         try {
-            // Load movie data
-            const [trending, popular, topRated] = await Promise.all([
+            // Load ALL data sources in parallel
+            console.log('[Home] Loading all movie data sources...');
+            const [trending, popular, topRated, actionMovies, comedyMovies, scifiMovies, horrorMovies, animationMovies] = await Promise.all([
                 tmdbService.getTrendingMovies('week'),
                 tmdbService.getPopularMovies(1),
-                tmdbService.discoverMovies({ sortBy: 'vote_average.desc', minVotes: 1000, page: 1 })
+                tmdbService.discoverMovies({ sortBy: 'vote_average.desc', minVotes: 1000, page: 1 }).then(r => r.movies || r),
+                tmdbService.discoverMovies({ genres: [GENRE_IDS.ACTION], page: 1 }).then(r => r.movies || r),
+                tmdbService.discoverMovies({ genres: [GENRE_IDS.COMEDY], page: 1 }).then(r => r.movies || r),
+                tmdbService.discoverMovies({ genres: [GENRE_IDS.SCIFI], page: 1 }).then(r => r.movies || r),
+                tmdbService.discoverMovies({ genres: [GENRE_IDS.HORROR], page: 1 }).then(r => r.movies || r),
+                tmdbService.discoverMovies({ genres: [GENRE_IDS.ANIMATION], page: 1 }).then(r => r.movies || r)
             ]);
 
-            // ✅ NEW: Enrich all movies with platform data
-            console.log('[Home] Enriching movies with platform data...');
-            const allMovies = [
+            // ✅ Merge and deduplicate all movies
+            console.log('[Home] Merging and deduplicating movies...');
+            const allMoviesMap = new Map();
+            [
                 ...trending,
                 ...popular,
-                ...(topRated.movies || topRated || [])
-            ];
+                ...topRated,
+                ...actionMovies,
+                ...comedyMovies,
+                ...scifiMovies,
+                ...horrorMovies,
+                ...animationMovies
+            ].forEach(m => {
+                if (m && m.id) allMoviesMap.set(m.id, m);
+            });
             
-            // Remove duplicates
-            const uniqueMovies = Array.from(
-                new Map(allMovies.map(m => [m.id, m])).values()
-            );
+            this.allMovies = Array.from(allMoviesMap.values());
             
-            // Enrich with platform data (batch process)
-            await this.enrichWithPlatformData(uniqueMovies);
-            
+            // ✅ Enrich with platform data (batch process)
+            console.log(`[Home] Enriching ${this.allMovies.length} movies with platform data...`);
+            await this.enrichWithPlatformData(this.allMovies);
             console.log('[Home] ✅ Platform data loaded');
 
-            // Get user's genre preferences from swipe history
+            // ✅ Separate movies by cinema status
+            const cinemaMovies = this.filterCinemaMovies(this.allMovies);
+            const streamingMovies = this.filterStreamingMovies(this.allMovies);
+
+            console.log(`[Home] Cinema: ${cinemaMovies.length}, Streaming: ${streamingMovies.length}`);
+
+            // Get user preferences for recommendations
             const state = store.getState();
             const swipeHistory = state.swipeHistory || [];
-            const favoriteGenres = this.getFavoriteGenres(swipeHistory);
+            const recommendedMovies = this.getRecommendedMovies(streamingMovies, swipeHistory);
 
-            // Render the feed
-            this.renderFeed(trending, popular, topRated.movies || topRated, favoriteGenres);
+            // Render the Netflix-style feed
+            this.renderFeed({
+                cinema: cinemaMovies,
+                trending: this.filterByGenres(streamingMovies, trending),
+                topRated: this.filterByGenres(streamingMovies, topRated),
+                recommended: recommendedMovies,
+                action: this.filterByGenres(streamingMovies, actionMovies),
+                comedy: this.filterByGenres(streamingMovies, comedyMovies),
+                scifi: this.filterByGenres(streamingMovies, scifiMovies),
+                horror: this.filterByGenres(streamingMovies, horrorMovies),
+                blockbusters: this.getBlockbusters(streamingMovies)
+            });
 
         } catch (error) {
             console.error('[Home] Failed to load content:', error);
@@ -94,7 +133,7 @@ export class HomeTab {
      * Enrich movies with platform data
      * Batched to avoid rate limiting
      */
-    async enrichWithPlatformData(movies, options = { maxConcurrent: 5, delay: 50 }) {
+    async enrichWithPlatformData(movies, options = { maxConcurrent: 10, delay: 30 }) {
         if (!movies || movies.length === 0) return movies;
 
         const { maxConcurrent, delay } = options;
@@ -109,7 +148,7 @@ export class HomeTab {
                     if (tmdbService.getWatchProviders) {
                         movie.availableOn = await tmdbService.getWatchProviders(movie.id);
                         
-                        // ✅ FIXED: Smart platform assignment
+                        // ✅ Smart platform assignment
                         if (!movie.availableOn || movie.availableOn.length === 0) {
                             // Check if movie is recent (released within last 6 months)
                             const releaseDate = new Date(movie.releaseDate || movie.release_date);
@@ -138,30 +177,128 @@ export class HomeTab {
         return movies;
     }
 
-    renderFeed(trending, popular, topRated, favoriteGenres) {
-        const sections = [
-            { title: '🔥 Trending This Week', movies: trending },
-            { title: '⭐ Popular Now', movies: popular },
-            { title: '🏆 Top Rated', movies: topRated }
-        ];
+    /**
+     * Filter movies that are in cinemas
+     */
+    filterCinemaMovies(movies) {
+        return movies.filter(m => m.platform === 'In Cinemas')
+            .sort((a, b) => {
+                const dateA = new Date(a.releaseDate || a.release_date);
+                const dateB = new Date(b.releaseDate || b.release_date);
+                return dateB - dateA; // Newest first
+            })
+            .slice(0, 20); // Limit to 20 movies
+    }
 
-        // Add genre-based sections if user has favorites
-        if (favoriteGenres.length > 0) {
-            favoriteGenres.slice(0, 2).forEach(genre => {
-                const genreMovies = popular.filter(m => 
-                    m.genres && m.genres.includes(genre)
-                ).slice(0, 10);
-                
-                if (genreMovies.length > 0) {
-                    sections.push({
-                        title: `🎬 ${genre} Picks`,
-                        movies: genreMovies
-                    });
-                }
-            });
+    /**
+     * Filter movies that are on streaming (exclude cinema and not available)
+     */
+    filterStreamingMovies(movies) {
+        return movies.filter(m => 
+            m.platform !== 'In Cinemas' && 
+            m.platform !== 'Not Available'
+        );
+    }
+
+    /**
+     * Filter movies by matching with source list (preserve order, exclude cinema)
+     */
+    filterByGenres(streamingMovies, sourceList) {
+        const streamingIds = new Set(streamingMovies.map(m => m.id));
+        return sourceList
+            .filter(m => streamingIds.has(m.id))
+            .slice(0, 20);
+    }
+
+    /**
+     * Get blockbuster movies (high budget, high revenue, recent)
+     */
+    getBlockbusters(streamingMovies) {
+        return streamingMovies
+            .filter(m => {
+                const rating = parseFloat(m.rating || m.vote_average || 0);
+                const popularity = parseFloat(m.popularity || 0);
+                return rating >= 6.5 && popularity >= 100;
+            })
+            .sort((a, b) => {
+                const popA = parseFloat(a.popularity || 0);
+                const popB = parseFloat(b.popularity || 0);
+                return popB - popA;
+            })
+            .slice(0, 20);
+    }
+
+    /**
+     * Get recommended movies based on user's likes/loves
+     */
+    getRecommendedMovies(streamingMovies, swipeHistory) {
+        // Get liked/loved movies
+        const likedMovies = swipeHistory
+            .filter(s => s.action === 'like' || s.action === 'love')
+            .map(s => s.movie);
+
+        if (likedMovies.length === 0) {
+            // Fallback: return high-rated popular movies
+            return streamingMovies
+                .filter(m => parseFloat(m.rating || m.vote_average || 0) >= 7)
+                .sort((a, b) => parseFloat(b.rating || b.vote_average || 0) - parseFloat(a.rating || a.vote_average || 0))
+                .slice(0, 20);
         }
 
-        const sectionsHTML = sections.map(section => this.renderSection(section)).join('');
+        // Extract favorite genres
+        const genreCounts = {};
+        likedMovies.forEach(movie => {
+            const genres = movie.genres || movie.genre_ids || [];
+            genres.forEach(genre => {
+                const genreId = typeof genre === 'object' ? genre.id : genre;
+                genreCounts[genreId] = (genreCounts[genreId] || 0) + 1;
+            });
+        });
+
+        const topGenres = Object.entries(genreCounts)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 3)
+            .map(([genreId]) => parseInt(genreId));
+
+        // Get IDs of already liked movies to exclude
+        const likedIds = new Set(likedMovies.map(m => m.id));
+
+        // Find movies matching top genres that user hasn't seen
+        const recommended = streamingMovies
+            .filter(m => {
+                if (likedIds.has(m.id)) return false; // Exclude already liked
+                const movieGenres = m.genres || m.genre_ids || [];
+                const movieGenreIds = movieGenres.map(g => typeof g === 'object' ? g.id : g);
+                return topGenres.some(topGenre => movieGenreIds.includes(topGenre));
+            })
+            .sort((a, b) => {
+                // Sort by rating
+                const ratingA = parseFloat(a.rating || a.vote_average || 0);
+                const ratingB = parseFloat(b.rating || b.vote_average || 0);
+                return ratingB - ratingA;
+            })
+            .slice(0, 20);
+
+        return recommended;
+    }
+
+    renderFeed(sections) {
+        const rows = [
+            { title: '🎬 In Cinemas Now', movies: sections.cinema, id: 'cinema' },
+            { title: '🔥 Trending This Week', movies: sections.trending, id: 'trending' },
+            { title: '✨ Recommended for You', movies: sections.recommended, id: 'recommended' },
+            { title: '🏆 Top Rated', movies: sections.topRated, id: 'topRated' },
+            { title: '💥 Action & Adventure', movies: sections.action, id: 'action' },
+            { title: '😂 Comedy', movies: sections.comedy, id: 'comedy' },
+            { title: '🚀 Sci-Fi', movies: sections.scifi, id: 'scifi' },
+            { title: '👻 Horror', movies: sections.horror, id: 'horror' },
+            { title: '🎯 Blockbusters', movies: sections.blockbusters, id: 'blockbusters' }
+        ];
+
+        // Filter out empty rows
+        const visibleRows = rows.filter(row => row.movies && row.movies.length > 0);
+
+        const sectionsHTML = visibleRows.map(row => this.renderSection(row)).join('');
 
         this.container.innerHTML = `
             <div style="width: 100%; padding: 1.5rem 0 6rem;">
@@ -175,7 +312,7 @@ export class HomeTab {
                     </p>
                 </div>
 
-                <!-- Movie Sections -->
+                <!-- Movie Rows -->
                 ${sectionsHTML}
             </div>
         `;
@@ -220,7 +357,9 @@ export class HomeTab {
     }
 
     renderMovieCard(movie) {
-        const posterURL = movie.posterURL || `https://via.placeholder.com/300x450/18183A/DFDFB0?text=${encodeURIComponent(movie.title)}`;
+        const posterURL = movie.posterURL || 
+                         (movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : null) ||
+                         `https://via.placeholder.com/300x450/18183A/DFDFB0?text=${encodeURIComponent(movie.title)}`;
         const rating = movie.rating ? movie.rating.toFixed(1) : 'N/A';
         const year = movie.releaseDate ? movie.releaseDate.split('-')[0] : '';
         
@@ -228,10 +367,10 @@ export class HomeTab {
         const hasTrailer = movie.trailerKey && movie.trailerKey.trim() !== '';
         const trailerUrl = hasTrailer ? `https://www.youtube.com/watch?v=${movie.trailerKey}` : null;
         
-        // ✅ NEW: Universal trigger warning badge
+        // ✅ Universal trigger warning badge
         const triggerBadgeHTML = renderTriggerBadge(movie, { size: 'small', position: 'top-left' });
         
-        // ✅ FIXED: Smart platform display with "In Cinemas" support
+        // ✅ Smart platform display
         const platform = (() => {
             if (movie.platform && movie.platform !== 'Not Available') return movie.platform;
             if (movie.availableOn && movie.availableOn.length > 0) return movie.availableOn[0];
@@ -316,7 +455,7 @@ export class HomeTab {
                         </button>
                     ` : ''}
                     
-                    <!-- ✅ NEW: Universal Trigger Warning Badge -->
+                    <!-- ✅ Universal Trigger Warning Badge -->
                     ${triggerBadgeHTML}
                     
                     <!-- Rating Badge -->
@@ -393,21 +532,5 @@ export class HomeTab {
                 }
             });
         });
-    }
-
-    getFavoriteGenres(swipeHistory) {
-        const genreCounts = {};
-        
-        swipeHistory.forEach(swipe => {
-            if ((swipe.action === 'love' || swipe.action === 'like') && swipe.movie && swipe.movie.genres) {
-                swipe.movie.genres.forEach(genre => {
-                    genreCounts[genre] = (genreCounts[genre] || 0) + 1;
-                });
-            }
-        });
-
-        return Object.entries(genreCounts)
-            .sort((a, b) => b[1] - a[1])
-            .map(([genre]) => genre);
     }
 }
