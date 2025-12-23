@@ -6,7 +6,7 @@
     <title>MoviEase - Discover Your Next Favorite Film</title>
     <meta name="description" content="Discover your next favorite film with ease. Swipe through personalized movie recommendations with streaming platform filters and content safety.">
     
-    <!-- ✅ NEW: Trigger Warning Styles -->
+    <!-- ✅ Trigger Warning Styles -->
     <link rel="stylesheet" href="styles/trigger-warnings.css">
     
     <style>
@@ -22,17 +22,18 @@
             align-items: center;
             justify-content: center;
             min-height: 100vh;
-            background: linear-gradient(135deg, #0a0e1a 0%, #1e3a5f 50%, #0f1e3a 100%);
+            background: #18183A; /* ✅ Space Indigo */
             position: relative;
             overflow: hidden;
         }
 
-        /* ✅ NEW: Prevent double scrolling when app is active */
+        /* ✅ Prevent double scrolling when app is active */
         body.app-active {
             overflow: hidden;
             height: 100vh;
             width: 100vw;
             position: fixed;
+            background: #18183A; /* ✅ Space Indigo */
         }
 
         /* Animated background particles */
@@ -45,6 +46,7 @@
                 radial-gradient(circle at 20% 50%, rgba(176, 212, 227, 0.05) 0%, transparent 50%),
                 radial-gradient(circle at 80% 80%, rgba(244, 232, 193, 0.03) 0%, transparent 50%);
             animation: particles 20s linear infinite;
+            z-index: 0;
         }
 
         @keyframes particles {
@@ -246,7 +248,7 @@
             flex-shrink: 0;
         }
 
-        /* ✅ FIXED: App container with proper scrolling */
+        /* ✅ App container with Space Indigo background and scrolling */
         #app-container {
             display: none;
             width: 100%;
@@ -259,6 +261,8 @@
             overflow-x: hidden;
             -webkit-overflow-scrolling: touch;
             padding-bottom: 5rem;
+            background: #18183A; /* ✅ Space Indigo */
+            z-index: 1;
         }
 
         @media (max-width: 480px) {
