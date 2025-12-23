@@ -454,3 +454,4 @@ class MovieModal {
 
 // Export singleton instance
 export const movieModal = new MovieModal();
+
