@@ -7,12 +7,14 @@
  * ✅ FIX: Changed getTMDBService to tmdbService
  * ✅ CRITICAL FIX: Proper poster URL construction with fallbacks
  * ✅ FIX: Added event listener for async trigger warnings
+ * ✅ UNIVERSAL TRIGGER WARNINGS: Category-based badges with tooltips
  */
 
 import { store } from '../state/store.js';
 import { authService } from '../services/auth-service.js';
 import { celebrate } from '../utils/confetti.js';
 import { notify } from '../utils/notifications.js';
+import { renderTriggerBadge } from '../utils/trigger-warnings.js';
 
 export class SwipeCard {
     constructor(container, movie) {
@@ -31,7 +33,7 @@ export class SwipeCard {
         this.attachEvents();
         this.fetchTriggerWarnings();
         
-        // ✅ NEW: Listen for trigger warnings loaded event
+        // ✅ Listen for trigger warnings loaded event
         this.setupWarningsListener();
     }
 
@@ -72,35 +74,31 @@ export class SwipeCard {
             return;
         }
 
-        let badge = posterDiv.querySelector('.trigger-warning-badge');
-        
-        if (this.movie.triggerWarnings && this.movie.triggerWarnings.length > 0 && !badge) {
-            console.log(`[SwipeCard] Adding trigger warning badge: ${this.movie.triggerWarnings.length} warnings`);
+        // ✅ Remove old badge if exists
+        let oldBadge = posterDiv.querySelector('.trigger-warning-badge');
+        if (oldBadge) {
+            oldBadge.remove();
+        }
+
+        // ✅ NEW: Use universal trigger warning badge system
+        if (this.movie.triggerWarnings && this.movie.triggerWarnings.length > 0) {
+            console.log(`[SwipeCard] Adding universal trigger warning badge: ${this.movie.triggerWarnings.length} warnings`);
             
-            badge = document.createElement('div');
-            badge.className = 'trigger-warning-badge';
-            badge.style.cssText = `
-                position: absolute;
-                top: 1rem;
-                left: 1rem;
-                padding: 0.5rem 0.75rem;
-                background: rgba(239, 68, 68, 0.95);
-                backdrop-filter: blur(10px);
-                border-radius: 1rem;
-                border: 1px solid rgba(255, 255, 255, 0.2);
-                display: flex;
-                align-items: center;
-                gap: 0.375rem;
-                z-index: 5;
-                box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
-            `;
-            badge.innerHTML = `
-                <span style="font-size: 0.875rem;">⚠️</span>
-                <span style="color: white; font-weight: 700; font-size: 0.875rem;">${this.movie.triggerWarnings.length}</span>
-            `;
-            posterDiv.appendChild(badge);
+            const badgeHTML = renderTriggerBadge(this.movie, { 
+                size: 'medium', 
+                position: 'top-left' 
+            });
             
-            console.log('[SwipeCard] ✅ Trigger warning badge added to DOM');
+            if (badgeHTML) {
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = badgeHTML;
+                const badge = tempDiv.firstElementChild;
+                
+                if (badge) {
+                    posterDiv.appendChild(badge);
+                    console.log('[SwipeCard] ✅ Universal trigger warning badge added to DOM');
+                }
+            }
         }
     }
 
@@ -177,7 +175,7 @@ export class SwipeCard {
                         <span style="color: white; font-weight: 700; font-size: 0.875rem;">${platform}</span>
                     </div>
 
-                    <!-- Trigger Warning Badge (will be added dynamically if warnings exist) -->
+                    <!-- ✅ Universal Trigger Warning Badge (will be added dynamically if warnings exist) -->
                 </div>
 
                 <!-- Movie Info -->
@@ -197,7 +195,7 @@ export class SwipeCard {
 
         this.container.appendChild(this.element);
         
-        // ✅ NEW: If warnings already loaded, add badge immediately
+        // ✅ If warnings already loaded, add badge immediately
         if (this.movie.triggerWarnings && this.movie.triggerWarnings.length > 0) {
             this.updateWarningBadge();
         }
@@ -437,7 +435,7 @@ export class SwipeCard {
     destroy() {
         if (this.cleanup) this.cleanup();
         
-        // ✅ NEW: Remove trigger warnings event listener
+        // ✅ Remove trigger warnings event listener
         if (this.warningsListener) {
             document.removeEventListener('trigger-warnings-loaded', this.warningsListener);
             this.warningsListener = null;
