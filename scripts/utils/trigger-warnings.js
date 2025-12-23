@@ -1,7 +1,7 @@
 /**
  * Trigger Warning Utilities
  * Handles categorization and display of trigger warnings
- * ✅ FIXED: Added data-tooltip attribute for CSS ::after pseudo-element
+ * ✅ FIXED: Removed inline styles to let CSS handle positioning
  */
 
 import { TRIGGER_CATEGORIES, mapWarningToCategory } from '../config/trigger-categories.js';
@@ -77,7 +77,7 @@ export function categorizeWarnings(warnings) {
 /**
  * Render trigger warning badge HTML
  * Returns HTML string for badge (or empty string if no warnings to show)
- * ✅ FIXED: Uses data-tooltip attribute for CSS ::after pseudo-element
+ * ✅ FIXED: Removed inline styles, uses CSS classes only
  */
 export function renderTriggerBadge(movie, options = {}) {
     const {
@@ -96,41 +96,16 @@ export function renderTriggerBadge(movie, options = {}) {
         return '';
     }
 
-    const sizes = {
-        small: { padding: '3px 5px', fontSize: '0.6rem', icon: '0.65rem' },
-        medium: { padding: '3px 6px', fontSize: '0.65rem', icon: '0.75rem' },
-        large: { padding: '0.375rem 0.625rem', fontSize: '0.75rem', icon: '0.875rem' }
-    };
-
-    const sizeStyle = sizes[size] || sizes.medium;
     const tooltipText = categoryNames.join(', ');
 
     return `
         <div 
-            class="trigger-warning-badge ${size} ${position} has-tooltip"
+            class="trigger-warning-badge ${size} ${position}"
             data-tooltip="${tooltipText}"
             title="${tooltipText}"
-            style="
-                position: absolute;
-                ${position.includes('top') ? 'top: 0.5rem;' : 'bottom: 0.5rem;'}
-                ${position.includes('left') ? 'left: 0.5rem;' : 'right: 0.5rem;'}
-                background: rgba(239, 68, 68, 0.95);
-                color: white;
-                padding: ${sizeStyle.padding};
-                border-radius: 4px;
-                font-size: ${sizeStyle.fontSize};
-                font-weight: 700;
-                display: flex;
-                align-items: center;
-                gap: 3px;
-                z-index: 10;
-                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-                cursor: help;
-                position: relative;
-            "
         >
-            <span style="font-size: ${sizeStyle.icon};">⚠️</span>
-            <span>${categoryCount}</span>
+            <span class="warning-icon">⚠️</span>
+            <span class="warning-count">${categoryCount}</span>
         </div>
     `;
 }
