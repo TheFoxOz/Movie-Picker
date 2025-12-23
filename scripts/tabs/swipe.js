@@ -6,6 +6,7 @@
  * ✅ Filters out cinema-only movies
  * ✅ COLOR FIX: Powder Blue + Vanilla Custard gradients
  * ✅ MoviEase branding and colors
+ * ✅ INFINITE LOADING: Continuously loads movies from Discover API
  */
 
 import { store } from "../state/store.js";
@@ -21,6 +22,9 @@ export class SwipeTab {
         this.movieQueue = [];
         this.isLoading = false;
         this.swipeHandler = null;
+        this.currentPage = 1;
+        this.hasMorePages = true;
+        this.isEnriching = false;
     }
 
     async render(container) {
@@ -206,21 +210,28 @@ export class SwipeTab {
                 throw new Error("TMDB service not initialized");
             }
 
-            console.log(`[SwipeTab] Loading initial movies (quick load)...`);
+            // ✅ NEW: Load from Discover API with pagination
+            console.log(`[SwipeTab] Loading Discover page ${this.currentPage}...`);
 
-            const [trendingRes, popularRes] = await Promise.all([
-                tmdb.getTrendingMovies('week').catch(() => []),
-                tmdb.getPopularMovies(1).catch(() => [])
-            ]);
+            const response = await tmdb.discoverMovies({
+                sortBy: 'popularity.desc',
+                page: this.currentPage,
+                minVotes: 100
+            });
 
-            let movies = [...trendingRes, ...popularRes];
+            let movies = response.movies || [];
+            
+            console.log(`[SwipeTab] Loaded ${movies.length} movies from page ${this.currentPage}`);
 
-            const map = new Map();
-            movies.forEach(m => m?.id && map.set(m.id, m));
-            movies = Array.from(map.values());
+            // Check if we've reached the end
+            if (movies.length === 0 || this.currentPage >= (response.totalPages || 500)) {
+                console.log('[SwipeTab] Reached end of available movies');
+                this.hasMorePages = false;
+            } else {
+                this.currentPage++;
+            }
 
-            console.log(`[SwipeTab] Loaded ${movies.length} quick movies`);
-
+            // Filter out already swiped movies
             const state = store.getState();
             const swipeHistory = state.swipeHistory || [];
             
@@ -238,7 +249,8 @@ export class SwipeTab {
                 return !swipedMovieIds.has(String(movie.id));
             });
 
-            this.movieQueue = movies.map(m => ({
+            // Add to queue with placeholder data
+            const newMovies = movies.map(m => ({
                 ...m,
                 availableOn: [],
                 platform: 'Loading...',
@@ -246,55 +258,19 @@ export class SwipeTab {
                 warningsLoaded: false
             }));
 
-            this.showNextCard();
+            this.movieQueue.push(...newMovies);
 
+            // Show first card if none shown yet
+            if (this.currentPage === 2 && !this.currentCard) {
+                this.showNextCard();
+            }
+
+            // ✅ Enrich platform data in background
             setTimeout(async () => {
-                console.log('[SwipeTab] Enriching platform data in background...');
-                await this.enrichWithPlatformData(this.movieQueue);
-                
-                const beforeCinemaFilter = this.movieQueue.length;
-                this.movieQueue = this.movieQueue.filter(movie => {
-                    if (movie.availableOn && movie.availableOn.length > 0) {
-                        return true;
-                    }
-                    
-                    const platform = movie.platform;
-                    if (platform === 'Cinema' || platform === 'Coming Soon' || platform === 'Not Available') {
-                        console.log(`[SwipeTab] Filtering out cinema-only movie: ${movie.title}`);
-                        return false;
-                    }
-                    
-                    return true;
-                });
-                console.log(`[SwipeTab] Cinema filter: ${beforeCinemaFilter} → ${this.movieQueue.length} movies`);
-                
-                if (tmdb.filterByUserPlatforms) {
-                    const beforePlatformFilter = this.movieQueue.length;
-                    this.movieQueue = tmdb.filterByUserPlatforms(this.movieQueue);
-                    console.log(`[SwipeTab] Platform filter: ${beforePlatformFilter} → ${this.movieQueue.length} movies`);
-                }
-
-                if (tmdb.filterBlockedMovies) {
-                    const beforeTriggerFilter = this.movieQueue.length;
-                    this.movieQueue = tmdb.filterBlockedMovies(this.movieQueue);
-                    console.log(`[SwipeTab] Trigger filter: ${beforeTriggerFilter} → ${this.movieQueue.length} movies`);
-                }
-                
-                this.movieQueue.forEach(movie => {
-                    if (tmdb.fetchTriggerWarnings) {
-                        tmdb.fetchTriggerWarnings(movie).catch(() => {});
-                    }
-                });
+                await this.enrichAndFilterMovies(newMovies);
             }, 500);
 
-            if (this.movieQueue.length < 10 && attempt <= 3) {
-                console.log(`[SwipeTab] Need more movies, retrying (${this.movieQueue.length} < 10)...`);
-                this.isLoading = false;
-                setTimeout(() => this.loadMoviesWithRetry(attempt + 1), 1000);
-                return;
-            }
-            
-            console.log(`[SwipeTab] ✅ Movie queue ready with ${this.movieQueue.length} movies`);
+            console.log(`[SwipeTab] ✅ Queue now has ${this.movieQueue.length} movies`);
 
         } catch (err) {
             console.error("[SwipeTab] Load failed:", err);
@@ -327,13 +303,66 @@ export class SwipeTab {
         }
     }
 
+    async enrichAndFilterMovies(movies) {
+        if (this.isEnriching || !movies || movies.length === 0) {
+            return;
+        }
+
+        this.isEnriching = true;
+
+        try {
+            console.log(`[SwipeTab] Enriching ${movies.length} movies with platform data...`);
+            
+            // Enrich platform data
+            await this.enrichWithPlatformData(movies);
+            
+            // Filter out cinema-only movies
+            const beforeFilter = this.movieQueue.length;
+            this.movieQueue = this.movieQueue.filter(movie => {
+                if (movie.availableOn && movie.availableOn.length > 0) {
+                    return true;
+                }
+                
+                const platform = movie.platform;
+                if (platform === 'Cinema' || platform === 'Coming Soon' || platform === 'Not Available') {
+                    return false;
+                }
+                
+                return true;
+            });
+            console.log(`[SwipeTab] Cinema filter: ${beforeFilter} → ${this.movieQueue.length} movies`);
+            
+            // Apply user platform filter
+            if (tmdbService.filterByUserPlatforms) {
+                const beforePlatformFilter = this.movieQueue.length;
+                this.movieQueue = tmdbService.filterByUserPlatforms(this.movieQueue);
+                console.log(`[SwipeTab] Platform filter: ${beforePlatformFilter} → ${this.movieQueue.length} movies`);
+            }
+
+            // Apply trigger warnings filter
+            if (tmdbService.filterBlockedMovies) {
+                const beforeTriggerFilter = this.movieQueue.length;
+                this.movieQueue = tmdbService.filterBlockedMovies(this.movieQueue);
+                console.log(`[SwipeTab] Trigger filter: ${beforeTriggerFilter} → ${this.movieQueue.length} movies`);
+            }
+            
+            // Fetch trigger warnings in background
+            this.movieQueue.forEach(movie => {
+                if (tmdbService.fetchTriggerWarnings) {
+                    tmdbService.fetchTriggerWarnings(movie).catch(() => {});
+                }
+            });
+
+        } finally {
+            this.isEnriching = false;
+        }
+    }
+
     async enrichWithPlatformData(movies, options = { maxConcurrent: 5, delay: 50 }) {
         if (!movies || movies.length === 0) {
             return movies;
         }
 
-        console.log(`[SwipeTab] Enriching ${movies.length} movies with platform data...`);
-        
         const { maxConcurrent, delay } = options;
         
         for (let i = 0; i < movies.length; i += maxConcurrent) {
@@ -379,6 +408,12 @@ export class SwipeTab {
         if (!container) {
             console.warn('[SwipeTab] Container not found');
             return;
+        }
+
+        // ✅ NEW: Load more movies when queue is running low
+        if (this.movieQueue.length < 10 && this.hasMorePages && !this.isLoading) {
+            console.log('[SwipeTab] Queue running low, loading more movies...');
+            this.loadMoviesWithRetry();
         }
 
         if (this.movieQueue.length === 0) {
@@ -457,4 +492,3 @@ export class SwipeTab {
         console.log('[SwipeTab] Destroyed');
     }
 }
-
