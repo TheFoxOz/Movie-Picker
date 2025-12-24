@@ -1,6 +1,7 @@
 /**
  * MoviEase - Swipe Tab Component
  * ✅ FIXED: Removed duplicate scrolling wrapper
+ * ✅ FIXED: Syncs swipe history to Firestore after each swipe
  * ✅ Shows first card immediately with placeholder data
  * ✅ Enriches platform data in background
  * ✅ Filters out cinema-only movies
@@ -12,6 +13,7 @@
 import { store } from "../state/store.js";
 import { SwipeCard } from "../components/swipe-card.js";
 import { tmdbService } from "../services/tmdb.js";
+import { authService } from "../services/auth-service.js";
 import { notify } from "../utils/notifications.js";
 import { celebrate } from "../utils/confetti.js";
 
@@ -453,7 +455,11 @@ export class SwipeTab {
         });
 
         this.swipeHandler = () => {
-            console.log('[SwipeTab] Swipe action detected, showing next card after delay');
+            console.log('[SwipeTab] Swipe action detected, syncing to Firestore...');
+            
+            // ✅ CRITICAL FIX: Sync to Firestore after every swipe
+            this.syncSwipeHistory();
+            
             setTimeout(() => this.showNextCard(), 400);
         };
         document.addEventListener("swipe-action", this.swipeHandler);
@@ -469,6 +475,26 @@ export class SwipeTab {
         }
     }
 
+    // ✅ NEW METHOD: Sync swipe history to Firestore
+    async syncSwipeHistory() {
+        try {
+            const state = store.getState();
+            const swipeHistory = state.swipeHistory || [];
+            
+            if (swipeHistory.length === 0) {
+                console.log('[SwipeTab] No swipe history to sync');
+                return;
+            }
+
+            console.log(`[SwipeTab] Syncing ${swipeHistory.length} swipes to Firestore...`);
+            await authService.syncSwipeHistory(swipeHistory);
+            console.log('[SwipeTab] ✅ Swipe history synced to Firestore');
+        } catch (error) {
+            console.error('[SwipeTab] Failed to sync swipe history:', error);
+            // Don't show error to user - this happens in background
+        }
+    }
+
     handleButtonAction(action) {
         console.log('[SwipeTab] Button action:', action);
         if (this.currentCard) {
@@ -478,6 +504,9 @@ export class SwipeTab {
 
     destroy() {
         console.log('[SwipeTab] Destroying...');
+        
+        // ✅ Sync one final time before destroying
+        this.syncSwipeHistory();
         
         if (this.currentCard) {
             this.currentCard.destroy();
