@@ -1,632 +1,621 @@
 /**
- * Authentication Service – Firebase V10 Modernized
- * ✅ FIXED: Proper redirect handling with initialization sequence
- * ✅ FIXED: Race condition resolved - checks redirect BEFORE auth listener
- * ✅ FIXED: Navigation to onboarding (new users) or swipe (returning users)
- * ✅ FIXED: Switched to POPUP method for better reliability
- * ✅ FIXED: Popup error handling and duplicate click prevention
+ * MoviEase - App Initialization
+ * Discover your next favorite film with ease
+ * 
+ * ✅ FIXED: Desktop scrolling enabled for all tabs
+ * ✅ FIXED: MoviEase branding colors (Space Indigo, Powder Blue, Vanilla Custard)
+ * ✅ FIXED: Proper scrolling at app-container level
+ * ✅ FIXED: Better error handling and container checks
+ * ✅ FIXED: Matches tab uses init() instead of render()
+ * ✅ FIXED: Sign-up form handling added
+ * ✅ FIXED: Duplicate event listener prevention
+ * ✅ IMPROVED AUTH WAIT: 5 seconds for Google redirect
+ * ✅ Handles onboarding flow for new users
+ * ✅ Manages tab navigation and rendering
  */
 
-// ---------------------------------------------------------------------
-// 1. Core Imports (Auth/DB Services)
-// ---------------------------------------------------------------------
+import { onboardingFlow } from './components/onboarding-flow.js';
+import { SwipeTab } from './tabs/swipe.js';
+import { LibraryTab } from './tabs/library.js';
+import { ProfileTab } from './tabs/profile.js';
+import { HomeTab } from './tabs/home.js';
+import { matchesTab } from './tabs/matches.js';
+import { store } from './state/store.js';
+import { authService } from './services/auth-service.js';
+import { userProfileService } from './services/user-profile-revised.js';
 
-import { auth, db } from './firebase-config.js'; 
-import { store } from '../state/store.js';
-import { notify } from '../utils/notifications.js';
-
-// ---------------------------------------------------------------------
-// 2. Firebase v10 Auth Imports
-// ---------------------------------------------------------------------
-
-import { 
-    GoogleAuthProvider,
-    signInWithPopup,
-    getRedirectResult,
-    createUserWithEmailAndPassword, 
-    signInWithEmailAndPassword,
-    signInAnonymously, 
-    signOut,
-    updateProfile,
-    setPersistence,
-    browserLocalPersistence
-} from 'firebase/auth';
-
-// ---------------------------------------------------------------------
-// 3. Firebase v10 Firestore Imports
-// ---------------------------------------------------------------------
-
-import { 
-    serverTimestamp,
-    doc,
-    getDoc,
-    setDoc,
-    updateDoc,
-    onSnapshot
-} from 'firebase/firestore';
-
-// ✅ Set persistence mode explicitly
-setPersistence(auth, browserLocalPersistence)
-    .then(() => {
-        console.log('[Auth] ✅ Persistence set to LOCAL');
-    })
-    .catch((error) => {
-        console.error('[Auth] ❌ Failed to set persistence:', error);
-    });
-
-// ---------------------------------------------------------------------
-// 4. AuthService Class
-// ---------------------------------------------------------------------
-
-class AuthService {
+class MoviEaseApp {
     constructor() {
-        this.currentUser = null;
-        this.unsubscribers = [];
-        this.redirectResultChecked = false;
-        this.isProcessingAuth = false;
+        this.currentTab = 'swipe';
+        this.tabs = {};
+        this.container = null;
+        this.bottomNav = null;
+        this.services = {
+            triggerWarnings: null,
+            userProfile: null
+        };
+        this.authInitialized = false;
+        this.handlersSetup = false;
     }
 
-    // ✅ NEW: Initialize auth service (call this first!)
-    async initialize() {
-        console.log('[Auth] Initializing auth service...');
+    async init() {
+        console.log('[MoviEase] Initializing app...');
         
-        // ✅ Check for any pending redirect (for backward compatibility)
-        try {
-            await this.handleRedirectResult();
-        } catch (error) {
-            console.error('[Auth] Error handling redirect:', error);
+        this.setupDOM();
+        this.setupLoginHandlers();
+        
+        // ✅ Wait for auth state with longer timeout
+        await this.waitForAuthState();
+        
+        const user = authService.getCurrentUser();
+        
+        if (!user) {
+            console.log('[MoviEase] No user authenticated, showing login page');
+            this.showLoginPage();
+            return;
         }
         
-        // ✅ Setup auth listener
-        this.setupAuthListener();
-    }
-
-    setupAuthListener() {
-        auth.onAuthStateChanged(async (user) => {
-            console.log('[Auth] Auth state changed:', user ? (user.email || 'anonymous') : 'signed out');
-            
-            if (user) {
-                this.currentUser = user;
-                console.log('[Auth] User signed in:', user.email || 'anonymous');
-
-                this.migrateAndSyncPreferences();
-                
-                // Load user data
-                this.loadUserData(user.uid).catch(err =>
-                    console.warn('[Auth] Load user data failed (offline?)', err.message)
-                );
-
-                this.setupRealtimeListeners(user.uid);
-
-                store.setState({
-                    userId: user.uid,
-                    userEmail: user.email,
-                    userName: user.displayName || user.email?.split('@')[0] || 'User',
-                    isAuthenticated: true
-                });
-
-                // ✅ Only auto-redirect if NOT in the middle of processing auth
-                if (this.redirectResultChecked && !this.isProcessingAuth) {
-                    const currentHash = window.location.hash;
-                    
-                    // ✅ Don't redirect if already on a valid page
-                    if (!currentHash || currentHash === '#' || currentHash === '#login') {
-                        console.log('[Auth] User signed in, checking navigation...');
-                        await this.handleAuthRedirect(user);
-                    } else {
-                        console.log('[Auth] User already on page:', currentHash);
-                    }
-                } else if (this.isProcessingAuth) {
-                    console.log('[Auth] Auth already handled, skipping auto-navigation');
-                } else {
-                    console.log('[Auth] Waiting for auth check to complete...');
-                }
-            } else {
-                // ✅ Only process signout if we've already checked for redirect
-                if (this.redirectResultChecked) {
-                    this.currentUser = null;
-                    this.cleanup();
-
-                    store.setState({
-                        userId: null,
-                        userEmail: null,
-                        userName: null,
-                        isAuthenticated: false,
-                        friends: [],
-                        groups: []
-                    });
-                    console.log('[Auth] User signed out');
-
-                    // Redirect to login only if not already there
-                    const currentHash = window.location.hash;
-                    if (currentHash && currentHash !== '#login' && currentHash !== '#') {
-                        console.log('[Auth] Redirecting to login...');
-                        window.location.hash = '#login';
-                    }
-                } else {
-                    console.log('[Auth] No user, but auth check not complete yet...');
-                }
-            }
-        });
-    }
-
-    // ✅ Handle post-authentication redirect
-    async handleAuthRedirect(user) {
-        console.log('[Auth] Handling redirect for user:', user.email || 'anonymous');
+        console.log('[MoviEase] User authenticated:', user.email || 'anonymous');
         
-        try {
-            // Check if user has completed onboarding
-            const userRef = doc(db, 'users', user.uid);
-            const userDoc = await getDoc(userRef);
+        this.initializeUserProfile();
+        await this.initializeEnhancedServices();
+
+        console.log('[MoviEase] Initializing tabs...');
+        this.tabs = {
+            home: new HomeTab(),
+            swipe: new SwipeTab(),
+            library: new LibraryTab(),
+            matches: matchesTab,
+            profile: new ProfileTab()
+        };
+        
+        const needsOnboarding = await this.checkNeedsOnboarding(user);
+        
+        if (needsOnboarding) {
+            console.log('[MoviEase] User needs onboarding, starting onboarding flow');
+            const result = await onboardingFlow.start();
             
-            const userData = userDoc.data();
-            
-            // New user or hasn't completed onboarding
-            if (!userDoc.exists() || !userData?.onboardingCompleted) {
-                console.log('[Auth] New user or incomplete onboarding → Redirecting to onboarding');
-                window.location.hash = '#onboarding';
+            if (!result) {
+                this.showApp();
+            } else {
+                const handleNavigation = (e) => {
+                    this.showApp();
+                    this.navigateToTab(e.detail);
+                    window.removeEventListener('navigate-to-tab', handleNavigation);
+                };
+                window.addEventListener('navigate-to-tab', handleNavigation);
+            }
+        } else {
+            console.log('[MoviEase] User already onboarded, showing app');
+            this.showApp();
+        }
+    }
+
+    setupLoginHandlers() {
+        console.log('[MoviEase] Setting up login button handlers...');
+        
+        // ✅ Track if handlers are already set up
+        if (this.handlersSetup) return;
+        this.handlersSetup = true;
+        
+        const setupHandlers = () => {
+            // ✅ FIX: Remove existing listeners by cloning elements
+            const googleBtn = document.getElementById('google-signin-btn');
+            const guestBtn = document.getElementById('guest-signin-btn');
+            const showSignupBtn = document.getElementById('show-signup-btn');
+            const showSigninBtn = document.getElementById('show-signin-btn');
+            const signinForm = document.getElementById('email-signin-form');
+            const signupForm = document.getElementById('email-signup-form');
+
+            // Google Sign-In
+            if (googleBtn) {
+                const newGoogleBtn = googleBtn.cloneNode(true);
+                googleBtn.parentNode.replaceChild(newGoogleBtn, googleBtn);
+                
+                newGoogleBtn.addEventListener('click', async () => {
+                    try {
+                        console.log('[MoviEase] Google sign-in clicked');
+                        newGoogleBtn.textContent = 'Opening Google...';
+                        newGoogleBtn.disabled = true;
+                        
+                        await authService.signInWithGoogle();
+                    } catch (error) {
+                        console.error('[MoviEase] Google sign-in failed:', error);
+                        newGoogleBtn.textContent = 'Continue with Google';
+                        newGoogleBtn.disabled = false;
+                        
+                        // Don't alert if user closed popup
+                        if (error.code !== 'auth/popup-closed-by-user' && 
+                            error.code !== 'auth/cancelled-popup-request') {
+                            alert('Google sign-in failed. Please check if popups are blocked and try again.');
+                        }
+                    }
+                });
+                console.log('[MoviEase] ✅ Google button handler attached');
+            }
+
+            // Guest Sign-In
+            if (guestBtn) {
+                const newGuestBtn = guestBtn.cloneNode(true);
+                guestBtn.parentNode.replaceChild(newGuestBtn, guestBtn);
+                
+                newGuestBtn.addEventListener('click', async () => {
+                    try {
+                        console.log('[MoviEase] Guest sign-in clicked');
+                        newGuestBtn.textContent = 'Signing in as guest...';
+                        newGuestBtn.disabled = true;
+                        
+                        await authService.signInAnonymously();
+                    } catch (error) {
+                        console.error('[MoviEase] Guest sign-in failed:', error);
+                        newGuestBtn.textContent = 'Continue as Guest';
+                        newGuestBtn.disabled = false;
+                        alert('Guest sign-in failed. Please try again.');
+                    }
+                });
+                console.log('[MoviEase] ✅ Guest button handler attached');
+            }
+
+            // Toggle between sign-in and sign-up forms
+            if (showSignupBtn && signupForm && signinForm) {
+                const newShowSignupBtn = showSignupBtn.cloneNode(true);
+                showSignupBtn.parentNode.replaceChild(newShowSignupBtn, showSignupBtn);
+                
+                newShowSignupBtn.addEventListener('click', () => {
+                    signinForm.style.display = 'none';
+                    signupForm.style.display = 'block';
+                });
+                console.log('[MoviEase] ✅ Show signup button handler attached');
+            }
+
+            if (showSigninBtn && signupForm && signinForm) {
+                const newShowSigninBtn = showSigninBtn.cloneNode(true);
+                showSigninBtn.parentNode.replaceChild(newShowSigninBtn, showSigninBtn);
+                
+                newShowSigninBtn.addEventListener('click', () => {
+                    signupForm.style.display = 'none';
+                    signinForm.style.display = 'block';
+                });
+                console.log('[MoviEase] ✅ Show signin button handler attached');
+            }
+
+            // Email Sign-In Form
+            if (signinForm) {
+                const newSigninForm = signinForm.cloneNode(true);
+                signinForm.parentNode.replaceChild(newSigninForm, signinForm);
+                
+                newSigninForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    
+                    const email = newSigninForm.querySelector('#signin-email')?.value;
+                    const password = newSigninForm.querySelector('#signin-password')?.value;
+                    const submitBtn = newSigninForm.querySelector('button[type="submit"]');
+                    
+                    if (!email || !password) {
+                        alert('Please enter email and password');
+                        return;
+                    }
+
+                    try {
+                        console.log('[MoviEase] Email sign-in clicked');
+                        submitBtn.textContent = 'Signing in...';
+                        submitBtn.disabled = true;
+                        
+                        await authService.signIn(email, password);
+                    } catch (error) {
+                        console.error('[MoviEase] Email sign-in failed:', error);
+                        submitBtn.textContent = 'Sign In';
+                        submitBtn.disabled = false;
+                        alert('Sign in failed. Please check your credentials and try again.');
+                    }
+                });
+                console.log('[MoviEase] ✅ Email signin form handler attached');
+            }
+
+            // Email Sign-Up Form
+            if (signupForm) {
+                const newSignupForm = signupForm.cloneNode(true);
+                signupForm.parentNode.replaceChild(newSignupForm, signupForm);
+                
+                newSignupForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    
+                    const name = newSignupForm.querySelector('#signup-name')?.value;
+                    const email = newSignupForm.querySelector('#signup-email')?.value;
+                    const password = newSignupForm.querySelector('#signup-password')?.value;
+                    const submitBtn = newSignupForm.querySelector('button[type="submit"]');
+                    
+                    if (!name || !email || !password) {
+                        alert('Please fill in all fields');
+                        return;
+                    }
+
+                    if (password.length < 6) {
+                        alert('Password must be at least 6 characters');
+                        return;
+                    }
+
+                    try {
+                        console.log('[MoviEase] Email sign-up clicked');
+                        submitBtn.textContent = 'Creating account...';
+                        submitBtn.disabled = true;
+                        
+                        await authService.signUp(email, password, name);
+                    } catch (error) {
+                        console.error('[MoviEase] Email sign-up failed:', error);
+                        submitBtn.textContent = 'Create Account';
+                        submitBtn.disabled = false;
+                        
+                        const errorMsg = error.code === 'auth/email-already-in-use' 
+                            ? 'This email is already registered. Please sign in instead.'
+                            : 'Sign up failed. Please try again.';
+                        alert(errorMsg);
+                    }
+                });
+                console.log('[MoviEase] ✅ Email signup form handler attached');
+            }
+        };
+
+        // ✅ ONLY call once - remove the duplicate setTimeout
+        setupHandlers();
+    }
+
+    showLoginPage() {
+        console.log('[MoviEase] Showing login page');
+        
+        const loginContainers = [
+            document.getElementById('login-container'),
+            document.querySelector('.login-container'),
+            document.querySelector('[data-login]')
+        ].filter(Boolean);
+        
+        loginContainers.forEach(container => {
+            container.style.display = 'block';
+            container.style.visibility = 'visible';
+            container.style.opacity = '1';
+            container.style.position = 'relative';
+            container.style.zIndex = '9999';
+        });
+        
+        document.body.classList.remove('app-active');
+        document.body.style.overflow = '';
+        document.body.style.height = '';
+        
+        if (this.container) {
+            this.container.style.display = 'none';
+        }
+        if (this.bottomNav) {
+            this.bottomNav.style.display = 'none';
+        }
+        
+        const header = document.getElementById('app-header');
+        if (header) {
+            header.style.display = 'none';
+        }
+        
+        const onboarding = document.getElementById('onboarding-container');
+        if (onboarding) {
+            onboarding.style.display = 'none';
+        }
+        
+        if (loginContainers.length > 0) {
+            console.log('[MoviEase] ✅ Login container visible');
+            setTimeout(() => this.setupLoginHandlers(), 100);
+        } else {
+            console.error('[MoviEase] ❌ No login container found!');
+        }
+    }
+
+    async waitForAuthState() {
+        return new Promise((resolve) => {
+            if (authService.getCurrentUser() !== null || this.authInitialized) {
+                console.log('[MoviEase] Auth state already determined');
+                resolve();
                 return;
             }
             
-            // Returning user with completed onboarding
-            console.log('[Auth] Returning user → Redirecting to swipe');
-            window.location.hash = '#swipe';
+            console.log('[MoviEase] Waiting for auth state...');
+            let timeout;
             
-        } catch (error) {
-            console.error('[Auth] Error checking user data:', error);
-            // Default to onboarding on error (safe fallback)
-            window.location.hash = '#onboarding';
-        }
-    }
-
-    // Auto-migrate old flat preferences → new nested format
-    migrateAndSyncPreferences() {
-        try {
-            let prefs = {};
-            const raw = localStorage.getItem('moviePickerPreferences');
-
-            if (raw) {
-                const old = JSON.parse(raw);
-                if (old.platforms && !Array.isArray(old.platforms)) {
-                    prefs = old;
-                } else {
-                    prefs = {
-                        platforms: Array.isArray(old.platforms) ? old.platforms : ['Netflix', 'Prime Video', 'Disney+'],
-                        region: old.region || 'US',
-                        triggerWarnings: {
-                            enabledCategories: old.enabledCategories || old.triggerWarnings?.enabledCategories || [],
-                            showAllWarnings: old.showAllWarnings || false
-                        }
-                    };
-                    console.log('[Auth] Migrated old preferences to new format');
+            const unsubscribe = store.subscribe((state) => {
+                if (state.isAuthenticated !== undefined) {
+                    console.log('[MoviEase] Auth state determined:', state.isAuthenticated);
+                    clearTimeout(timeout);
+                    this.authInitialized = true;
+                    unsubscribe();
+                    resolve();
                 }
-            } else {
-                prefs = {
-                    platforms: ['Netflix', 'Prime Video', 'Disney+'],
-                    region: 'US',
-                    triggerWarnings: { enabledCategories: [], showAllWarnings: false }
-                };
-            }
-
-            localStorage.setItem('moviePickerPreferences', JSON.stringify(prefs));
-
-            if (this.currentUser) {
-                const userRef = doc(db, 'users', this.currentUser.uid);
-                setDoc(userRef, { preferences: prefs }, { merge: true })
-                    .catch(err => console.warn('[Auth] Failed to sync preferences:', err.message));
-            }
-        } catch (e) {
-            console.warn('[Auth] Preference migration failed:', e);
-        }
-    }
-
-    // === SIGN UP ===
-    async signUp(email, password, displayName) {
-        try {
-            const { user } = await createUserWithEmailAndPassword(auth, email, password);
-            await updateProfile(user, { displayName });
-
-            const prefs = {
-                platforms: ['Netflix', 'Prime Video', 'Disney+'],
-                region: 'US',
-                triggerWarnings: { enabledCategories: [], showAllWarnings: false }
-            };
-            
-            const userRef = doc(db, 'users', user.uid);
-            await setDoc(userRef, {
-                uid: user.uid,
-                email: user.email,
-                displayName: displayName || user.email.split('@')[0],
-                avatar: 'Smile',
-                createdAt: serverTimestamp(),
-                swipeHistory: [],
-                friends: [],
-                groups: [],
-                onboardingCompleted: false,
-                preferences: prefs
             });
-
-            localStorage.setItem('moviePickerPreferences', JSON.stringify(prefs));
-            notify.success('Welcome to MoviEase!');
             
-            window.location.hash = '#onboarding';
-            
-            return { user, isNewUser: true };
-        } catch (error) {
-            const msg = {
-                'auth/email-already-in-use': 'Email already registered',
-                'auth/weak-password': 'Password too weak (6+ characters)',
-                'auth/invalid-email': 'Invalid email'
-            }[error.code] || 'Sign up failed';
-            notify.error(msg);
-            throw error;
-        }
+            timeout = setTimeout(() => {
+                console.log('[MoviEase] Auth state timeout, proceeding anyway');
+                this.authInitialized = true;
+                unsubscribe();
+                resolve();
+            }, 5000);
+        });
     }
 
-    // === SIGN IN ===
-    async signIn(email, password) {
+    async checkNeedsOnboarding(user) {
         try {
-            await signInWithEmailAndPassword(auth, email, password);
-            notify.success('Welcome back!');
-        } catch (error) {
-            const msg = {
-                'auth/user-not-found': 'No account found',
-                'auth/wrong-password': 'Wrong password',
-                'auth/invalid-email': 'Invalid email',
-                'auth/too-many-requests': 'Too many attempts — try later',
-                'auth/invalid-credential': 'Invalid email or password'
-            }[error.code] || 'Sign in failed';
-            notify.error(msg);
-            throw error;
-        }
-    }
-
-    // === GOOGLE SIGN-IN (Popup Method - More Reliable) ===
-    async signInWithGoogle() {
-        try {
-            const provider = new GoogleAuthProvider();
-            provider.addScope('email profile');
-            provider.setCustomParameters({ prompt: 'select_account' });
-
-            console.log('[Auth] Initiating Google sign-in popup...');
+            const { doc, getDoc } = await import('firebase/firestore');
+            const { db } = await import('./services/firebase-config.js');
             
-            // ✅ Set flag BEFORE calling popup
-            this.isProcessingAuth = true;
-            
-            let result;
-            try {
-                result = await signInWithPopup(auth, provider);
-            } catch (popupError) {
-                this.isProcessingAuth = false;
-                
-                // Handle user closing popup (not an error)
-                if (popupError.code === 'auth/popup-closed-by-user' || 
-                    popupError.code === 'auth/cancelled-popup-request') {
-                    console.log('[Auth] User closed popup');
-                    return null;
-                }
-                
-                throw popupError;
-            }
-            
-            const { user } = result;
-            console.log('[Auth] ✅ Google sign-in successful:', user.email);
-
             const userRef = doc(db, 'users', user.uid);
             const userDoc = await getDoc(userRef);
-            const isNewUser = !userDoc.exists();
-
-            const prefs = {
-                platforms: ['Netflix', 'Prime Video', 'Disney+'],
-                region: 'US',
-                triggerWarnings: { enabledCategories: [], showAllWarnings: false }
-            };
-
-            if (isNewUser) {
-                console.log('[Auth] New Google user, creating profile...');
-                await setDoc(userRef, {
-                    uid: user.uid,
-                    email: user.email,
-                    displayName: user.displayName || user.email.split('@')[0],
-                    avatar: user.photoURL || 'Smile',
-                    createdAt: serverTimestamp(),
-                    swipeHistory: [],
-                    friends: [],
-                    groups: [],
-                    onboardingCompleted: false,
-                    preferences: prefs
-                });
-                
-                localStorage.setItem('moviePickerPreferences', JSON.stringify(prefs));
-                notify.success('Welcome to MoviEase!');
-                
-                console.log('[Auth] New Google user → Redirecting to onboarding');
-                
-                // ✅ Small delay to let auth state settle
-                setTimeout(() => {
-                    this.isProcessingAuth = false;
-                    window.location.hash = '#onboarding';
-                }, 300);
-            } else {
-                const userData = userDoc.data();
-                if (!userData.onboardingCompleted) {
-                    console.log('[Auth] Existing user, incomplete onboarding → Redirecting to onboarding');
-                    
-                    setTimeout(() => {
-                        this.isProcessingAuth = false;
-                        window.location.hash = '#onboarding';
-                    }, 300);
-                } else {
-                    notify.success('Welcome back!');
-                    console.log('[Auth] Existing user, onboarding complete → Redirecting to swipe');
-                    
-                    setTimeout(() => {
-                        this.isProcessingAuth = false;
-                        window.location.hash = '#swipe';
-                    }, 300);
-                }
+            
+            if (!userDoc.exists()) {
+                console.log('[MoviEase] User doc does not exist, needs onboarding');
+                return true;
             }
-
-            return { user, isNewUser };
-
+            
+            const userData = userDoc.data();
+            const needsOnboarding = !userData.onboardingCompleted;
+            
+            console.log('[MoviEase] Onboarding status:', userData.onboardingCompleted ? 'Complete' : 'Incomplete');
+            return needsOnboarding;
+            
         } catch (error) {
-            this.isProcessingAuth = false;
-            console.error('[Auth] Google sign-in failed:', error);
-            
-            const msg = {
-                'auth/network-request-failed': 'No internet connection',
-                'auth/popup-blocked': 'Please allow popups for this site',
-                'auth/unauthorized-domain': 'This domain is not authorized. Please contact support.',
-                'auth/account-exists-with-different-credential': 'Account exists with a different sign-in method.'
-            }[error.code] || 'Google sign-in failed.';
-            
-            notify.error(msg);
-            throw error;
+            console.error('[MoviEase] Error checking onboarding status:', error);
+            return true;
         }
     }
-    
-    // === HANDLE REDIRECT RESULT (For backward compatibility) ===
-    async handleRedirectResult() {
+
+    initializeUserProfile() {
+        const profile = userProfileService.getProfile();
+        store.setState({ 
+            userProfile: profile,
+            preferences: {
+                platforms: profile.selectedPlatforms.reduce((acc, platform) => {
+                    acc[platform] = true;
+                    return acc;
+                }, {}),
+                region: profile.region,
+                triggerWarnings: profile.triggerWarnings
+            }
+        });
+        this.setupProfileListeners();
+    }
+
+    setupProfileListeners() {
+        window.addEventListener('profile-region-updated', (e) => {
+            const preferences = store.getState().preferences || {};
+            preferences.region = e.detail.region;
+            store.setState({ preferences });
+        });
+
+        window.addEventListener('profile-platforms-updated', (e) => {
+            const preferences = store.getState().preferences || {};
+            preferences.platforms = e.detail.platforms.reduce((acc, platform) => {
+                acc[platform] = true;
+                return acc;
+            }, {});
+            store.setState({ preferences });
+        });
+
+        window.addEventListener('profile-triggers-updated', (e) => {
+            const preferences = store.getState().preferences || {};
+            preferences.triggerWarnings = e.detail.triggers;
+            store.setState({ preferences });
+        });
+    }
+
+    async initializeEnhancedServices() {
+        console.log('[MoviEase] Initializing enhanced services...');
+        
         try {
-            console.log('[Auth] Checking for redirect result...');
+            const { doesTheDogDieService } = await import('./services/does-the-dog-die.js');
+            const { ENV } = await import('./config/env.js');
             
-            // ✅ Wait for Firebase to be ready
-            await new Promise(resolve => setTimeout(resolve, 200));
-            
-            const result = await getRedirectResult(auth);
+            if (doesTheDogDieService && ENV && ENV.DTD_API_KEY) {
+                this.services.triggerWarnings = doesTheDogDieService;
+                console.log('[MoviEase] ✅ DoesTheDogDie service ready');
+            }
+        } catch (error) {
+            console.warn('[MoviEase] ⚠️ DoesTheDogDie service not loaded:', error.message);
+        }
+        
+        this.services.userProfile = userProfileService;
+        console.log('[MoviEase] ✅ Loaded services');
+        
+        if (typeof window !== 'undefined') {
+            window.moviEaseServices = this.services;
+        }
+    }
 
-            // ✅ Mark that we've checked
-            this.redirectResultChecked = true;
+    setupDOM() {
+        this.container = document.getElementById('app-container') || this.createAppContainer();
+        this.bottomNav = document.getElementById('bottom-nav') || this.createBottomNav();
+        
+        this.container.style.display = 'none';
+        this.bottomNav.style.display = 'none';
+        
+        this.setupNavigationListeners();
+        window.addEventListener('navigate-to-tab', (e) => this.navigateToTab(e.detail));
+    }
 
-            if (result) {
-                const { user } = result;
-                console.log('[Auth] ✅ Google sign-in successful (redirect):', user.email);
+    createAppContainer() {
+        const container = document.createElement('div');
+        container.id = 'app-container';
+        container.style.cssText = `
+            width: 100%;
+            height: calc(100vh - 5rem);
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            overflow-y: auto;
+            overflow-x: hidden;
+            -webkit-overflow-scrolling: touch;
+            background: #18183A;
+            display: none;
+        `;
+        document.body.appendChild(container);
+        return container;
+    }
 
-                this.isProcessingAuth = true;
-                
-                const userRef = doc(db, 'users', user.uid);
-                const userDoc = await getDoc(userRef);
-                const isNewUser = !userDoc.exists();
+    createBottomNav() {
+        const nav = document.createElement('nav');
+        nav.id = 'bottom-nav';
+        nav.innerHTML = `
+            <style>
+                #bottom-nav {
+                    position: fixed;
+                    bottom: 0;
+                    left: 0;
+                    right: 0;
+                    height: 5rem;
+                    background: linear-gradient(180deg, rgba(166, 192, 221, 0.95) 0%, #A6C0DD 100%);
+                    border-top: 1px solid rgba(255, 255, 255, 0.2);
+                    backdrop-filter: blur(20px);
+                    z-index: 100;
+                    display: none;
+                }
 
-                const prefs = {
-                    platforms: ['Netflix', 'Prime Video', 'Disney+'],
-                    region: 'US',
-                    triggerWarnings: { enabledCategories: [], showAllWarnings: false }
-                };
+                .nav-container {
+                    display: flex;
+                    justify-content: space-around;
+                    align-items: center;
+                    max-width: 600px;
+                    margin: 0 auto;
+                    height: 100%;
+                    padding: 0 0.5rem;
+                    position: relative;
+                }
 
-                if (isNewUser) {
-                    console.log('[Auth] New Google user, creating profile...');
-                    await setDoc(userRef, {
-                        uid: user.uid,
-                        email: user.email,
-                        displayName: user.displayName || user.email.split('@')[0],
-                        avatar: user.photoURL || 'Smile',
-                        createdAt: serverTimestamp(),
-                        swipeHistory: [],
-                        friends: [],
-                        groups: [],
-                        onboardingCompleted: false,
-                        preferences: prefs
-                    });
+                .nav-btn {
+                    flex: 1;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 0.25rem;
+                    padding: 0.5rem;
+                    background: transparent;
+                    border: none;
+                    color: rgba(24, 24, 58, 0.6);
+                    font-size: 0.75rem;
+                    font-weight: 600;
+                    cursor: pointer;
+                    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                    border-radius: 0.75rem;
+                }
+
+                .nav-btn:hover {
+                    color: rgba(24, 24, 58, 0.9);
+                    background: rgba(255, 255, 255, 0.2);
+                }
+
+                .nav-btn.active {
+                    color: #18183A;
+                }
+
+                .nav-icon {
+                    font-size: 1.5rem;
+                    transition: transform 0.2s;
+                }
+
+                .nav-btn:hover .nav-icon {
+                    transform: scale(1.1);
+                }
+
+                #swipe-btn-wrapper {
+                    position: absolute;
+                    left: 50%;
+                    top: 50%;
+                    transform: translate(-50%, -50%);
+                    z-index: 10;
+                }
+
+                #swipe-btn {
+                    width: 4rem;
+                    height: 4rem;
+                    background: linear-gradient(135deg, #DFDFB0, #F4E8C1);
+                    border: 3px solid #18183A;
+                    border-radius: 50%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    cursor: pointer;
+                    transition: all 0.3s;
+                    box-shadow: 0 8px 24px rgba(223, 223, 176, 0.4);
+                    color: #18183A;
+                    font-size: 2rem;
+                }
+
+                #swipe-btn:hover {
+                    transform: scale(1.1);
+                    box-shadow: 0 12px 32px rgba(223, 223, 176, 0.6);
+                }
+
+                #swipe-btn:active {
+                    transform: scale(0.95);
+                }
+
+                #swipe-btn.active {
+                    background: linear-gradient(135deg, #F4E8C1, #DFDFB0);
+                    border-color: #DFDFB0;
+                }
+
+                .nav-btn:nth-child(2) {
+                    margin-right: 3rem;
+                }
+
+                .nav-btn:nth-child(3) {
+                    margin-left: 3rem;
+                }
+
+                @media (max-width: 480px) {
+                    .nav-btn {
+                        font-size: 0.65rem;
+                        padding: 0.25rem;
+                    }
                     
-                    localStorage.setItem('moviePickerPreferences', JSON.stringify(prefs));
+                    .nav-icon {
+                        font-size: 1.25rem;
+                    }
                     
-                    console.log('[Auth] New Google user → Redirecting to onboarding');
-                    await new Promise(resolve => setTimeout(resolve, 500));
-                    window.location.hash = '#onboarding';
-                } else {
-                    const userData = userDoc.data();
-                    await new Promise(resolve => setTimeout(resolve, 500));
-                    
-                    if (!userData.onboardingCompleted) {
-                        console.log('[Auth] Existing user, incomplete onboarding → Redirecting to onboarding');
-                        window.location.hash = '#onboarding';
-                    } else {
-                        console.log('[Auth] Existing user, onboarding complete → Redirecting to swipe');
-                        window.location.hash = '#swipe';
+                    #swipe-btn {
+                        width: 3.5rem;
+                        height: 3.5rem;
+                        font-size: 1.75rem;
                     }
                 }
-
-                this.isProcessingAuth = false;
-                return { user, isNewUser };
-            } else {
-                console.log('[Auth] No redirect result found (using popup method)');
-            }
-            return null; 
-
-        } catch (error) {
-            this.redirectResultChecked = true;
-            this.isProcessingAuth = false;
-            
-            // ✅ Only log error if it's not a "no redirect" scenario
-            if (error.code && error.code !== 'auth/invalid-api-key') {
-                console.error('[Auth] Error handling redirect result:', error);
+            </style>
+            <div class="nav-container">
+                <button class="nav-btn" data-tab="home">
+                    <span class="nav-icon">🏠</span>
+                    <span>Home</span>
+                </button>
                 
-                const msg = {
-                    'auth/account-exists-with-different-credential': 'Account exists with a different sign-in method.',
-                    'auth/network-request-failed': 'No internet connection'
-                }[error.code];
+                <button class="nav-btn" data-tab="library">
+                    <span class="nav-icon">📚</span>
+                    <span>Library</span>
+                </button>
                 
-                if (msg) notify.error(msg);
-            }
-            
-            return null;
-        }
+                <div id="swipe-btn-wrapper">
+                    <button id="swipe-btn" data-tab="swipe">
+                        <span>👆</span>
+                    </button>
+                </div>
+                
+                <button class="nav-btn" data-tab="matches">
+                    <span class="nav-icon">🤝</span>
+                    <span>Matches</span>
+                </button>
+                
+                <button class="nav-btn" data-tab="profile">
+                    <span class="nav-icon">👤</span>
+                    <span>Profile</span>
+                </button>
+            </div>
+        `;
+        document.body.appendChild(nav);
+        return nav;
     }
 
-    // === GUEST MODE ===
-    async signInAnonymously() {
-        try {
-            const { user } = await signInAnonymously(auth);
-            console.log('[Auth] Guest sign-in successful');
-            
-            const userRef = doc(db, 'users', user.uid);
-            const userDoc = await getDoc(userRef);
-            const isNewUser = !userDoc.exists();
-
-            if (isNewUser) {
-                await setDoc(userRef, {
-                    uid: user.uid,
-                    email: null,
-                    displayName: 'Guest',
-                    avatar: 'Guest',
-                    isAnonymous: true,
-                    createdAt: serverTimestamp(),
-                    swipeHistory: [],
-                    friends: [],
-                    groups: [],
-                    onboardingCompleted: false
-                });
-            }
-
-            notify.success('Welcome, Guest!');
-            
-            console.log('[Auth] Guest user → Redirecting to onboarding');
-            window.location.hash = '#onboarding';
-            
-            return { user, isNewUser };
-        } catch (error) {
-            notify.error('Guest mode failed');
-            console.error('[Auth] Anonymous sign-in failed:', error);
-            throw error;
-        }
-    }
-
-    // === SIGN OUT ===
-    async signOut() {
-        try {
-            await signOut(auth);
-            notify.success('Signed out');
-            window.location.hash = '#login';
-        } catch (error) {
-            notify.error('Sign out failed');
-        }
-    }
-
-    // === LOAD USER DATA ===
-    async loadUserData(uid) {
-        try {
-            const userRef = doc(db, 'users', uid);
-            const docSnapshot = await getDoc(userRef);
-            
-            if (docSnapshot.exists()) {
-                const data = docSnapshot.data();
-                store.setState({
-                    swipeHistory: data.swipeHistory || [],
-                    friends: data.friends || [],
-                    groups: data.groups || []
-                });
-
-                if (data.preferences) {
-                    localStorage.setItem('moviePickerPreferences', JSON.stringify(data.preferences));
-                }
-            }
-        } catch (error) {
-            console.warn('[Auth] Load user data failed (offline?)', error.message);
-        }
-    }
-
-    // === REALTIME LISTENERS ===
-    setupRealtimeListeners(uid) {
-        const userRef = doc(db, 'users', uid);
-        const unsub = onSnapshot(userRef, (docSnapshot) => {
-            if (docSnapshot.exists()) {
-                const data = docSnapshot.data();
-                store.setState({
-                    swipeHistory: data.swipeHistory || [],
-                    friends: data.friends || [],
-                    groups: data.groups || []
-                });
-
-                if (data.preferences) {
-                    localStorage.setItem('moviePickerPreferences', JSON.stringify(data.preferences));
-                }
-            }
-        }, err => console.warn('[Auth] Realtime update failed', err.message));
-        this.unsubscribers.push(unsub);
-    }
-
-    // === SAFE SWIPE HISTORY SYNC ===
-    async syncSwipeHistory(swipeHistory) {
-        if (!this.currentUser) return;
-
-        try {
-            const cleanHistory = swipeHistory
-                .filter(e => e?.movie?.id && e?.movie?.title)
-                .map(e => ({
-                    movieId: e.movie.id,
-                    title: e.movie.title,
-                    poster: e.movie.posterURL || e.movie.poster_path || '',
-                    action: e.action,
-                    timestamp: e.timestamp || Date.now()
-                }));
-
-            if (cleanHistory.length === 0) return;
-
-            const userRef = doc(db, 'users', this.currentUser.uid);
-            await updateDoc(userRef, {
-                swipeHistory: cleanHistory
-            });
-
-            console.log('[Auth] Synced', cleanHistory.length, 'swipes');
-        } catch (error) {
-            console.warn('[Auth] Sync failed (offline?)', error.message);
-        }
-    }
-
-    // === ONBOARDING COMPLETE ===
-    async completeOnboarding(uid) {
-        const raw = localStorage.getItem('moviePickerPreferences');
-        const prefs = raw ? JSON.parse(raw) : {
-            platforms: ['Netflix', 'Prime Video', 'Disney+'],
-            region: 'US',
-            triggerWarnings: { enabledCategories: [], showAllWarnings: false }
-        };
-
-        try {
-            const userRef = doc(db, 'users', uid);
-            await updateDoc(userRef, {
-                onboardingCompleted: true,
-                onboardingCompletedAt: serverTimestamp(),
-                preferences: prefs
-            });
-            console.log('[Auth] ✅ Onboarding complete — preferences saved to Firestore');
-            
-        } catch (err) {
-            console.warn('[Auth] Failed to save onboarding:', err.message);
-        }
-    }
-
-    getCurrentUser() { return this.currentUser; }
-    isAuthenticated() { return !!this.currentUser; }
-
-    cleanup() {
-        this.unsubscribers.forEach(fn => fn());
-        this.unsubscribers = [];
-    }
-}
-
-// ✅ Create instance but DON'T call setupAuthListener yet
-const authService = new AuthService();
-
-export { authService };
+    setupNavigationListeners() {
+        this.bottomNav.addEventListener('click', (e) => {
+            const btn = e.target.closest('.nav-btn, #swipe-btn');
+            if (btn) {
+                con
