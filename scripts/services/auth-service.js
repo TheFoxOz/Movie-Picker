@@ -549,3 +549,8 @@ class AuthService {
         this.unsubscribers = [];
     }
 }
+
+// ✅ Create instance but DON'T call setupAuthListener yet
+const authService = new AuthService();
+
+export { authService };
