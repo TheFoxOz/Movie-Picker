@@ -4,6 +4,7 @@
  * 
  * ✅ FIXED: Proper auth initialization sequence
  * ✅ FIXED: Google redirect handled before auth listener
+ * ✅ FIXED: Create account functionality added
  * ✅ Initializes TMDB and Firebase services
  * ✅ Handles auth state propagation
  */
@@ -58,6 +59,8 @@ async function startApp() {
     
     // Import and start the app
     const { MoviEaseApp } = await import('./app-init.js');
+    const app = new MoviEaseApp();
+    await app.init();
     
     console.log('✅ MoviEase ready! Discover your next favorite film 🎬');
 }
