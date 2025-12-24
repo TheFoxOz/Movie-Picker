@@ -7,6 +7,7 @@
  * ✅ FIXED: Proper scrolling at app-container level
  * ✅ FIXED: Better error handling and container checks
  * ✅ FIXED: Matches tab uses init() instead of render()
+ * ✅ FIXED: Sign-up form handling added
  * ✅ IMPROVED AUTH WAIT: 5 seconds for Google redirect
  * ✅ Handles onboarding flow for new users
  * ✅ Manages tab navigation and rendering
@@ -62,7 +63,7 @@ class MoviEaseApp {
             home: new HomeTab(),
             swipe: new SwipeTab(),
             library: new LibraryTab(),
-            matches: matchesTab,  // ✅ Use singleton instance
+            matches: matchesTab,
             profile: new ProfileTab()
         };
         
@@ -102,7 +103,6 @@ class MoviEaseApp {
                         googleBtn.disabled = true;
                         
                         await authService.signInWithGoogle();
-                        // Page will redirect - no code after this runs
                     } catch (error) {
                         console.error('[MoviEase] Google sign-in failed:', error);
                         googleBtn.textContent = 'Continue with Google';
@@ -123,7 +123,6 @@ class MoviEaseApp {
                         guestBtn.disabled = true;
                         
                         await authService.signInAnonymously();
-                        // Redirect handled by auth service
                     } catch (error) {
                         console.error('[MoviEase] Guest sign-in failed:', error);
                         guestBtn.textContent = 'Continue as Guest';
@@ -134,15 +133,37 @@ class MoviEaseApp {
                 console.log('[MoviEase] ✅ Guest button handler attached');
             }
 
-            // Email/Password Sign-In Form
-            const emailForm = document.getElementById('email-signin-form');
-            if (emailForm) {
-                emailForm.addEventListener('submit', async (e) => {
+            // ✅ NEW: Toggle between sign-in and sign-up forms
+            const showSignupBtn = document.getElementById('show-signup-btn');
+            const showSigninBtn = document.getElementById('show-signin-btn');
+            const signinForm = document.getElementById('email-signin-form');
+            const signupForm = document.getElementById('email-signup-form');
+
+            if (showSignupBtn && signupForm && signinForm) {
+                showSignupBtn.addEventListener('click', () => {
+                    signinForm.style.display = 'none';
+                    signupForm.style.display = 'block';
+                });
+                console.log('[MoviEase] ✅ Show signup button handler attached');
+            }
+
+            if (showSigninBtn && signupForm && signinForm) {
+                showSigninBtn.addEventListener('click', () => {
+                    signupForm.style.display = 'none';
+                    signinForm.style.display = 'block';
+                });
+                console.log('[MoviEase] ✅ Show signin button handler attached');
+            }
+
+            // ✅ Email Sign-In Form
+            const signinFormEl = document.getElementById('email-signin-form');
+            if (signinFormEl) {
+                signinFormEl.addEventListener('submit', async (e) => {
                     e.preventDefault();
                     
-                    const email = document.getElementById('email')?.value;
-                    const password = document.getElementById('password')?.value;
-                    const submitBtn = emailForm.querySelector('button[type="submit"]');
+                    const email = document.getElementById('signin-email')?.value;
+                    const password = document.getElementById('signin-password')?.value;
+                    const submitBtn = signinFormEl.querySelector('button[type="submit"]');
                     
                     if (!email || !password) {
                         alert('Please enter email and password');
@@ -156,7 +177,6 @@ class MoviEaseApp {
                         submitBtn.disabled = true;
                         
                         await authService.signIn(email, password);
-                        // Redirect handled by auth service
                     } catch (error) {
                         console.error('[MoviEase] Email sign-in failed:', error);
                         submitBtn.textContent = 'Sign In';
@@ -165,6 +185,48 @@ class MoviEaseApp {
                     }
                 });
                 console.log('[MoviEase] ✅ Email signin form handler attached');
+            }
+
+            // ✅ NEW: Email Sign-Up Form
+            const signupFormEl = document.getElementById('email-signup-form');
+            if (signupFormEl) {
+                signupFormEl.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    
+                    const name = document.getElementById('signup-name')?.value;
+                    const email = document.getElementById('signup-email')?.value;
+                    const password = document.getElementById('signup-password')?.value;
+                    const submitBtn = signupFormEl.querySelector('button[type="submit"]');
+                    
+                    if (!name || !email || !password) {
+                        alert('Please fill in all fields');
+                        return;
+                    }
+
+                    if (password.length < 6) {
+                        alert('Password must be at least 6 characters');
+                        return;
+                    }
+
+                    try {
+                        console.log('[MoviEase] Email sign-up clicked');
+                        const originalText = submitBtn.textContent;
+                        submitBtn.textContent = 'Creating account...';
+                        submitBtn.disabled = true;
+                        
+                        await authService.signUp(email, password, name);
+                    } catch (error) {
+                        console.error('[MoviEase] Email sign-up failed:', error);
+                        submitBtn.textContent = 'Create Account';
+                        submitBtn.disabled = false;
+                        
+                        const errorMsg = error.code === 'auth/email-already-in-use' 
+                            ? 'This email is already registered. Please sign in instead.'
+                            : 'Sign up failed. Please try again.';
+                        alert(errorMsg);
+                    }
+                });
+                console.log('[MoviEase] ✅ Email signup form handler attached');
             }
         };
 
@@ -189,7 +251,6 @@ class MoviEaseApp {
             container.style.zIndex = '9999';
         });
         
-        // ✅ Remove app-active class and restore body scrolling
         document.body.classList.remove('app-active');
         document.body.style.overflow = '';
         document.body.style.height = '';
@@ -240,7 +301,6 @@ class MoviEaseApp {
                 }
             });
             
-            // ✅ INCREASED TIMEOUT: 5 seconds instead of 2 (for Google redirect)
             timeout = setTimeout(() => {
                 console.log('[MoviEase] Auth state timeout, proceeding anyway');
                 this.authInitialized = true;
@@ -433,7 +493,6 @@ class MoviEaseApp {
                     transform: scale(1.1);
                 }
 
-                /* Special styling for center swipe button */
                 #swipe-btn-wrapper {
                     position: absolute;
                     left: 50%;
@@ -472,7 +531,6 @@ class MoviEaseApp {
                     border-color: #DFDFB0;
                 }
 
-                /* Create space for center button */
                 .nav-btn:nth-child(2) {
                     margin-right: 3rem;
                 }
@@ -509,7 +567,6 @@ class MoviEaseApp {
                     <span>Library</span>
                 </button>
                 
-                <!-- Center swipe button -->
                 <div id="swipe-btn-wrapper">
                     <button id="swipe-btn" data-tab="swipe">
                         <span>👆</span>
@@ -560,7 +617,6 @@ class MoviEaseApp {
             }
         });
         
-        // Handle swipe button separately
         const swipeBtn = this.bottomNav.querySelector('#swipe-btn');
         if (swipeBtn) {
             if (this.currentTab === 'swipe') {
@@ -577,7 +633,6 @@ class MoviEaseApp {
             return;
         }
         
-        // Show loading spinner with MoviEase colors
         this.container.innerHTML = `
             <div style="display: flex; align-items: center; justify-content: center; height: calc(100vh - 15rem);">
                 <div style="text-align: center;">
@@ -604,11 +659,9 @@ class MoviEaseApp {
             return;
         }
         
-        // ✅ CRITICAL: Clear container and ensure it's visible
         this.container.innerHTML = '';
         this.container.style.display = 'block';
         
-        // ✅ FIXED: Matches tab uses init() instead of render()
         if (this.currentTab === 'matches') {
             try {
                 console.log(`[MoviEase] Initializing Matches tab`);
@@ -682,7 +735,6 @@ class MoviEaseApp {
             container.style.display = 'none';
         });
         
-        // ✅ Prevent body scrolling when app is active
         document.body.style.overflow = 'hidden';
         document.body.style.height = '100vh';
         document.body.classList.add('app-active');
@@ -710,16 +762,6 @@ class MoviEaseApp {
             }
         });
     }
-}
-
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-        const app = new MoviEaseApp();
-        app.init();
-    });
-} else {
-    const app = new MoviEaseApp();
-    app.init();
 }
 
 export { MoviEaseApp };
