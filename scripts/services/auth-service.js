@@ -549,33 +549,3 @@ class AuthService {
         this.unsubscribers = [];
     }
 }
-
-// ✅ Create instance but DON'T call setupAuthListener yet
-const authService = new AuthService();
-
-export { authService };
-```
-
----
-
-## **🔑 Key Changes:**
-
-1. **Added `setPersistence`** (lines 38-47) - Ensures auth state persists across page reloads
-2. **Added `isProcessingRedirect` flag** (line 56) - Prevents duplicate navigation
-3. **Added 200ms delay in `handleRedirectResult()`** (line 321) - Gives Firebase time to process
-4. **Added 500ms delay before navigation** (lines 352, 362, 367) - Ensures auth state propagates
-5. **Updated auth state listener logic** (lines 80-106) - Better handling of redirect processing
-6. **Added `auth/invalid-credential` error** (line 263) - Firebase v10 error code
-
----
-
-## **📊 Expected Console After Google Sign-In:**
-```
-[Auth] ✅ Persistence set to LOCAL
-[Auth] Checking for redirect result...
-[Auth] ✅ Google sign-in successful: user@gmail.com
-[Auth] New Google user, creating profile...
-[Auth] New Google user → Redirecting to onboarding
-[Auth] Auth state changed: user@gmail.com
-[Auth] User signed in: user@gmail.com
-[Auth] Redirect already handled, skipping auto-navigation
