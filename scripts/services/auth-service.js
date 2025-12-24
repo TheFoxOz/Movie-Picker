@@ -5,6 +5,7 @@
  * ✅ FIXED: Navigation to onboarding (new users) or swipe (returning users)
  * ✅ FIXED: Switched to POPUP method for better reliability
  * ✅ FIXED: Popup error handling and duplicate click prevention
+ * ✅ FIXED: Force page reload after successful authentication
  */
 
 // ---------------------------------------------------------------------
@@ -342,27 +343,32 @@ class AuthService {
                 
                 console.log('[Auth] New Google user → Redirecting to onboarding');
                 
-                // ✅ Small delay to let auth state settle
+                // ✅ FIXED: Force page reload to onboarding
                 setTimeout(() => {
                     this.isProcessingAuth = false;
-                    window.location.hash = '#onboarding';
+                    window.location.href = window.location.origin + '/#onboarding';
+                    window.location.reload();
                 }, 300);
             } else {
                 const userData = userDoc.data();
                 if (!userData.onboardingCompleted) {
                     console.log('[Auth] Existing user, incomplete onboarding → Redirecting to onboarding');
                     
+                    // ✅ FIXED: Force page reload to onboarding
                     setTimeout(() => {
                         this.isProcessingAuth = false;
-                        window.location.hash = '#onboarding';
+                        window.location.href = window.location.origin + '/#onboarding';
+                        window.location.reload();
                     }, 300);
                 } else {
                     notify.success('Welcome back!');
                     console.log('[Auth] Existing user, onboarding complete → Redirecting to swipe');
                     
+                    // ✅ FIXED: Force page reload to swipe
                     setTimeout(() => {
                         this.isProcessingAuth = false;
-                        window.location.hash = '#swipe';
+                        window.location.href = window.location.origin + '/#swipe';
+                        window.location.reload();
                     }, 300);
                 }
             }
@@ -630,5 +636,3 @@ class AuthService {
 const authService = new AuthService();
 
 export { authService };
-
-
