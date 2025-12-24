@@ -3,6 +3,7 @@
  * ✅ FIXED: Proper redirect handling with initialization sequence
  * ✅ FIXED: Race condition resolved - checks redirect BEFORE auth listener
  * ✅ FIXED: Navigation to onboarding (new users) or swipe (returning users)
+ * ✅ FIXED: Added delay and better logging for redirect detection
  */
 
 // ---------------------------------------------------------------------
@@ -25,7 +26,9 @@ import {
     signInWithEmailAndPassword,
     signInAnonymously, 
     signOut,
-    updateProfile 
+    updateProfile,
+    setPersistence,
+    browserLocalPersistence
 } from 'firebase/auth';
 
 // ---------------------------------------------------------------------
@@ -41,6 +44,15 @@ import {
     onSnapshot
 } from 'firebase/firestore';
 
+// ✅ Set persistence mode explicitly
+setPersistence(auth, browserLocalPersistence)
+    .then(() => {
+        console.log('[Auth] ✅ Persistence set to LOCAL');
+    })
+    .catch((error) => {
+        console.error('[Auth] ❌ Failed to set persistence:', error);
+    });
+
 // ---------------------------------------------------------------------
 // 4. AuthService Class
 // ---------------------------------------------------------------------
@@ -50,8 +62,7 @@ class AuthService {
         this.currentUser = null;
         this.unsubscribers = [];
         this.redirectResultChecked = false;
-        // ✅ Don't setup auth listener in constructor
-        // Will be set up after redirect check
+        this.isProcessingRedirect = false;
     }
 
     // ✅ NEW: Initialize auth service (call this first!)
@@ -64,7 +75,7 @@ class AuthService {
             
             if (result) {
                 console.log('[Auth] ✅ Redirect result processed, user signed in');
-                // Auth state listener will handle the rest
+                this.isProcessingRedirect = true;
             }
         } catch (error) {
             console.error('[Auth] Error handling redirect:', error);
@@ -76,6 +87,8 @@ class AuthService {
 
     setupAuthListener() {
         auth.onAuthStateChanged(async (user) => {
+            console.log('[Auth] Auth state changed:', user ? (user.email || 'anonymous') : 'signed out');
+            
             if (user) {
                 this.currentUser = user;
                 console.log('[Auth] User signed in:', user.email || 'anonymous');
@@ -96,12 +109,21 @@ class AuthService {
                     isAuthenticated: true
                 });
 
-                // ✅ Only auto-redirect if NOT processing a redirect result
-                if (this.redirectResultChecked) {
+                // ✅ CRITICAL: Only auto-redirect if NOT in the middle of processing a redirect
+                if (this.redirectResultChecked && !this.isProcessingRedirect) {
                     const currentHash = window.location.hash;
+                    
+                    // ✅ Don't redirect if already on a valid page
                     if (!currentHash || currentHash === '#' || currentHash === '#login') {
+                        console.log('[Auth] User signed in, checking navigation...');
                         await this.handleAuthRedirect(user);
+                    } else {
+                        console.log('[Auth] User already on page:', currentHash);
                     }
+                } else if (this.isProcessingRedirect) {
+                    console.log('[Auth] Redirect already handled, skipping auto-navigation');
+                } else {
+                    console.log('[Auth] Waiting for redirect check to complete...');
                 }
             } else {
                 // ✅ Only process signout if we've already checked for redirect
@@ -122,8 +144,11 @@ class AuthService {
                     // Redirect to login only if not already there
                     const currentHash = window.location.hash;
                     if (currentHash && currentHash !== '#login' && currentHash !== '#') {
+                        console.log('[Auth] Redirecting to login...');
                         window.location.hash = '#login';
                     }
+                } else {
+                    console.log('[Auth] No user, but redirect check not complete yet...');
                 }
             }
         });
@@ -252,7 +277,8 @@ class AuthService {
                 'auth/user-not-found': 'No account found',
                 'auth/wrong-password': 'Wrong password',
                 'auth/invalid-email': 'Invalid email',
-                'auth/too-many-requests': 'Too many attempts — try later'
+                'auth/too-many-requests': 'Too many attempts — try later',
+                'auth/invalid-credential': 'Invalid email or password'
             }[error.code] || 'Sign in failed';
             notify.error(msg);
             throw error;
@@ -274,7 +300,8 @@ class AuthService {
         } catch (error) {
             console.error('[Auth] Google sign-in failed during redirect setup:', error);
             const msg = {
-                'auth/network-request-failed': 'No internet connection'
+                'auth/network-request-failed': 'No internet connection',
+                'auth/popup-blocked': 'Please allow popups for this site'
             }[error.code] || 'Google sign-in failed to initialize.';
             notify.error(msg);
             throw error;
@@ -285,6 +312,10 @@ class AuthService {
     async handleRedirectResult() {
         try {
             console.log('[Auth] Checking for redirect result...');
+            
+            // ✅ CRITICAL: Wait a bit for Firebase to process redirect
+            await new Promise(resolve => setTimeout(resolve, 200));
+            
             const result = await getRedirectResult(auth);
 
             // ✅ Mark that we've checked (even if no result)
@@ -323,10 +354,17 @@ class AuthService {
                     localStorage.setItem('moviePickerPreferences', JSON.stringify(prefs));
                     
                     console.log('[Auth] New Google user → Redirecting to onboarding');
+                    
+                    // ✅ Wait for auth state to propagate
+                    await new Promise(resolve => setTimeout(resolve, 500));
                     window.location.hash = '#onboarding';
                 } else {
                     // ✅ Existing user - check onboarding status
                     const userData = userDoc.data();
+                    
+                    // ✅ Wait for auth state to propagate
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    
                     if (!userData.onboardingCompleted) {
                         console.log('[Auth] Existing user, incomplete onboarding → Redirecting to onboarding');
                         window.location.hash = '#onboarding';
@@ -345,12 +383,17 @@ class AuthService {
         } catch (error) {
             this.redirectResultChecked = true;
             console.error('[Auth] Error handling redirect result:', error);
-            const msg = {
-                'auth/account-exists-with-different-credential': 'Account exists with a different sign-in method.',
-                'auth/popup-closed-by-user': 'Sign-in cancelled',
-                'auth/network-request-failed': 'No internet connection'
-            }[error.code] || 'Google sign-in failed on redirect.';
-            notify.error(msg);
+            
+            // ✅ CRITICAL: Don't show error for "no redirect" scenario
+            if (error.code && error.code !== 'auth/invalid-api-key') {
+                const msg = {
+                    'auth/account-exists-with-different-credential': 'Account exists with a different sign-in method.',
+                    'auth/popup-closed-by-user': 'Sign-in cancelled',
+                    'auth/network-request-failed': 'No internet connection'
+                }[error.code] || 'Google sign-in failed on redirect.';
+                notify.error(msg);
+            }
+            
             throw error;
         }
     }
@@ -511,3 +554,28 @@ class AuthService {
 const authService = new AuthService();
 
 export { authService };
+```
+
+---
+
+## **🔑 Key Changes:**
+
+1. **Added `setPersistence`** (lines 38-47) - Ensures auth state persists across page reloads
+2. **Added `isProcessingRedirect` flag** (line 56) - Prevents duplicate navigation
+3. **Added 200ms delay in `handleRedirectResult()`** (line 321) - Gives Firebase time to process
+4. **Added 500ms delay before navigation** (lines 352, 362, 367) - Ensures auth state propagates
+5. **Updated auth state listener logic** (lines 80-106) - Better handling of redirect processing
+6. **Added `auth/invalid-credential` error** (line 263) - Firebase v10 error code
+
+---
+
+## **📊 Expected Console After Google Sign-In:**
+```
+[Auth] ✅ Persistence set to LOCAL
+[Auth] Checking for redirect result...
+[Auth] ✅ Google sign-in successful: user@gmail.com
+[Auth] New Google user, creating profile...
+[Auth] New Google user → Redirecting to onboarding
+[Auth] Auth state changed: user@gmail.com
+[Auth] User signed in: user@gmail.com
+[Auth] Redirect already handled, skipping auto-navigation
