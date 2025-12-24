@@ -618,4 +618,176 @@ class MoviEaseApp {
         this.bottomNav.addEventListener('click', (e) => {
             const btn = e.target.closest('.nav-btn, #swipe-btn');
             if (btn) {
-                con
+                const tab = btn.dataset.tab;
+                if (tab) this.navigateToTab(tab);
+            }
+        });
+    }
+
+    navigateToTab(tabName) {
+        if (!tabName) return;
+        console.log('[MoviEase] Navigating to:', tabName);
+        this.currentTab = tabName;
+        if (tabName === 'swipe') this.tabs.swipe = new SwipeTab();
+        this.updateNavigation();
+        this.renderCurrentTab();
+    }
+
+    updateNavigation() {
+        this.bottomNav.querySelectorAll('.nav-btn').forEach(btn => {
+            const isActive = btn.dataset.tab === this.currentTab;
+            if (isActive) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+        
+        const swipeBtn = this.bottomNav.querySelector('#swipe-btn');
+        if (swipeBtn) {
+            if (this.currentTab === 'swipe') {
+                swipeBtn.classList.add('active');
+            } else {
+                swipeBtn.classList.remove('active');
+            }
+        }
+    }
+
+    async renderCurrentTab() {
+        if (!this.container) {
+            console.error('[MoviEase] No container available for rendering');
+            return;
+        }
+        
+        this.container.innerHTML = `
+            <div style="display: flex; align-items: center; justify-content: center; height: calc(100vh - 15rem);">
+                <div style="text-align: center;">
+                    <div style="width: 48px; height: 48px; border: 4px solid rgba(223, 223, 176, 0.2); border-top-color: #DFDFB0; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 1rem;"></div>
+                    <p style="color: rgba(223, 223, 176, 0.7); font-size: 0.875rem;">Loading...</p>
+                </div>
+            </div>
+            <style>@keyframes spin { to { transform: rotate(360deg); }}</style>
+        `;
+        
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        const tab = this.tabs[this.currentTab];
+        
+        if (!tab) {
+            console.error(`[MoviEase] Tab '${this.currentTab}' not found`);
+            this.container.innerHTML = `
+                <div style="padding: 2rem; text-align: center;">
+                    <div style="font-size: 3rem; margin-bottom: 1rem;">⚠️</div>
+                    <h3 style="color: #DFDFB0; margin-bottom: 1rem;">Tab Not Found</h3>
+                    <p style="color: rgba(223, 223, 176, 0.7);">The '${this.currentTab}' tab could not be loaded.</p>
+                </div>
+            `;
+            return;
+        }
+        
+        this.container.innerHTML = '';
+        this.container.style.display = 'block';
+        
+        if (this.currentTab === 'matches') {
+            try {
+                console.log(`[MoviEase] Initializing Matches tab`);
+                await tab.init(this.container);
+                console.log(`[MoviEase] ✅ Matches tab initialized`);
+            } catch (error) {
+                console.error(`[MoviEase] Error initializing Matches tab:`, error);
+                this.container.innerHTML = `
+                    <div style="padding: 2rem; text-align: center;">
+                        <div style="font-size: 3rem; margin-bottom: 1rem;">⚠️</div>
+                        <h3 style="color: #DFDFB0; margin-bottom: 1rem;">Oops! Something went wrong</h3>
+                        <p style="color: rgba(223, 223, 176, 0.7); margin-bottom: 0.5rem;">Error: ${error.message}</p>
+                        <p style="color: rgba(223, 223, 176, 0.5); font-size: 0.875rem; margin-bottom: 1.5rem;">Tab: matches</p>
+                        <button onclick="location.reload()" style="margin-top: 1.5rem; padding: 0.75rem 1.5rem; background: linear-gradient(135deg, #DFDFB0, #F4E8C1); border: none; border-radius: 0.75rem; color: #18183A; font-weight: 600; cursor: pointer;">
+                            Reload App
+                        </button>
+                    </div>
+                `;
+            }
+        } else if (typeof tab.render === 'function') {
+            try {
+                console.log(`[MoviEase] Rendering tab: ${this.currentTab}`);
+                await tab.render(this.container);
+                console.log(`[MoviEase] ✅ Tab rendered: ${this.currentTab}`);
+            } catch (error) {
+                console.error(`[MoviEase] Error rendering ${this.currentTab}:`, error);
+                this.container.innerHTML = `
+                    <div style="padding: 2rem; text-align: center;">
+                        <div style="font-size: 3rem; margin-bottom: 1rem;">⚠️</div>
+                        <h3 style="color: #DFDFB0; margin-bottom: 1rem;">Oops! Something went wrong</h3>
+                        <p style="color: rgba(223, 223, 176, 0.7); margin-bottom: 0.5rem;">Error: ${error.message}</p>
+                        <p style="color: rgba(223, 223, 176, 0.5); font-size: 0.875rem; margin-bottom: 1.5rem;">Tab: ${this.currentTab}</p>
+                        <button onclick="location.reload()" style="margin-top: 1.5rem; padding: 0.75rem 1.5rem; background: linear-gradient(135deg, #DFDFB0, #F4E8C1); border: none; border-radius: 0.75rem; color: #18183A; font-weight: 600; cursor: pointer;">
+                            Reload App
+                        </button>
+                    </div>
+                `;
+            }
+        } else if (typeof tab.init === 'function') {
+            try {
+                console.log(`[MoviEase] Initializing tab: ${this.currentTab}`);
+                await tab.init(this.container);
+                console.log(`[MoviEase] ✅ Tab initialized: ${this.currentTab}`);
+            } catch (error) {
+                console.error(`[MoviEase] Error initializing ${this.currentTab}:`, error);
+                this.container.innerHTML = `
+                    <div style="padding: 2rem; text-align: center;">
+                        <div style="font-size: 3rem; margin-bottom: 1rem;">⚠️</div>
+                        <h3 style="color: #DFDFB0; margin-bottom: 1rem;">Oops! Something went wrong</h3>
+                        <p style="color: rgba(223, 223, 176, 0.7); margin-bottom: 0.5rem;">Error: ${error.message}</p>
+                        <p style="color: rgba(223, 223, 176, 0.5); font-size: 0.875rem; margin-bottom: 1.5rem;">Tab: ${this.currentTab}</p>
+                        <button onclick="location.reload()" style="margin-top: 1.5rem; padding: 0.75rem 1.5rem; background: linear-gradient(135deg, #DFDFB0, #F4E8C1); border: none; border-radius: 0.75rem; color: #18183A; font-weight: 600; cursor: pointer;">
+                            Reload App
+                        </button>
+                    </div>
+                `;
+            }
+        }
+    }
+
+    showApp() {
+        console.log('[MoviEase] Showing main app interface');
+        
+        const loginContainers = [
+            document.getElementById('login-container'),
+            document.querySelector('.login-container'),
+            document.querySelector('[data-login]')
+        ].filter(Boolean);
+        
+        loginContainers.forEach(container => {
+            container.style.display = 'none';
+        });
+        
+        document.body.style.overflow = 'hidden';
+        document.body.style.height = '100vh';
+        document.body.classList.add('app-active');
+        
+        if (this.container) {
+            this.container.style.display = 'block';
+        }
+        if (this.bottomNav) this.bottomNav.style.display = 'block';
+        
+        const header = document.getElementById('app-header');
+        if (header) header.style.display = 'block';
+        
+        this.renderCurrentTab();
+        this.setupPreferencesSync();
+    }
+
+    setupPreferencesSync() {
+        store.subscribe((state) => {
+            try {
+                if (state.swipeHistory) {
+                    localStorage.setItem('moviEaseSwipeHistory', JSON.stringify(state.swipeHistory));
+                }
+            } catch (error) {
+                console.error('[MoviEase] Failed to sync swipe history:', error);
+            }
+        });
+    }
+}
+
+export { MoviEaseApp };
