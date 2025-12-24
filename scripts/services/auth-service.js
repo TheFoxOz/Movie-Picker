@@ -3,7 +3,7 @@
  * ✅ FIXED: Proper redirect handling with initialization sequence
  * ✅ FIXED: Race condition resolved - checks redirect BEFORE auth listener
  * ✅ FIXED: Navigation to onboarding (new users) or swipe (returning users)
- * ✅ FIXED: Added delay and better logging for redirect detection
+ * ✅ FIXED: Switched to POPUP method for better reliability
  */
 
 // ---------------------------------------------------------------------
@@ -19,8 +19,8 @@ import { notify } from '../utils/notifications.js';
 // ---------------------------------------------------------------------
 
 import { 
-    GoogleAuthProvider, 
-    signInWithRedirect,
+    GoogleAuthProvider,
+    signInWithPopup,
     getRedirectResult,
     createUserWithEmailAndPassword, 
     signInWithEmailAndPassword,
@@ -62,26 +62,21 @@ class AuthService {
         this.currentUser = null;
         this.unsubscribers = [];
         this.redirectResultChecked = false;
-        this.isProcessingRedirect = false;
+        this.isProcessingAuth = false;
     }
 
     // ✅ NEW: Initialize auth service (call this first!)
     async initialize() {
         console.log('[Auth] Initializing auth service...');
         
-        // ✅ CRITICAL: Check redirect result FIRST, before auth listener
+        // ✅ Check for any pending redirect (for backward compatibility)
         try {
-            const result = await this.handleRedirectResult();
-            
-            if (result) {
-                console.log('[Auth] ✅ Redirect result processed, user signed in');
-                this.isProcessingRedirect = true;
-            }
+            await this.handleRedirectResult();
         } catch (error) {
             console.error('[Auth] Error handling redirect:', error);
         }
         
-        // ✅ NOW setup auth listener (after redirect check)
+        // ✅ Setup auth listener
         this.setupAuthListener();
     }
 
@@ -109,8 +104,8 @@ class AuthService {
                     isAuthenticated: true
                 });
 
-                // ✅ CRITICAL: Only auto-redirect if NOT in the middle of processing a redirect
-                if (this.redirectResultChecked && !this.isProcessingRedirect) {
+                // ✅ Only auto-redirect if NOT in the middle of processing auth
+                if (this.redirectResultChecked && !this.isProcessingAuth) {
                     const currentHash = window.location.hash;
                     
                     // ✅ Don't redirect if already on a valid page
@@ -120,10 +115,10 @@ class AuthService {
                     } else {
                         console.log('[Auth] User already on page:', currentHash);
                     }
-                } else if (this.isProcessingRedirect) {
-                    console.log('[Auth] Redirect already handled, skipping auto-navigation');
+                } else if (this.isProcessingAuth) {
+                    console.log('[Auth] Auth already handled, skipping auto-navigation');
                 } else {
-                    console.log('[Auth] Waiting for redirect check to complete...');
+                    console.log('[Auth] Waiting for auth check to complete...');
                 }
             } else {
                 // ✅ Only process signout if we've already checked for redirect
@@ -148,7 +143,7 @@ class AuthService {
                         window.location.hash = '#login';
                     }
                 } else {
-                    console.log('[Auth] No user, but redirect check not complete yet...');
+                    console.log('[Auth] No user, but auth check not complete yet...');
                 }
             }
         });
@@ -285,47 +280,107 @@ class AuthService {
         }
     }
 
-    // === GOOGLE SIGN-IN (Redirect Method) ===
+    // === GOOGLE SIGN-IN (Popup Method - More Reliable) ===
     async signInWithGoogle() {
         try {
             const provider = new GoogleAuthProvider();
             provider.addScope('email profile');
             provider.setCustomParameters({ prompt: 'select_account' });
 
-            console.log('[Auth] Initiating Google sign-in redirect...');
+            console.log('[Auth] Initiating Google sign-in popup...');
             
-            await signInWithRedirect(auth, provider);
-            // Execution stops here. The app will reload after redirect.
+            this.isProcessingAuth = true;
+            const result = await signInWithPopup(auth, provider);
+            const { user } = result;
+            
+            console.log('[Auth] ✅ Google sign-in successful:', user.email);
+
+            const userRef = doc(db, 'users', user.uid);
+            const userDoc = await getDoc(userRef);
+            const isNewUser = !userDoc.exists();
+
+            const prefs = {
+                platforms: ['Netflix', 'Prime Video', 'Disney+'],
+                region: 'US',
+                triggerWarnings: { enabledCategories: [], showAllWarnings: false }
+            };
+
+            if (isNewUser) {
+                console.log('[Auth] New Google user, creating profile...');
+                await setDoc(userRef, {
+                    uid: user.uid,
+                    email: user.email,
+                    displayName: user.displayName || user.email.split('@')[0],
+                    avatar: user.photoURL || 'Smile',
+                    createdAt: serverTimestamp(),
+                    swipeHistory: [],
+                    friends: [],
+                    groups: [],
+                    onboardingCompleted: false,
+                    preferences: prefs
+                });
+                
+                localStorage.setItem('moviePickerPreferences', JSON.stringify(prefs));
+                notify.success('Welcome to MoviEase!');
+                
+                console.log('[Auth] New Google user → Redirecting to onboarding');
+                window.location.hash = '#onboarding';
+            } else {
+                const userData = userDoc.data();
+                if (!userData.onboardingCompleted) {
+                    console.log('[Auth] Existing user, incomplete onboarding → Redirecting to onboarding');
+                    window.location.hash = '#onboarding';
+                } else {
+                    notify.success('Welcome back!');
+                    console.log('[Auth] Existing user, onboarding complete → Redirecting to swipe');
+                    window.location.hash = '#swipe';
+                }
+            }
+
+            this.isProcessingAuth = false;
+            return { user, isNewUser };
 
         } catch (error) {
-            console.error('[Auth] Google sign-in failed during redirect setup:', error);
+            this.isProcessingAuth = false;
+            console.error('[Auth] Google sign-in failed:', error);
+            
+            // Handle user closing popup
+            if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
+                console.log('[Auth] User closed popup');
+                return null;
+            }
+            
             const msg = {
                 'auth/network-request-failed': 'No internet connection',
-                'auth/popup-blocked': 'Please allow popups for this site'
-            }[error.code] || 'Google sign-in failed to initialize.';
+                'auth/popup-blocked': 'Please allow popups for this site',
+                'auth/unauthorized-domain': 'This domain is not authorized. Please contact support.',
+                'auth/account-exists-with-different-credential': 'Account exists with a different sign-in method.'
+            }[error.code] || 'Google sign-in failed.';
+            
             notify.error(msg);
             throw error;
         }
     }
     
-    // === HANDLE REDIRECT RESULT (CRITICAL: Must be called on app startup) ===
+    // === HANDLE REDIRECT RESULT (For backward compatibility) ===
     async handleRedirectResult() {
         try {
             console.log('[Auth] Checking for redirect result...');
             
-            // ✅ CRITICAL: Wait a bit for Firebase to process redirect
+            // ✅ Wait for Firebase to be ready
             await new Promise(resolve => setTimeout(resolve, 200));
             
             const result = await getRedirectResult(auth);
 
-            // ✅ Mark that we've checked (even if no result)
+            // ✅ Mark that we've checked
             this.redirectResultChecked = true;
 
             if (result) {
-                // User signed in successfully via redirect
                 const { user } = result;
-                console.log('[Auth] ✅ Google sign-in successful:', user.email);
+                console.log('[Auth] ✅ Google sign-in successful (redirect):', user.email);
 
+                this.isProcessingAuth = true;
+                
                 const userRef = doc(db, 'users', user.uid);
                 const userDoc = await getDoc(userRef);
                 const isNewUser = !userDoc.exists();
@@ -354,15 +409,10 @@ class AuthService {
                     localStorage.setItem('moviePickerPreferences', JSON.stringify(prefs));
                     
                     console.log('[Auth] New Google user → Redirecting to onboarding');
-                    
-                    // ✅ Wait for auth state to propagate
                     await new Promise(resolve => setTimeout(resolve, 500));
                     window.location.hash = '#onboarding';
                 } else {
-                    // ✅ Existing user - check onboarding status
                     const userData = userDoc.data();
-                    
-                    // ✅ Wait for auth state to propagate
                     await new Promise(resolve => setTimeout(resolve, 500));
                     
                     if (!userData.onboardingCompleted) {
@@ -374,27 +424,30 @@ class AuthService {
                     }
                 }
 
+                this.isProcessingAuth = false;
                 return { user, isNewUser };
             } else {
-                console.log('[Auth] No redirect result found (normal page load)');
+                console.log('[Auth] No redirect result found (using popup method)');
             }
             return null; 
 
         } catch (error) {
             this.redirectResultChecked = true;
-            console.error('[Auth] Error handling redirect result:', error);
+            this.isProcessingAuth = false;
             
-            // ✅ CRITICAL: Don't show error for "no redirect" scenario
+            // ✅ Only log error if it's not a "no redirect" scenario
             if (error.code && error.code !== 'auth/invalid-api-key') {
+                console.error('[Auth] Error handling redirect result:', error);
+                
                 const msg = {
                     'auth/account-exists-with-different-credential': 'Account exists with a different sign-in method.',
-                    'auth/popup-closed-by-user': 'Sign-in cancelled',
                     'auth/network-request-failed': 'No internet connection'
-                }[error.code] || 'Google sign-in failed on redirect.';
-                notify.error(msg);
+                }[error.code];
+                
+                if (msg) notify.error(msg);
             }
             
-            throw error;
+            return null;
         }
     }
 
