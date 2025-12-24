@@ -4,6 +4,7 @@
  * ✅ FIXED: Race condition resolved - checks redirect BEFORE auth listener
  * ✅ FIXED: Navigation to onboarding (new users) or swipe (returning users)
  * ✅ FIXED: Switched to POPUP method for better reliability
+ * ✅ FIXED: Popup error handling and duplicate click prevention
  */
 
 // ---------------------------------------------------------------------
@@ -289,10 +290,26 @@ class AuthService {
 
             console.log('[Auth] Initiating Google sign-in popup...');
             
+            // ✅ Set flag BEFORE calling popup
             this.isProcessingAuth = true;
-            const result = await signInWithPopup(auth, provider);
-            const { user } = result;
             
+            let result;
+            try {
+                result = await signInWithPopup(auth, provider);
+            } catch (popupError) {
+                this.isProcessingAuth = false;
+                
+                // Handle user closing popup (not an error)
+                if (popupError.code === 'auth/popup-closed-by-user' || 
+                    popupError.code === 'auth/cancelled-popup-request') {
+                    console.log('[Auth] User closed popup');
+                    return null;
+                }
+                
+                throw popupError;
+            }
+            
+            const { user } = result;
             console.log('[Auth] ✅ Google sign-in successful:', user.email);
 
             const userRef = doc(db, 'users', user.uid);
@@ -324,31 +341,37 @@ class AuthService {
                 notify.success('Welcome to MoviEase!');
                 
                 console.log('[Auth] New Google user → Redirecting to onboarding');
-                window.location.hash = '#onboarding';
+                
+                // ✅ Small delay to let auth state settle
+                setTimeout(() => {
+                    this.isProcessingAuth = false;
+                    window.location.hash = '#onboarding';
+                }, 300);
             } else {
                 const userData = userDoc.data();
                 if (!userData.onboardingCompleted) {
                     console.log('[Auth] Existing user, incomplete onboarding → Redirecting to onboarding');
-                    window.location.hash = '#onboarding';
+                    
+                    setTimeout(() => {
+                        this.isProcessingAuth = false;
+                        window.location.hash = '#onboarding';
+                    }, 300);
                 } else {
                     notify.success('Welcome back!');
                     console.log('[Auth] Existing user, onboarding complete → Redirecting to swipe');
-                    window.location.hash = '#swipe';
+                    
+                    setTimeout(() => {
+                        this.isProcessingAuth = false;
+                        window.location.hash = '#swipe';
+                    }, 300);
                 }
             }
 
-            this.isProcessingAuth = false;
             return { user, isNewUser };
 
         } catch (error) {
             this.isProcessingAuth = false;
             console.error('[Auth] Google sign-in failed:', error);
-            
-            // Handle user closing popup
-            if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
-                console.log('[Auth] User closed popup');
-                return null;
-            }
             
             const msg = {
                 'auth/network-request-failed': 'No internet connection',
