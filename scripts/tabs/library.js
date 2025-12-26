@@ -77,19 +77,40 @@ export class LibraryTab {
             let newMovies = [];
 
             if (page === 1) {
-                console.log('[Library] Loading initial collection...');
+                console.log('[Library] Loading initial collection with genre diversity...');
                 
-                // ✅ Load MORE initial sources for richer catalog
-                const sources = await Promise.all([
+                // ✅ Load base collections
+                const baseCollections = await Promise.all([
                     tmdbService.getPopularMovies(1).catch(() => []),
                     tmdbService.getPopularMovies(2).catch(() => []),
+                    tmdbService.getPopularMovies(3).catch(() => []),
                     tmdbService.getTrendingMovies('week').catch(() => []),
-                    tmdbService.discoverMovies({ sortBy: 'vote_average.desc', minVotes: 1000, page: 1 }).catch(() => ({ movies: [] })),
-                    tmdbService.discoverMovies({ sortBy: 'popularity.desc', page: 1 }).catch(() => ({ movies: [] }))
+                    tmdbService.discoverMovies({ sortBy: 'vote_average.desc', minVotes: 1000, page: 1 }).catch(() => ({ movies: [] }))
                 ]);
 
+                // ✅ Load genre-specific pages using direct fetch
+                const genreIds = [28, 35, 18, 27, 878, 10749, 53, 16]; // Action, Comedy, Drama, Horror, Sci-Fi, Romance, Thriller, Animation
+                const genreCollections = await Promise.all(
+                    genreIds.map(async (genreId) => {
+                        try {
+                            const response = await fetch(
+                                `https://api.themoviedb.org/3/discover/movie?api_key=${tmdbService.apiKey}&language=en-US&sort_by=popularity.desc&with_genres=${genreId}&page=1&include_adult=false`
+                            );
+                            if (!response.ok) return [];
+                            const data = await response.json();
+                            return data.results.map(m => tmdbService.processMovie(m));
+                        } catch (error) {
+                            console.warn(`[Library] Failed to load genre ${genreId}`);
+                            return [];
+                        }
+                    })
+                );
+
+                // Combine all sources
+                const allSources = [...baseCollections, ...genreCollections];
+
                 const map = new Map();
-                sources.forEach(result => {
+                allSources.forEach(result => {
                     const movies = Array.isArray(result) ? result : (result.movies || []);
                     movies.forEach(m => {
                         if (m && m.id) map.set(m.id, m);
@@ -97,7 +118,7 @@ export class LibraryTab {
                 });
                 
                 this.allMovies = Array.from(map.values());
-                console.log('[Library] Loaded initial collection:', this.allMovies.length, 'unique movies');
+                console.log('[Library] ✅ Loaded initial collection:', this.allMovies.length, 'unique movies');
                 
                 console.log('[Library] Enriching initial movies with platform data...');
                 await this.enrichWithPlatformData(this.allMovies);
@@ -785,8 +806,20 @@ export class LibraryTab {
         // Load more
         const loadMoreBtn = this.container.querySelector('#load-more-btn');
         if (loadMoreBtn) {
-            loadMoreBtn.addEventListener('click', () => {
-                this.loadMovies(this.currentPage + 1).then(() => this.updateMoviesGrid());
+            loadMoreBtn.addEventListener('click', async () => {
+                // ✅ Load 5 pages sequentially for faster catalog building
+                console.log('[Library] Loading 5 pages...');
+                const originalText = loadMoreBtn.textContent;
+                loadMoreBtn.disabled = true;
+                loadMoreBtn.textContent = 'Loading...';
+                
+                for (let i = 0; i < 5; i++) {
+                    await this.loadMovies(this.currentPage + 1);
+                }
+                
+                this.updateMoviesGrid();
+                loadMoreBtn.disabled = false;
+                loadMoreBtn.textContent = originalText;
             });
         }
 
