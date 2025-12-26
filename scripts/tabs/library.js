@@ -78,22 +78,26 @@ export class LibraryTab {
 
             if (page === 1) {
                 console.log('[Library] Loading initial collection...');
+                
+                // ✅ Load MORE initial sources for richer catalog
                 const sources = await Promise.all([
                     tmdbService.getPopularMovies(1).catch(() => []),
+                    tmdbService.getPopularMovies(2).catch(() => []),
                     tmdbService.getTrendingMovies('week').catch(() => []),
-                    tmdbService.discoverMovies({ sortBy: 'vote_average.desc', minVotes: 1000, page: 1 }).catch(() => ({ movies: [] }))
+                    tmdbService.discoverMovies({ sortBy: 'vote_average.desc', minVotes: 1000, page: 1 }).catch(() => ({ movies: [] })),
+                    tmdbService.discoverMovies({ sortBy: 'popularity.desc', page: 1 }).catch(() => ({ movies: [] }))
                 ]);
 
-                const popularMovies = sources[0] || [];
-                const trendingMovies = sources[1] || [];
-                const topRatedResult = sources[2];
-                const topRatedMovies = topRatedResult.movies || topRatedResult || [];
-
                 const map = new Map();
-                [...popularMovies, ...trendingMovies, ...topRatedMovies].forEach(m => {
-                    if (m && m.id) map.set(m.id, m);
+                sources.forEach(result => {
+                    const movies = Array.isArray(result) ? result : (result.movies || []);
+                    movies.forEach(m => {
+                        if (m && m.id) map.set(m.id, m);
+                    });
                 });
+                
                 this.allMovies = Array.from(map.values());
+                console.log('[Library] Loaded initial collection:', this.allMovies.length, 'unique movies');
                 
                 console.log('[Library] Enriching initial movies with platform data...');
                 await this.enrichWithPlatformData(this.allMovies);
@@ -184,7 +188,12 @@ export class LibraryTab {
     }
 
     setupInfiniteScroll() {
-        if (this.scrollListener) window.removeEventListener('scroll', this.scrollListener);
+        if (this.scrollListener) {
+            const scrollContainer = this.container.querySelector('.library-scroll-container');
+            if (scrollContainer) {
+                scrollContainer.removeEventListener('scroll', this.scrollListener);
+            }
+        }
         
         this.scrollListener = () => {
             const scrollContainer = this.container.querySelector('.library-scroll-container');
@@ -218,16 +227,18 @@ export class LibraryTab {
     renderLoading() {
         return `
             <div style="
-                width: 100%;
-                padding: 1.5rem 0 6rem;
+                height: 100%;
+                overflow-y: auto;
+                overflow-x: hidden;
+                -webkit-overflow-scrolling: touch;
                 display: flex;
                 align-items: center;
                 justify-content: center;
                 flex-direction: column;
                 gap: 1rem;
             ">
-                <div style="width:48px;height:48px;border:4px solid rgba(255,46,99,0.3);border-top-color:#ff2e63;border-radius:50%;animation:spin 1s linear infinite;"></div>
-                <p style="color:rgba(255,255,255,0.7);">Loading infinite library...</p>
+                <div style="width:48px;height:48px;border:4px solid rgba(166,192,221,0.3);border-top-color:#A6C0DD;border-radius:50%;animation:spin 1s linear infinite;"></div>
+                <p style="color:#A6C0DD;">Loading movie library...</p>
             </div>
         `;
     }
@@ -282,6 +293,8 @@ export class LibraryTab {
     renderContent() {
         const state = store.getState();
         const swipeHistory = state.swipeHistory || [];
+        
+        // ✅ FIX: Count swipes by action
         const swipeCounts = {
             loved: swipeHistory.filter(s => s.action === 'love').length,
             liked: swipeHistory.filter(s => s.action === 'like').length,
@@ -293,14 +306,17 @@ export class LibraryTab {
 
         this.container.innerHTML = `
             <div class="library-scroll-container" style="
-                width: 100%;
+                height: 100%;
+                overflow-y: auto;
+                overflow-x: hidden;
+                -webkit-overflow-scrolling: touch;
                 padding: 1.5rem 1rem 6rem;
             ">
                 <!-- Header with Filter Button -->
                 <div style="margin-bottom:1.5rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;">
                     <div style="flex:1;">
-                        <h1 style="font-size:1.75rem;font-weight:800;color:white;margin:0 0 0.5rem 0;">Movie Library</h1>
-                        <p style="color:rgba(255,255,255,0.6);font-size:0.875rem;margin:0;">
+                        <h1 style="font-size:1.75rem;font-weight:800;color:#FDFAB0;margin:0 0 0.5rem 0;">Movie Library</h1>
+                        <p style="color:#A6C0DD;font-size:0.875rem;margin:0;">
                             ${this.filteredMovies.length.toLocaleString()} of ${this.allMovies.length.toLocaleString()}+ movies
                         </p>
                     </div>
@@ -308,10 +324,10 @@ export class LibraryTab {
                     <!-- Filter Button -->
                     <button id="toggle-filters-btn" style="
                         padding: 0.875rem 1.5rem;
-                        background: linear-gradient(135deg, #b0d4e3, #f4e8c1);
+                        background: linear-gradient(135deg, #A6C0DD, #8ba3b8);
                         border: none;
                         border-radius: 0.75rem;
-                        color: #1a1f2e;
+                        color: #18183A;
                         font-size: 0.9375rem;
                         font-weight: 700;
                         cursor: pointer;
@@ -319,8 +335,8 @@ export class LibraryTab {
                         align-items: center;
                         gap: 0.5rem;
                         transition: transform 0.2s, box-shadow 0.2s;
-                        box-shadow: 0 4px 12px rgba(176, 212, 227, 0.3);
-                    " onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='0 6px 16px rgba(176, 212, 227, 0.4)'" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 4px 12px rgba(176, 212, 227, 0.3)'">
+                        box-shadow: 0 4px 12px rgba(166, 192, 221, 0.3);
+                    " onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='0 6px 16px rgba(166, 192, 221, 0.4)'" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 4px 12px rgba(166, 192, 221, 0.3)'">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width:20px;height:20px;">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" />
                         </svg>
@@ -331,7 +347,7 @@ export class LibraryTab {
                 <!-- Search Bar -->
                 <div style="margin-bottom:1rem;">
                     <input type="text" id="search-input" placeholder="Search movies..." value="${this.searchQuery}" 
-                           style="width:100%;padding:1rem;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:1rem;color:white;font-size:1rem;">
+                           style="width:100%;padding:1rem;background:rgba(166,192,221,0.1);border:1px solid rgba(166,192,221,0.2);border-radius:1rem;color:#FDFAB0;font-size:1rem;">
                 </div>
 
                 <!-- Movies Grid -->
@@ -340,17 +356,17 @@ export class LibraryTab {
                 ${this.hasMorePages ? `
                     <div style="text-align:center;padding:2rem;">
                         ${this.isLoading ? `
-                            <div style="width:40px;height:40px;border:3px solid rgba(255,46,99,0.3);border-top-color:#ff2e63;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto;"></div>
-                            <p style="color:rgba(255,255,255,0.6);margin-top:1rem;">Loading more...</p>
+                            <div style="width:40px;height:40px;border:3px solid rgba(166,192,221,0.3);border-top-color:#A6C0DD;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto;"></div>
+                            <p style="color:#A6C0DD;margin-top:1rem;">Loading more...</p>
                         ` : `
-                            <button id="load-more-btn" style="padding:1rem 2rem;background:linear-gradient(135deg,#ff2e63,#d90062);border:none;border-radius:0.75rem;color:white;font-size:1rem;font-weight:700;cursor:pointer;transition:transform 0.2s;">
+                            <button id="load-more-btn" style="padding:1rem 2rem;background:linear-gradient(135deg,#A6C0DD,#8ba3b8);border:none;border-radius:0.75rem;color:#18183A;font-size:1rem;font-weight:700;cursor:pointer;transition:transform 0.2s;">
                                 Load More Movies
                             </button>
                         `}
                     </div>
                 ` : `
                     <div style="text-align:center;padding:2rem;">
-                        <p style="color:rgba(255,255,255,0.5);">All ${this.allMovies.length.toLocaleString()} movies loaded!</p>
+                        <p style="color:#A6C0DD;">All ${this.allMovies.length.toLocaleString()} movies loaded!</p>
                     </div>
                 `}
             </div>
@@ -363,34 +379,34 @@ export class LibraryTab {
                 bottom: 0;
                 width: 100%;
                 max-width: 400px;
-                background: linear-gradient(180deg, #1a1a2e 0%, #0a0a0f 100%);
+                background: linear-gradient(180deg, #18183A 0%, #0f0f26 100%);
                 transform: translateX(100%);
                 transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
                 z-index: 1000;
                 overflow-y: auto;
                 box-shadow: -4px 0 24px rgba(0, 0, 0, 0.5);
-                border-left: 1px solid rgba(255, 255, 255, 0.1);
+                border-left: 1px solid rgba(166, 192, 221, 0.2);
             ">
                 <div style="padding: 1.5rem;">
                     <!-- Header -->
                     <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem;">
-                        <h2 style="font-size: 1.5rem; font-weight: 800; color: white; margin: 0;">
+                        <h2 style="font-size: 1.5rem; font-weight: 800; color: #FDFAB0; margin: 0;">
                             Filters
                         </h2>
                         <button id="close-filters-btn" style="
                             width: 40px;
                             height: 40px;
                             border-radius: 50%;
-                            background: rgba(255, 255, 255, 0.1);
+                            background: rgba(166, 192, 221, 0.1);
                             border: none;
-                            color: white;
+                            color: #FDFAB0;
                             font-size: 1.5rem;
                             cursor: pointer;
                             display: flex;
                             align-items: center;
                             justify-content: center;
                             transition: background 0.2s;
-                        " onmouseover="this.style.background='rgba(255, 46, 99, 0.3)'" onmouseout="this.style.background='rgba(255, 255, 255, 0.1)'">
+                        " onmouseover="this.style.background='rgba(166, 192, 221, 0.2)'" onmouseout="this.style.background='rgba(166, 192, 221, 0.1)'">
                             ✕
                         </button>
                     </div>
@@ -416,82 +432,67 @@ export class LibraryTab {
 
                     <!-- Your Swipes -->
                     <div style="margin-bottom: 1.5rem;">
-                        <h3 style="font-size: 0.875rem; font-weight: 700; color: rgba(255, 255, 255, 0.7); text-transform: uppercase; margin: 0 0 0.75rem 0;">
+                        <h3 style="font-size: 0.875rem; font-weight: 700; color: #A6C0DD; text-transform: uppercase; margin: 0 0 0.75rem 0;">
                             Your Swipes
                         </h3>
                         <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-                            <button class="filter-btn" data-filter="all" style="${this.getButtonStyle(this.currentFilter==='all','linear-gradient(135deg,#ff2e63,#d90062)')}">All</button>
-                            <button class="filter-btn" data-filter="loved" style="${this.getButtonStyle(this.currentFilter==='loved','linear-gradient(135deg,#ff006e,#d90062)')}">Loved (${swipeCounts.loved})</button>
-                            <button class="filter-btn" data-filter="liked" style="${this.getButtonStyle(this.currentFilter==='liked','linear-gradient(135deg,#10b981,#059669)')}">Liked (${swipeCounts.liked})</button>
-                            <button class="filter-btn" data-filter="maybe" style="${this.getButtonStyle(this.currentFilter==='maybe','linear-gradient(135deg,#fbbf24,#f59e0b)')}">Maybe (${swipeCounts.maybe})</button>
-                            <button class="filter-btn" data-filter="passed" style="${this.getButtonStyle(this.currentFilter==='passed','linear-gradient(135deg,#ef4444,#dc2626)')}">Passed (${swipeCounts.passed})</button>
+                            <button class="filter-btn" data-filter="all" style="${this.getButtonStyle(this.currentFilter==='all','linear-gradient(135deg,#A6C0DD,#8ba3b8)')}">All</button>
+                            <button class="filter-btn" data-filter="love" style="${this.getButtonStyle(this.currentFilter==='love','linear-gradient(135deg,#ff006e,#d90062)')}">❤️ Loved (${swipeCounts.loved})</button>
+                            <button class="filter-btn" data-filter="like" style="${this.getButtonStyle(this.currentFilter==='like','linear-gradient(135deg,#10b981,#059669)')}">👍 Liked (${swipeCounts.liked})</button>
+                            <button class="filter-btn" data-filter="maybe" style="${this.getButtonStyle(this.currentFilter==='maybe','linear-gradient(135deg,#fbbf24,#f59e0b)')}">🤔 Maybe (${swipeCounts.maybe})</button>
+                            <button class="filter-btn" data-filter="pass" style="${this.getButtonStyle(this.currentFilter==='pass','linear-gradient(135deg,#ef4444,#dc2626)')}">👎 Passed (${swipeCounts.passed})</button>
                         </div>
                     </div>
 
                     <!-- Genre -->
                     <div style="margin-bottom: 1.5rem;">
-                        <h3 style="font-size: 0.875rem; font-weight: 700; color: rgba(255, 255, 255, 0.7); text-transform: uppercase; margin: 0 0 0.75rem 0;">
+                        <h3 style="font-size: 0.875rem; font-weight: 700; color: #A6C0DD; text-transform: uppercase; margin: 0 0 0.75rem 0;">
                             Genre
                         </h3>
                         <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem;">
-                            <button class="genre-btn" data-genre="all" style="${this.getButtonStyle(this.currentGenre==='all','linear-gradient(135deg,#b0d4e3,#f4e8c1)')}">All</button>
-                            <button class="genre-btn" data-genre="${GENRE_IDS.ACTION}" style="${this.getButtonStyle(this.currentGenre==GENRE_IDS.ACTION,'linear-gradient(135deg,#b0d4e3,#f4e8c1)')}">Action</button>
-                            <button class="genre-btn" data-genre="${GENRE_IDS.COMEDY}" style="${this.getButtonStyle(this.currentGenre==GENRE_IDS.COMEDY,'linear-gradient(135deg,#b0d4e3,#f4e8c1)')}">Comedy</button>
-                            <button class="genre-btn" data-genre="${GENRE_IDS.DRAMA}" style="${this.getButtonStyle(this.currentGenre==GENRE_IDS.DRAMA,'linear-gradient(135deg,#b0d4e3,#f4e8c1)')}">Drama</button>
-                            <button class="genre-btn" data-genre="${GENRE_IDS.HORROR}" style="${this.getButtonStyle(this.currentGenre==GENRE_IDS.HORROR,'linear-gradient(135deg,#b0d4e3,#f4e8c1)')}">Horror</button>
-                            <button class="genre-btn" data-genre="${GENRE_IDS.SCIFI}" style="${this.getButtonStyle(this.currentGenre==GENRE_IDS.SCIFI,'linear-gradient(135deg,#b0d4e3,#f4e8c1)')}">Sci-Fi</button>
-                            <button class="genre-btn" data-genre="${GENRE_IDS.ROMANCE}" style="${this.getButtonStyle(this.currentGenre==GENRE_IDS.ROMANCE,'linear-gradient(135deg,#b0d4e3,#f4e8c1)')}">Romance</button>
-                            <button class="genre-btn" data-genre="${GENRE_IDS.THRILLER}" style="${this.getButtonStyle(this.currentGenre==GENRE_IDS.THRILLER,'linear-gradient(135deg,#b0d4e3,#f4e8c1)')}">Thriller</button>
+                            <button class="genre-btn" data-genre="all" style="${this.getButtonStyle(this.currentGenre==='all','linear-gradient(135deg,#A6C0DD,#8ba3b8)')}">All</button>
+                            <button class="genre-btn" data-genre="${GENRE_IDS.ACTION}" style="${this.getButtonStyle(this.currentGenre==GENRE_IDS.ACTION,'linear-gradient(135deg,#A6C0DD,#8ba3b8)')}">Action</button>
+                            <button class="genre-btn" data-genre="${GENRE_IDS.COMEDY}" style="${this.getButtonStyle(this.currentGenre==GENRE_IDS.COMEDY,'linear-gradient(135deg,#A6C0DD,#8ba3b8)')}">Comedy</button>
+                            <button class="genre-btn" data-genre="${GENRE_IDS.DRAMA}" style="${this.getButtonStyle(this.currentGenre==GENRE_IDS.DRAMA,'linear-gradient(135deg,#A6C0DD,#8ba3b8)')}">Drama</button>
+                            <button class="genre-btn" data-genre="${GENRE_IDS.HORROR}" style="${this.getButtonStyle(this.currentGenre==GENRE_IDS.HORROR,'linear-gradient(135deg,#A6C0DD,#8ba3b8)')}">Horror</button>
+                            <button class="genre-btn" data-genre="${GENRE_IDS.SCIFI}" style="${this.getButtonStyle(this.currentGenre==GENRE_IDS.SCIFI,'linear-gradient(135deg,#A6C0DD,#8ba3b8)')}">Sci-Fi</button>
+                            <button class="genre-btn" data-genre="${GENRE_IDS.ROMANCE}" style="${this.getButtonStyle(this.currentGenre==GENRE_IDS.ROMANCE,'linear-gradient(135deg,#A6C0DD,#8ba3b8)')}">Romance</button>
+                            <button class="genre-btn" data-genre="${GENRE_IDS.THRILLER}" style="${this.getButtonStyle(this.currentGenre==GENRE_IDS.THRILLER,'linear-gradient(135deg,#A6C0DD,#8ba3b8)')}">Thriller</button>
                         </div>
                     </div>
 
                     <!-- Platform -->
                     <div style="margin-bottom: 1.5rem;">
-                        <h3 style="font-size: 0.875rem; font-weight: 700; color: rgba(255, 255, 255, 0.7); text-transform: uppercase; margin: 0 0 0.75rem 0;">
+                        <h3 style="font-size: 0.875rem; font-weight: 700; color: #A6C0DD; text-transform: uppercase; margin: 0 0 0.75rem 0;">
                             Platform
                         </h3>
                         <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem;">
-                            <button class="platform-btn" data-platform="all" style="${this.getButtonStyle(this.currentPlatform==='all','linear-gradient(135deg,#ec4899,#db2777)')}">All</button>
-                            <button class="platform-btn" data-platform="Netflix" style="${this.getButtonStyle(this.currentPlatform==='Netflix','linear-gradient(135deg,#ec4899,#db2777)')}">Netflix</button>
-                            <button class="platform-btn" data-platform="Hulu" style="${this.getButtonStyle(this.currentPlatform==='Hulu','linear-gradient(135deg,#ec4899,#db2777)')}">Hulu</button>
-                            <button class="platform-btn" data-platform="Prime Video" style="${this.getButtonStyle(this.currentPlatform==='Prime Video','linear-gradient(135deg,#ec4899,#db2777)')}">Prime</button>
-                            <button class="platform-btn" data-platform="Disney+" style="${this.getButtonStyle(this.currentPlatform==='Disney+','linear-gradient(135deg,#ec4899,#db2777)')}">Disney+</button>
-                            <button class="platform-btn" data-platform="HBO Max" style="${this.getButtonStyle(this.currentPlatform==='HBO Max','linear-gradient(135deg,#ec4899,#db2777)')}">HBO Max</button>
-                        </div>
-                    </div>
-
-                    <!-- Age Rating -->
-                    <div style="margin-bottom: 1.5rem;">
-                        <h3 style="font-size: 0.875rem; font-weight: 700; color: rgba(255, 255, 255, 0.7); text-transform: uppercase; margin: 0 0 0.75rem 0;">
-                            Age Rating
-                        </h3>
-                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem;">
-                            <button class="rating-btn" data-rating="all" style="${this.getButtonStyle(this.currentRating==='all','linear-gradient(135deg,#06b6d4,#0891b2)')}">All</button>
-                            <button class="rating-btn" data-rating="G" style="${this.getButtonStyle(this.currentRating==='G','linear-gradient(135deg,#06b6d4,#0891b2)')}">G</button>
-                            <button class="rating-btn" data-rating="PG" style="${this.getButtonStyle(this.currentRating==='PG','linear-gradient(135deg,#06b6d4,#0891b2)')}">PG</button>
-                            <button class="rating-btn" data-rating="PG-13" style="${this.getButtonStyle(this.currentRating==='PG-13','linear-gradient(135deg,#06b6d4,#0891b2)')}">PG-13</button>
-                            <button class="rating-btn" data-rating="R" style="${this.getButtonStyle(this.currentRating==='R','linear-gradient(135deg,#06b6d4,#0891b2)')}">R</button>
-                            <button class="rating-btn" data-rating="NC-17" style="${this.getButtonStyle(this.currentRating==='NC-17','linear-gradient(135deg,#06b6d4,#0891b2)')}">NC-17</button>
+                            <button class="platform-btn" data-platform="all" style="${this.getButtonStyle(this.currentPlatform==='all','linear-gradient(135deg,#FDFAB0,#e8d89a)')}">All</button>
+                            <button class="platform-btn" data-platform="Netflix" style="${this.getButtonStyle(this.currentPlatform==='Netflix','linear-gradient(135deg,#FDFAB0,#e8d89a)')}">Netflix</button>
+                            <button class="platform-btn" data-platform="Hulu" style="${this.getButtonStyle(this.currentPlatform==='Hulu','linear-gradient(135deg,#FDFAB0,#e8d89a)')}">Hulu</button>
+                            <button class="platform-btn" data-platform="Prime Video" style="${this.getButtonStyle(this.currentPlatform==='Prime Video','linear-gradient(135deg,#FDFAB0,#e8d89a)')}">Prime</button>
+                            <button class="platform-btn" data-platform="Disney+" style="${this.getButtonStyle(this.currentPlatform==='Disney+','linear-gradient(135deg,#FDFAB0,#e8d89a)')}">Disney+</button>
+                            <button class="platform-btn" data-platform="HBO Max" style="${this.getButtonStyle(this.currentPlatform==='HBO Max','linear-gradient(135deg,#FDFAB0,#e8d89a)')}">HBO Max</button>
                         </div>
                     </div>
 
                     <!-- Runtime -->
                     <div style="margin-bottom: 1.5rem;">
-                        <h3 style="font-size: 0.875rem; font-weight: 700; color: rgba(255, 255, 255, 0.7); text-transform: uppercase; margin: 0 0 0.75rem 0;">
+                        <h3 style="font-size: 0.875rem; font-weight: 700; color: #A6C0DD; text-transform: uppercase; margin: 0 0 0.75rem 0;">
                             Runtime
                         </h3>
                         <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem;">
-                            <button class="runtime-btn" data-runtime="all" style="${this.getButtonStyle(this.currentRuntime==='all','linear-gradient(135deg,#f97316,#ea580c)')}">Any</button>
-                            <button class="runtime-btn" data-runtime="short" style="${this.getButtonStyle(this.currentRuntime==='short','linear-gradient(135deg,#f97316,#ea580c)')}">< 90m</button>
-                            <button class="runtime-btn" data-runtime="medium" style="${this.getButtonStyle(this.currentRuntime==='medium','linear-gradient(135deg,#f97316,#ea580c)')}">90-120m</button>
-                            <button class="runtime-btn" data-runtime="long" style="${this.getButtonStyle(this.currentRuntime==='long','linear-gradient(135deg,#f97316,#ea580c)')}">120-150m</button>
-                            <button class="runtime-btn" data-runtime="epic" style="${this.getButtonStyle(this.currentRuntime==='epic','linear-gradient(135deg,#f97316,#ea580c)')}">150m+</button>
+                            <button class="runtime-btn" data-runtime="all" style="${this.getButtonStyle(this.currentRuntime==='all','linear-gradient(135deg,#A6C0DD,#8ba3b8)')}">Any</button>
+                            <button class="runtime-btn" data-runtime="short" style="${this.getButtonStyle(this.currentRuntime==='short','linear-gradient(135deg,#A6C0DD,#8ba3b8)')}">< 90m</button>
+                            <button class="runtime-btn" data-runtime="medium" style="${this.getButtonStyle(this.currentRuntime==='medium','linear-gradient(135deg,#A6C0DD,#8ba3b8)')}">90-120m</button>
+                            <button class="runtime-btn" data-runtime="long" style="${this.getButtonStyle(this.currentRuntime==='long','linear-gradient(135deg,#A6C0DD,#8ba3b8)')}">120-150m</button>
+                            <button class="runtime-btn" data-runtime="epic" style="${this.getButtonStyle(this.currentRuntime==='epic','linear-gradient(135deg,#A6C0DD,#8ba3b8)')}">150m+</button>
                         </div>
                     </div>
 
                     <!-- Trigger Warnings Toggle -->
                     <div style="margin-bottom: 1.5rem;">
-                        <h3 style="font-size: 0.875rem; font-weight: 700; color: rgba(255, 255, 255, 0.7); text-transform: uppercase; margin: 0 0 0.75rem 0;">
+                        <h3 style="font-size: 0.875rem; font-weight: 700; color: #A6C0DD; text-transform: uppercase; margin: 0 0 0.75rem 0;">
                             Content
                         </h3>
                         <button id="toggle-trigger-filter" style="${this.getButtonStyle(this.hideTriggerWarnings, 'linear-gradient(135deg,#ef4444,#dc2626)')}; width: 100%;">
@@ -552,16 +553,22 @@ export class LibraryTab {
     renderMoviesGrid() {
         let moviesToShow = [...this.allMovies];
 
-        // Apply all filters
+        // ✅ CRITICAL FIX: Use movieId OR movie.id for swipe filtering
         if (this.currentFilter !== 'all') {
             const swiped = store.getState().swipeHistory || [];
-            const ids = swiped.filter(s => s.action === this.currentFilter).map(s => String(s.movie.id));
+            const ids = swiped
+                .filter(s => s.action === this.currentFilter)
+                .map(s => String(s.movieId || s.movie?.id));
+            
+            console.log(`[Library] Filtering by swipe action "${this.currentFilter}":`, ids.length, 'movies');
             moviesToShow = moviesToShow.filter(m => ids.includes(String(m.id)));
         }
+        
         if (this.currentGenre !== 'all') {
             const genreId = parseInt(this.currentGenre);
             moviesToShow = moviesToShow.filter(m => (m.genre_ids || m.genreIds)?.includes(genreId));
         }
+        
         if (this.currentPlatform !== 'all') {
             moviesToShow = moviesToShow.filter(m => {
                 if (m.platform === this.currentPlatform) return true;
@@ -569,9 +576,11 @@ export class LibraryTab {
                 return false;
             });
         }
+        
         if (this.currentRating !== 'all') {
             moviesToShow = moviesToShow.filter(m => m.certification === this.currentRating);
         }
+        
         if (this.currentRuntime !== 'all') {
             moviesToShow = moviesToShow.filter(m => {
                 const runtime = m.runtime || 0;
@@ -584,6 +593,7 @@ export class LibraryTab {
                 }
             });
         }
+        
         if (this.hideTriggerWarnings) {
             if (tmdbService.filterBlockedMovies) {
                 const beforeFilter = moviesToShow.length;
@@ -591,6 +601,7 @@ export class LibraryTab {
                 console.log(`[Library] Trigger filter: ${beforeFilter} → ${moviesToShow.length} movies`);
             }
         }
+        
         if (this.searchQuery) {
             const q = this.searchQuery.toLowerCase();
             moviesToShow = moviesToShow.filter(m =>
@@ -603,7 +614,7 @@ export class LibraryTab {
 
         if (this.filteredMovies.length === 0) {
             return `<div style="grid-column:1/-1;text-align:center;padding:4rem;">
-                        <p style="color:rgba(255,255,255,0.5);font-size:1rem;">No movies match your filters</p>
+                        <p style="color:#A6C0DD;font-size:1rem;">No movies match your filters</p>
                     </div>`;
         }
 
@@ -613,7 +624,7 @@ export class LibraryTab {
     }
 
     renderMovieCard(movie) {
-        const posterUrl = movie.posterURL || movie.poster_path || `https://placehold.co/300x450/18183A/DFDFB0?text=${encodeURIComponent(movie.title)}`;
+        const posterUrl = movie.posterURL || movie.poster_path || `https://placehold.co/300x450/18183A/FDFAB0?text=${encodeURIComponent(movie.title)}`;
         const rating = movie.rating || movie.vote_average;
         const year = movie.year || movie.releaseDate?.split('-')[0] || '';
         
@@ -636,11 +647,6 @@ export class LibraryTab {
             
             return releaseDate > sixMonthsAgo ? 'In Cinemas' : 'Not Available';
         })();
-        
-        // Rating color
-        let ratingColor = '#10b981';
-        if (rating && parseFloat(rating) < 5) ratingColor = '#ef4444';
-        else if (rating && parseFloat(rating) < 7) ratingColor = '#fbbf24';
 
         return `
             <div class="library-movie-card" data-movie-id="${movie.id}">
@@ -650,13 +656,13 @@ export class LibraryTab {
                     aspect-ratio:2/3;
                     border-radius:0.75rem;
                     overflow:hidden;
-                    background:rgba(255,255,255,0.05);
+                    background:rgba(166,192,221,0.1);
                     box-shadow:0 4px 16px rgba(0,0,0,0.3);
                     transition:transform 0.3s;
                     cursor:pointer;
                 ">
                     <img src="${posterUrl}" alt="${movie.title}" style="width:100%;height:100%;object-fit:cover;"
-                         onerror="this.src='https://placehold.co/300x450/18183A/DFDFB0?text=${encodeURIComponent(movie.title)}'">
+                         onerror="this.src='https://placehold.co/300x450/18183A/FDFAB0?text=${encodeURIComponent(movie.title)}'">
                     
                     <!-- ✅ Trailer Button (Top Right) -->
                     ${hasTrailer ? `
@@ -668,8 +674,8 @@ export class LibraryTab {
                                 right: 0.5rem;
                                 width: 28px;
                                 height: 28px;
-                                background: rgba(255, 46, 99, 0.95);
-                                border: 2px solid white;
+                                background: rgba(166, 192, 221, 0.95);
+                                border: 2px solid #FDFAB0;
                                 border-radius: 50%;
                                 display: flex;
                                 align-items: center;
@@ -680,7 +686,7 @@ export class LibraryTab {
                             "
                             title="Watch Trailer"
                         >
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="white">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="#18183A">
                                 <path d="M8 5v14l11-7z"/>
                             </svg>
                         </button>
@@ -696,30 +702,30 @@ export class LibraryTab {
                             top:${triggerBadgeHTML ? '2.5rem' : '0.5rem'};
                             right:0.5rem;
                             padding:0.25rem 0.5rem;
-                            background:rgba(251,191,36,0.9);
+                            background:rgba(253,250,176,0.95);
                             border-radius:0.5rem;
                         ">
-                            <span style="color:white;font-size:0.7rem;font-weight:700;">${parseFloat(rating).toFixed(1)}</span>
+                            <span style="color:#18183A;font-size:0.7rem;font-weight:700;">${parseFloat(rating).toFixed(1)}</span>
                         </div>
                     ` : ''}
                     
-                    <div style="position:absolute;bottom:0;left:0;right:0;padding:0.75rem 0.5rem;background:linear-gradient(0deg,rgba(0,0,0,0.9),transparent);">
-                        <h3 style="font-size:0.75rem;font-weight:700;color:white;margin:0;line-height:1.2;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">
+                    <div style="position:absolute;bottom:0;left:0;right:0;padding:0.75rem 0.5rem;background:linear-gradient(0deg,rgba(24,24,58,0.95),transparent);">
+                        <h3 style="font-size:0.75rem;font-weight:700;color:#FDFAB0;margin:0;line-height:1.2;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">
                             ${movie.title}
                         </h3>
-                        <p style="font-size:0.625rem;color:rgba(255,255,255,0.7);margin:0.25rem 0 0 0;">
+                        <p style="font-size:0.625rem;color:#A6C0DD;margin:0.25rem 0 0 0;">
                             ${year}${movie.runtime ? ` • ${movie.runtime}min` : ''}
                         </p>
                         
                         <!-- ✅ Platform Badge -->
                         <div style="
                             display: inline-block;
-                            background: rgba(176, 212, 227, 0.2);
-                            border: 1px solid rgba(176, 212, 227, 0.3);
+                            background: rgba(166, 192, 221, 0.2);
+                            border: 1px solid rgba(166, 192, 221, 0.3);
                             padding: 2px 5px;
                             border-radius: 3px;
                             font-size: 0.55rem;
-                            color: #b0d4e3;
+                            color: #A6C0DD;
                             font-weight: 600;
                             margin-top: 0.25rem;
                         ">
@@ -780,7 +786,7 @@ export class LibraryTab {
         const loadMoreBtn = this.container.querySelector('#load-more-btn');
         if (loadMoreBtn) {
             loadMoreBtn.addEventListener('click', () => {
-                this.loadMovies(this.currentPage + 1).then(() => this.renderContent());
+                this.loadMovies(this.currentPage + 1).then(() => this.updateMoviesGrid());
             });
         }
 
@@ -804,14 +810,6 @@ export class LibraryTab {
         this.container.querySelectorAll('.platform-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 this.currentPlatform = btn.dataset.platform;
-                this.updateMoviesGrid();
-                this.toggleFilterModal(false);
-            });
-        });
-
-        this.container.querySelectorAll('.rating-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                this.currentRating = btn.dataset.rating;
                 this.updateMoviesGrid();
                 this.toggleFilterModal(false);
             });
