@@ -4,6 +4,7 @@
  * ✅ FIXED: Proper genre filtering with cinema exclusion
  * ✅ FIXED: 20 movies per row
  * ✅ FIXED: No duplicate movies across sections
+ * ✅ FIXED: Null check for movie.genres to prevent crashes
  */
 
 import { tmdbService } from '../services/tmdb.js';
@@ -253,11 +254,13 @@ export class HomeTab {
 
     /**
      * Get recommended movies based on user's likes/loves
+     * ✅ FIXED: Added null checks for movie.genres
      */
     getRecommendedMovies(streamingMovies, swipeHistory) {
         const likedMovies = swipeHistory
             .filter(s => s.action === 'like' || s.action === 'love')
-            .map(s => s.movie);
+            .map(s => s.movie)
+            .filter(m => m && m.id); // ✅ CRITICAL FIX: Filter out null/undefined movies
 
         if (likedMovies.length === 0) {
             return streamingMovies
@@ -268,11 +271,16 @@ export class HomeTab {
         // Extract favorite genres
         const genreCounts = {};
         likedMovies.forEach(movie => {
+            // ✅ CRITICAL FIX: Check if genres exists and is an array before accessing
             const genres = movie.genres || movie.genre_ids || [];
-            genres.forEach(genre => {
-                const genreId = typeof genre === 'object' ? genre.id : genre;
-                genreCounts[genreId] = (genreCounts[genreId] || 0) + 1;
-            });
+            if (Array.isArray(genres)) {
+                genres.forEach(genre => {
+                    const genreId = typeof genre === 'object' ? genre.id : genre;
+                    if (genreId) { // ✅ Extra safety check
+                        genreCounts[genreId] = (genreCounts[genreId] || 0) + 1;
+                    }
+                });
+            }
         });
 
         const topGenres = Object.entries(genreCounts)
