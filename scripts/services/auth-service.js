@@ -6,6 +6,8 @@
  * ✅ FIXED: Switched to POPUP method for better reliability
  * ✅ FIXED: Popup error handling and duplicate click prevention
  * ✅ FIXED: Force page reload after successful authentication
+ * ✅ FIXED: Load swipe history FROM Firestore on login
+ * ✅ FIXED: Keep full movie object in sync for Library compatibility
  */
 
 // ---------------------------------------------------------------------
@@ -537,11 +539,22 @@ class AuthService {
             
             if (docSnapshot.exists()) {
                 const data = docSnapshot.data();
+                
+                // ✅ CRITICAL FIX: Load swipe history from Firestore
+                const firestoreSwipeHistory = data.swipeHistory || [];
+                
+                console.log(`[Auth] Loaded ${firestoreSwipeHistory.length} swipes from Firestore`);
+                
                 store.setState({
-                    swipeHistory: data.swipeHistory || [],
+                    swipeHistory: firestoreSwipeHistory,
                     friends: data.friends || [],
                     groups: data.groups || []
                 });
+                
+                // ✅ Also save to localStorage for offline access
+                if (firestoreSwipeHistory.length > 0) {
+                    localStorage.setItem('moviEaseSwipeHistory', JSON.stringify(firestoreSwipeHistory));
+                }
 
                 if (data.preferences) {
                     localStorage.setItem('moviePickerPreferences', JSON.stringify(data.preferences));
@@ -558,11 +571,20 @@ class AuthService {
         const unsub = onSnapshot(userRef, (docSnapshot) => {
             if (docSnapshot.exists()) {
                 const data = docSnapshot.data();
+                
+                // ✅ CRITICAL FIX: Update swipe history from Firestore
+                const firestoreSwipeHistory = data.swipeHistory || [];
+                
                 store.setState({
-                    swipeHistory: data.swipeHistory || [],
+                    swipeHistory: firestoreSwipeHistory,
                     friends: data.friends || [],
                     groups: data.groups || []
                 });
+                
+                // ✅ Also save to localStorage
+                if (firestoreSwipeHistory.length > 0) {
+                    localStorage.setItem('moviEaseSwipeHistory', JSON.stringify(firestoreSwipeHistory));
+                }
 
                 if (data.preferences) {
                     localStorage.setItem('moviePickerPreferences', JSON.stringify(data.preferences));
@@ -583,8 +605,16 @@ class AuthService {
                     movieId: e.movie.id,
                     title: e.movie.title,
                     poster: e.movie.posterURL || e.movie.poster_path || '',
+                    releaseDate: e.movie.releaseDate || e.movie.release_date || '',
+                    rating: e.movie.rating || e.movie.vote_average || 0,
+                    overview: e.movie.overview || '',
+                    genres: e.movie.genres || e.movie.genre_ids || [],
+                    availableOn: e.movie.availableOn || [],
+                    platform: e.movie.platform || '',
                     action: e.action,
-                    timestamp: e.timestamp || Date.now()
+                    timestamp: e.timestamp || Date.now(),
+                    // ✅ CRITICAL: Keep full movie object for Library
+                    movie: e.movie
                 }));
 
             if (cleanHistory.length === 0) return;
