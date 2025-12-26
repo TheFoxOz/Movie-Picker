@@ -2,7 +2,7 @@
  * MoviEase - Swipe Tab Component
  * ✅ FIXED: Removed duplicate scrolling wrapper
  * ✅ FIXED: Syncs swipe history to Firestore after each swipe
- * ✅ FIXED: Properly filters out already-swiped movies on load
+ * ✅ FIXED: Properly filters out already-swiped movies with Number comparison
  * ✅ Shows first card immediately with placeholder data
  * ✅ Enriches platform data in background
  * ✅ Filters out cinema-only movies
@@ -213,7 +213,6 @@ export class SwipeTab {
                 throw new Error("TMDB service not initialized");
             }
 
-            // ✅ NEW: Load from Discover API with pagination
             console.log(`[SwipeTab] Loading Discover page ${this.currentPage}...`);
 
             const response = await tmdb.discoverMovies({
@@ -234,7 +233,7 @@ export class SwipeTab {
                 this.currentPage++;
             }
 
-            // ✅ CRITICAL FIX: Filter out already swiped movies
+            // ✅ CRITICAL FIX: Filter out already swiped movies with Number comparison
             const state = store.getState();
             const swipeHistory = state.swipeHistory || [];
             
@@ -242,29 +241,32 @@ export class SwipeTab {
             const swipedMovieIds = new Set();
             swipeHistory.forEach(swipe => {
                 // ✅ CRITICAL: Check both swipe.movieId and swipe.movie.id
+                // Convert to Number for consistent comparison
                 if (swipe.movieId) {
-                    swipedMovieIds.add(String(swipe.movieId));
+                    swipedMovieIds.add(Number(swipe.movieId));
                 }
                 if (swipe.movie && swipe.movie.id) {
-                    swipedMovieIds.add(String(swipe.movie.id));
+                    swipedMovieIds.add(Number(swipe.movie.id));
                 }
             });
 
-            console.log(`[SwipeTab] Filtering out ${swipedMovieIds.size} already-swiped movies`);
+            console.log(`[SwipeTab] Filtering out ${swipedMovieIds.size} already-swiped movies:`, Array.from(swipedMovieIds));
 
             // Filter out swiped movies
+            const moviesBeforeFilter = movies.length;
             movies = movies.filter(movie => {
                 if (!movie || !movie.id) {
                     return false;
                 }
-                const isAlreadySwiped = swipedMovieIds.has(String(movie.id));
+                // ✅ CRITICAL: Compare as Numbers
+                const isAlreadySwiped = swipedMovieIds.has(Number(movie.id));
                 if (isAlreadySwiped) {
-                    console.log(`[SwipeTab] Skipping already-swiped movie: ${movie.title} (ID: ${movie.id})`);
+                    console.log(`[SwipeTab] ✅ FILTERED OUT already-swiped movie: "${movie.title}" (ID: ${movie.id})`);
                 }
                 return !isAlreadySwiped;
             });
 
-            console.log(`[SwipeTab] After filtering: ${movies.length} new movies`);
+            console.log(`[SwipeTab] Filtered: ${moviesBeforeFilter} → ${movies.length} movies (removed ${moviesBeforeFilter - movies.length})`);
 
             // Add to queue with placeholder data
             const newMovies = movies.map(m => ({
