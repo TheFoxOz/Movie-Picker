@@ -2,6 +2,7 @@
  * MoviEase - Swipe Tab Component
  * ✅ FIXED: Removed duplicate scrolling wrapper
  * ✅ FIXED: Syncs swipe history to Firestore after each swipe
+ * ✅ FIXED: Properly filters out already-swiped movies on load
  * ✅ Shows first card immediately with placeholder data
  * ✅ Enriches platform data in background
  * ✅ Filters out cinema-only movies
@@ -233,23 +234,37 @@ export class SwipeTab {
                 this.currentPage++;
             }
 
-            // Filter out already swiped movies
+            // ✅ CRITICAL FIX: Filter out already swiped movies
             const state = store.getState();
             const swipeHistory = state.swipeHistory || [];
             
+            // Create a Set of swiped movie IDs for efficient lookup
             const swipedMovieIds = new Set();
             swipeHistory.forEach(swipe => {
-                if (swipe && swipe.movie && swipe.movie.id) {
+                // ✅ CRITICAL: Check both swipe.movieId and swipe.movie.id
+                if (swipe.movieId) {
+                    swipedMovieIds.add(String(swipe.movieId));
+                }
+                if (swipe.movie && swipe.movie.id) {
                     swipedMovieIds.add(String(swipe.movie.id));
                 }
             });
 
+            console.log(`[SwipeTab] Filtering out ${swipedMovieIds.size} already-swiped movies`);
+
+            // Filter out swiped movies
             movies = movies.filter(movie => {
                 if (!movie || !movie.id) {
                     return false;
                 }
-                return !swipedMovieIds.has(String(movie.id));
+                const isAlreadySwiped = swipedMovieIds.has(String(movie.id));
+                if (isAlreadySwiped) {
+                    console.log(`[SwipeTab] Skipping already-swiped movie: ${movie.title} (ID: ${movie.id})`);
+                }
+                return !isAlreadySwiped;
             });
+
+            console.log(`[SwipeTab] After filtering: ${movies.length} new movies`);
 
             // Add to queue with placeholder data
             const newMovies = movies.map(m => ({
