@@ -11,6 +11,7 @@
  * ✅ CRITICAL FIX #1: Real-time listener re-attached on every login
  * ✅ CRITICAL FIX #2: Sync swipe history BEFORE logout
  * ✅ CRITICAL FIX #3: Strong localStorage fallback when Firestore fails
+ * ✅ CRITICAL FIX #4: Remove undefined fields before Firestore sync
  */
 
 // ---------------------------------------------------------------------
@@ -634,39 +635,88 @@ class AuthService {
         console.log('[Auth] ✅ Real-time listener attached');
     }
 
-    // === SAFE SWIPE HISTORY SYNC ===
+    // ✅ CRITICAL FIX #4: Remove undefined fields before Firestore sync
     async syncSwipeHistory(swipeHistory) {
-        if (!this.currentUser) return;
+        if (!this.currentUser) {
+            console.log('[Auth] No current user, skipping sync');
+            return;
+        }
 
         try {
             const cleanHistory = swipeHistory
                 .filter(e => e?.movie?.id && e?.movie?.title)
-                .map(e => ({
-                    movieId: e.movie.id,
-                    title: e.movie.title,
-                    poster: e.movie.posterURL || e.movie.poster_path || '',
-                    releaseDate: e.movie.releaseDate || e.movie.release_date || '',
-                    rating: e.movie.rating || e.movie.vote_average || 0,
-                    overview: e.movie.overview || '',
-                    genres: e.movie.genres || e.movie.genre_ids || [],
-                    availableOn: e.movie.availableOn || [],
-                    platform: e.movie.platform || '',
-                    action: e.action,
-                    timestamp: e.timestamp || Date.now(),
-                    // ✅ CRITICAL: Keep full movie object for Library
-                    movie: e.movie
-                }));
+                .map(e => {
+                    // ✅ CRITICAL FIX #4: Create clean movie object without undefined fields
+                    const cleanMovie = {};
+                    
+                    // Only add fields that are not undefined
+                    if (e.movie.id !== undefined) cleanMovie.id = e.movie.id;
+                    if (e.movie.title !== undefined) cleanMovie.title = e.movie.title;
+                    if (e.movie.posterURL !== undefined) cleanMovie.posterURL = e.movie.posterURL;
+                    if (e.movie.poster_path !== undefined) cleanMovie.poster_path = e.movie.poster_path;
+                    if (e.movie.releaseDate !== undefined) cleanMovie.releaseDate = e.movie.releaseDate;
+                    if (e.movie.release_date !== undefined) cleanMovie.release_date = e.movie.release_date;
+                    if (e.movie.rating !== undefined) cleanMovie.rating = e.movie.rating;
+                    if (e.movie.vote_average !== undefined) cleanMovie.vote_average = e.movie.vote_average;
+                    if (e.movie.overview !== undefined) cleanMovie.overview = e.movie.overview;
+                    if (e.movie.genres !== undefined) cleanMovie.genres = e.movie.genres;
+                    if (e.movie.genre_ids !== undefined) cleanMovie.genre_ids = e.movie.genre_ids;
+                    if (e.movie.availableOn !== undefined) cleanMovie.availableOn = e.movie.availableOn;
+                    if (e.movie.platform !== undefined) cleanMovie.platform = e.movie.platform;
+                    
+                    // Provide defaults for missing critical fields
+                    if (!cleanMovie.posterURL && !cleanMovie.poster_path) {
+                        cleanMovie.posterURL = '';
+                    }
+                    if (!cleanMovie.releaseDate && !cleanMovie.release_date) {
+                        cleanMovie.releaseDate = '';
+                    }
+                    if (!cleanMovie.rating && !cleanMovie.vote_average) {
+                        cleanMovie.rating = 0;
+                    }
+                    if (!cleanMovie.overview) {
+                        cleanMovie.overview = '';
+                    }
+                    if (!cleanMovie.genres && !cleanMovie.genre_ids) {
+                        cleanMovie.genres = [];
+                    }
+                    if (!cleanMovie.availableOn) {
+                        cleanMovie.availableOn = [];
+                    }
+                    if (!cleanMovie.platform) {
+                        cleanMovie.platform = 'Unknown';
+                    }
 
-            if (cleanHistory.length === 0) return;
+                    return {
+                        movieId: e.movie.id,
+                        title: e.movie.title,
+                        poster: cleanMovie.posterURL || cleanMovie.poster_path || '',
+                        releaseDate: cleanMovie.releaseDate || cleanMovie.release_date || '',
+                        rating: cleanMovie.rating || cleanMovie.vote_average || 0,
+                        overview: cleanMovie.overview || '',
+                        genres: cleanMovie.genres || cleanMovie.genre_ids || [],
+                        availableOn: cleanMovie.availableOn || [],
+                        platform: cleanMovie.platform || 'Unknown',
+                        action: e.action,
+                        timestamp: e.timestamp || Date.now(),
+                        movie: cleanMovie  // ✅ Use cleaned movie object
+                    };
+                });
+
+            if (cleanHistory.length === 0) {
+                console.log('[Auth] No valid swipes to sync');
+                return;
+            }
 
             const userRef = doc(db, 'users', this.currentUser.uid);
             await updateDoc(userRef, {
                 swipeHistory: cleanHistory
             });
 
-            console.log('[Auth] Synced', cleanHistory.length, 'swipes');
+            console.log('[Auth] ✅ Synced', cleanHistory.length, 'swipes');
         } catch (error) {
-            console.warn('[Auth] Sync failed (offline?)', error.message);
+            console.error('[Auth] Sync failed:', error);
+            console.error('[Auth] Error details:', error.message);
         }
     }
 
