@@ -8,6 +8,9 @@
  * ✅ FIXED: Force page reload after successful authentication
  * ✅ FIXED: Load swipe history FROM Firestore on login
  * ✅ FIXED: Keep full movie object in sync for Library compatibility
+ * ✅ CRITICAL FIX #1: Real-time listener re-attached on every login
+ * ✅ CRITICAL FIX #2: Sync swipe history BEFORE logout
+ * ✅ CRITICAL FIX #3: Strong localStorage fallback when Firestore fails
  */
 
 // ---------------------------------------------------------------------
@@ -84,71 +87,52 @@ class AuthService {
         this.setupAuthListener();
     }
 
+    // ✅ CRITICAL FIX #1: Real-time listener re-attached on EVERY login
     setupAuthListener() {
-        auth.onAuthStateChanged(async (user) => {
-            console.log('[Auth] Auth state changed:', user ? (user.email || 'anonymous') : 'signed out');
-            
+        return auth.onAuthStateChanged(async (user) => {
             if (user) {
                 this.currentUser = user;
                 console.log('[Auth] User signed in:', user.email || 'anonymous');
 
+                // Migrate old localStorage preferences
                 this.migrateAndSyncPreferences();
-                
-                // Load user data
-                this.loadUserData(user.uid).catch(err =>
-                    console.warn('[Auth] Load user data failed (offline?)', err.message)
-                );
 
+                // ✅ CRITICAL FIX #1: Load user data from Firestore
+                await this.loadUserData(user.uid);
+                
+                // ✅ CRITICAL FIX #1: Re-attach real-time listeners on EVERY login
                 this.setupRealtimeListeners(user.uid);
 
+                // Navigate if on auth pages
+                const hash = window.location.hash;
+                if (hash === '#login' || hash === '#signup' || hash === '' || hash === '#') {
+                    console.log('[Auth] User already on page:', hash);
+                } else {
+                    window.location.hash = hash;
+                }
+
+                document.dispatchEvent(new CustomEvent('auth-state-changed', {
+                    detail: { user }
+                }));
+
+            } else {
+                console.log('[Auth] User signed out');
+                
+                // ✅ Clean up listeners on logout
+                this.cleanup();
+                
+                this.currentUser = null;
                 store.setState({
-                    userId: user.uid,
-                    userEmail: user.email,
-                    userName: user.displayName || user.email?.split('@')[0] || 'User',
-                    isAuthenticated: true
+                    swipeHistory: [],
+                    friends: [],
+                    groups: []
                 });
 
-                // ✅ Only auto-redirect if NOT in the middle of processing auth
-                if (this.redirectResultChecked && !this.isProcessingAuth) {
-                    const currentHash = window.location.hash;
-                    
-                    // ✅ Don't redirect if already on a valid page
-                    if (!currentHash || currentHash === '#' || currentHash === '#login') {
-                        console.log('[Auth] User signed in, checking navigation...');
-                        await this.handleAuthRedirect(user);
-                    } else {
-                        console.log('[Auth] User already on page:', currentHash);
-                    }
-                } else if (this.isProcessingAuth) {
-                    console.log('[Auth] Auth already handled, skipping auto-navigation');
-                } else {
-                    console.log('[Auth] Waiting for auth check to complete...');
-                }
-            } else {
-                // ✅ Only process signout if we've already checked for redirect
-                if (this.redirectResultChecked) {
-                    this.currentUser = null;
-                    this.cleanup();
-
-                    store.setState({
-                        userId: null,
-                        userEmail: null,
-                        userName: null,
-                        isAuthenticated: false,
-                        friends: [],
-                        groups: []
-                    });
-                    console.log('[Auth] User signed out');
-
-                    // Redirect to login only if not already there
-                    const currentHash = window.location.hash;
-                    if (currentHash && currentHash !== '#login' && currentHash !== '#') {
-                        console.log('[Auth] Redirecting to login...');
-                        window.location.hash = '#login';
-                    }
-                } else {
-                    console.log('[Auth] No user, but auth check not complete yet...');
-                }
+                localStorage.removeItem('moviEaseSwipeHistory');
+                
+                document.dispatchEvent(new CustomEvent('auth-state-changed', {
+                    detail: { user: null }
+                }));
             }
         });
     }
@@ -520,38 +504,51 @@ class AuthService {
         }
     }
 
-    // === SIGN OUT ===
+    // ✅ CRITICAL FIX #2: Sync swipe history BEFORE logout
     async signOut() {
         try {
+            // ✅ CRITICAL FIX #2: Sync swipe history BEFORE logout
+            if (this.currentUser) {
+                const state = store.getState();
+                const swipeHistory = state.swipeHistory || [];
+                
+                if (swipeHistory.length > 0) {
+                    console.log('[Auth] Syncing swipe history before logout...');
+                    await this.syncSwipeHistory(swipeHistory);
+                    console.log('[Auth] ✅ Final sync complete');
+                }
+            }
+            
             await signOut(auth);
-            notify.success('Signed out');
+            notify.success('Signed out successfully');
             window.location.hash = '#login';
         } catch (error) {
-            notify.error('Sign out failed');
+            console.error('[Auth] Sign out error:', error);
+            notify.error('Failed to sign out');
         }
     }
 
-    // === LOAD USER DATA ===
+    // ✅ CRITICAL FIX #3: Strong localStorage fallback when Firestore fails
     async loadUserData(uid) {
         try {
             const userRef = doc(db, 'users', uid);
             const docSnapshot = await getDoc(userRef);
             
+            let firestoreSwipeHistory = [];
+            
             if (docSnapshot.exists()) {
                 const data = docSnapshot.data();
+                firestoreSwipeHistory = data.swipeHistory || [];
                 
-                // ✅ CRITICAL FIX: Load swipe history from Firestore
-                const firestoreSwipeHistory = data.swipeHistory || [];
+                store.setState({
+                    swipeHistory: firestoreSwipeHistory,
+                    friends: data.friends || [],
+                    groups: data.groups || []
+                });
                 
                 console.log(`[Auth] Loaded ${firestoreSwipeHistory.length} swipes from Firestore`);
                 
-                store.setState({
-                    swipeHistory: firestoreSwipeHistory,
-                    friends: data.friends || [],
-                    groups: data.groups || []
-                });
-                
-                // ✅ Also save to localStorage for offline access
+                // Save to localStorage as backup
                 if (firestoreSwipeHistory.length > 0) {
                     localStorage.setItem('moviEaseSwipeHistory', JSON.stringify(firestoreSwipeHistory));
                 }
@@ -559,21 +556,60 @@ class AuthService {
                 if (data.preferences) {
                     localStorage.setItem('moviePickerPreferences', JSON.stringify(data.preferences));
                 }
+            } else {
+                // ✅ CRITICAL FIX #3: Fallback to localStorage if Firestore empty
+                console.log('[Auth] No Firestore data found, checking localStorage...');
+                const localHistory = localStorage.getItem('moviEaseSwipeHistory');
+                
+                if (localHistory) {
+                    try {
+                        firestoreSwipeHistory = JSON.parse(localHistory);
+                        store.setState({ swipeHistory: firestoreSwipeHistory });
+                        console.log(`[Auth] ✅ Loaded ${firestoreSwipeHistory.length} swipes from localStorage fallback`);
+                        
+                        // Sync to Firestore
+                        await this.syncSwipeHistory(firestoreSwipeHistory);
+                    } catch (e) {
+                        console.error('[Auth] Failed to parse localStorage:', e);
+                    }
+                }
             }
+            
         } catch (error) {
-            console.warn('[Auth] Load user data failed (offline?)', error.message);
+            console.error('[Auth] Error loading user data:', error);
+            
+            // ✅ CRITICAL FIX #3: Emergency fallback to localStorage on any error
+            console.log('[Auth] Firestore failed, using localStorage emergency fallback...');
+            const localHistory = localStorage.getItem('moviEaseSwipeHistory');
+            
+            if (localHistory) {
+                try {
+                    const swipeHistory = JSON.parse(localHistory);
+                    store.setState({ swipeHistory });
+                    console.log(`[Auth] ✅ Emergency loaded ${swipeHistory.length} swipes from localStorage`);
+                } catch (e) {
+                    console.error('[Auth] Emergency fallback also failed:', e);
+                    store.setState({ swipeHistory: [] });
+                }
+            } else {
+                console.log('[Auth] No localStorage backup available');
+                store.setState({ swipeHistory: [] });
+            }
         }
     }
 
-    // === REALTIME LISTENERS ===
+    // ✅ CRITICAL FIX #1: Enhanced real-time listeners with better logging
     setupRealtimeListeners(uid) {
+        console.log('[Auth] Setting up real-time listeners for user:', uid);
+        
         const userRef = doc(db, 'users', uid);
+        
         const unsub = onSnapshot(userRef, (docSnapshot) => {
             if (docSnapshot.exists()) {
                 const data = docSnapshot.data();
-                
-                // ✅ CRITICAL FIX: Update swipe history from Firestore
                 const firestoreSwipeHistory = data.swipeHistory || [];
+                
+                console.log(`[Auth] Real-time update: ${firestoreSwipeHistory.length} swipes`);
                 
                 store.setState({
                     swipeHistory: firestoreSwipeHistory,
@@ -581,7 +617,7 @@ class AuthService {
                     groups: data.groups || []
                 });
                 
-                // ✅ Also save to localStorage
+                // Keep localStorage in sync
                 if (firestoreSwipeHistory.length > 0) {
                     localStorage.setItem('moviEaseSwipeHistory', JSON.stringify(firestoreSwipeHistory));
                 }
@@ -590,8 +626,12 @@ class AuthService {
                     localStorage.setItem('moviePickerPreferences', JSON.stringify(data.preferences));
                 }
             }
-        }, err => console.warn('[Auth] Realtime update failed', err.message));
+        }, (error) => {
+            console.error('[Auth] Real-time listener error:', error);
+        });
+        
         this.unsubscribers.push(unsub);
+        console.log('[Auth] ✅ Real-time listener attached');
     }
 
     // === SAFE SWIPE HISTORY SYNC ===
