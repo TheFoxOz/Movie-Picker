@@ -344,6 +344,33 @@ export class SwipeTab {
                 const enrichedMovie = movies.find(m => m.id === currentMovieId);
                 if (enrichedMovie && enrichedMovie.platform !== 'Loading...') {
                     this.currentCard.updatePlatform(enrichedMovie.platform, enrichedMovie.availableOn);
+                    
+                    // ✅ CRITICAL: Check if current card should be filtered after platform update
+                    const shouldFilterCurrent = !enrichedMovie.availableOn || enrichedMovie.availableOn.length === 0;
+                    
+                    if (shouldFilterCurrent) {
+                        console.log(`[SwipeTab] ⚠️ Current card "${enrichedMovie.title}" has no streaming platforms, skipping to next card`);
+                        // Destroy current card and show next one
+                        if (this.currentCard) {
+                            this.currentCard.destroy();
+                            this.currentCard = null;
+                        }
+                        setTimeout(() => this.showNextCard(), 100);
+                    } else if (tmdbService.filterByUserPlatforms) {
+                        // Check if current movie matches user platforms
+                        const testArray = [enrichedMovie];
+                        const filtered = tmdbService.filterByUserPlatforms(testArray);
+                        
+                        if (filtered.length === 0) {
+                            console.log(`[SwipeTab] ⚠️ Current card "${enrichedMovie.title}" not on user platforms, skipping to next card`);
+                            // Destroy current card and show next one
+                            if (this.currentCard) {
+                                this.currentCard.destroy();
+                                this.currentCard = null;
+                            }
+                            setTimeout(() => this.showNextCard(), 100);
+                        }
+                    }
                 }
             }
             
