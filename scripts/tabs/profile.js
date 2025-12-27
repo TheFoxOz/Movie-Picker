@@ -83,6 +83,9 @@ export class ProfileTab {
 
         console.log('[ProfileTab] Rendering profile for:', user.email);
         
+        // ✅ CRITICAL: Sync preferences to localStorage for TMDB service
+        await this.syncPreferencesToLocalStorage(user.uid, profile);
+        
         // Load friends
         await this.loadFriends(user.uid);
         
@@ -480,6 +483,21 @@ export class ProfileTab {
             }
         } catch (error) {
             console.error('[ProfileTab] Error tracking friend badge:', error);
+        }
+    }
+
+    async syncPreferencesToLocalStorage(userId, profile) {
+        try {
+            const prefs = {
+                region: profile.region || 'US',
+                platforms: profile.platforms || [],
+                blockedTriggers: profile.blockedTriggers || []
+            };
+            
+            localStorage.setItem(`userPreferences_${userId}`, JSON.stringify(prefs));
+            console.log('[ProfileTab] ✅ Synced preferences to localStorage:', prefs);
+        } catch (error) {
+            console.error('[ProfileTab] Error syncing preferences:', error);
         }
     }
 
@@ -1138,8 +1156,19 @@ export class ProfileTab {
         // Region select
         const regionSelect = document.getElementById('region-select');
         if (regionSelect) {
-            regionSelect.addEventListener('change', (e) => {
-                userProfileService.updateRegion(e.target.value);
+            regionSelect.addEventListener('change', async (e) => {
+                const region = e.target.value;
+                await userProfileService.updateRegion(region);
+                
+                // ✅ CRITICAL: Save to localStorage for TMDB service
+                const user = authService.getCurrentUser();
+                if (user) {
+                    const prefs = JSON.parse(localStorage.getItem(`userPreferences_${user.uid}`) || '{}');
+                    prefs.region = region;
+                    localStorage.setItem(`userPreferences_${user.uid}`, JSON.stringify(prefs));
+                    console.log('[ProfileTab] ✅ Region saved to localStorage:', region);
+                }
+                
                 const selectedRegion = TMDB_REGIONS.find(r => r.code === e.target.value);
                 this.showToast(`Region updated to ${selectedRegion?.name || e.target.value} ${selectedRegion?.flag || ''}`);
             });
@@ -1148,9 +1177,24 @@ export class ProfileTab {
         // Platform checkboxes
         const platformCheckboxes = document.querySelectorAll('.platform-checkbox');
         platformCheckboxes.forEach(checkbox => {
-            checkbox.addEventListener('change', (e) => {
+            checkbox.addEventListener('change', async (e) => {
                 const platformId = e.target.dataset.platform;
-                userProfileService.togglePlatform(platformId);
+                await userProfileService.togglePlatform(platformId);
+                
+                // ✅ CRITICAL: Save to localStorage for TMDB service
+                const user = authService.getCurrentUser();
+                if (user) {
+                    // Get all checked platforms
+                    const allCheckboxes = document.querySelectorAll('.platform-checkbox');
+                    const enabledPlatforms = Array.from(allCheckboxes)
+                        .filter(cb => cb.checked)
+                        .map(cb => cb.dataset.platform);
+                    
+                    const prefs = JSON.parse(localStorage.getItem(`userPreferences_${user.uid}`) || '{}');
+                    prefs.platforms = enabledPlatforms;
+                    localStorage.setItem(`userPreferences_${user.uid}`, JSON.stringify(prefs));
+                    console.log('[ProfileTab] ✅ Platforms saved to localStorage:', enabledPlatforms);
+                }
                 
                 const platform = STREAMING_PLATFORMS.find(p => p.id === platformId);
                 const isEnabled = e.target.checked;
@@ -1161,14 +1205,29 @@ export class ProfileTab {
         // Trigger warning checkboxes
         const triggerCheckboxes = document.querySelectorAll('.trigger-checkbox');
         triggerCheckboxes.forEach(checkbox => {
-            checkbox.addEventListener('change', (e) => {
+            checkbox.addEventListener('change', async (e) => {
                 const categoryId = parseInt(e.target.dataset.category);
                 const isEnabled = e.target.checked;
                 
                 if (isEnabled) {
-                    userProfileService.enableTriggerCategory(categoryId);
+                    await userProfileService.enableTriggerCategory(categoryId);
                 } else {
-                    userProfileService.disableTriggerCategory(categoryId);
+                    await userProfileService.disableTriggerCategory(categoryId);
+                }
+                
+                // ✅ CRITICAL: Save to localStorage for TMDB service
+                const user = authService.getCurrentUser();
+                if (user) {
+                    // Get all UNCHECKED (blocked) triggers
+                    const allCheckboxes = document.querySelectorAll('.trigger-checkbox');
+                    const blockedTriggers = Array.from(allCheckboxes)
+                        .filter(cb => !cb.checked)
+                        .map(cb => parseInt(cb.dataset.category));
+                    
+                    const prefs = JSON.parse(localStorage.getItem(`userPreferences_${user.uid}`) || '{}');
+                    prefs.blockedTriggers = blockedTriggers;
+                    localStorage.setItem(`userPreferences_${user.uid}`, JSON.stringify(prefs));
+                    console.log('[ProfileTab] ✅ Blocked triggers saved to localStorage:', blockedTriggers);
                 }
                 
                 const category = TRIGGER_CATEGORIES.find(c => c.id === categoryId);
