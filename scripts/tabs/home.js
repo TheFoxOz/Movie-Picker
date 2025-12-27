@@ -398,10 +398,19 @@ export class HomeTab {
         
         const triggerBadgeHTML = renderTriggerBadge(movie, { size: 'small', position: 'top-left' });
         
+        // ✅ FIXED: Use availableOn as primary source of truth
         const platform = (() => {
-            if (movie.platform && movie.platform !== 'Not Available') return movie.platform;
-            if (movie.availableOn && movie.availableOn.length > 0) return movie.availableOn[0];
+            // First priority: Check availableOn array
+            if (movie.availableOn && movie.availableOn.length > 0) {
+                return movie.availableOn[0];
+            }
             
+            // Second priority: Use platform field if it's meaningful
+            if (movie.platform && movie.platform !== 'Not Available' && movie.platform !== 'Loading...') {
+                return movie.platform;
+            }
+            
+            // Fallback: Check release date
             const releaseDate = new Date(movie.releaseDate || movie.release_date);
             const sixMonthsAgo = new Date();
             sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
