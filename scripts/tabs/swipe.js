@@ -9,12 +9,14 @@
  * ✅ COLOR FIX: Powder Blue + Vanilla Custard gradients
  * ✅ MoviEase branding and colors
  * ✅ INFINITE LOADING: Continuously loads movies from Discover API
+ * ✅ BADGE TRACKING: Tracks swipes for achievement badges
  */
 
 import { store } from "../state/store.js";
 import { SwipeCard } from "../components/swipe-card.js";
 import { tmdbService } from "../services/tmdb.js";
 import { authService } from "../services/auth-service.js";
+import { badgeService } from "../services/badge-service.js";
 import { notify } from "../utils/notifications.js";
 import { celebrate } from "../utils/confetti.js";
 
@@ -492,7 +494,7 @@ export class SwipeTab {
         }
     }
 
-    // ✅ NEW METHOD: Sync swipe history to Firestore
+    // ✅ UPDATED: Sync swipe history AND track badge progress
     async syncSwipeHistory() {
         try {
             const state = store.getState();
@@ -506,9 +508,42 @@ export class SwipeTab {
             console.log(`[SwipeTab] Syncing ${swipeHistory.length} swipes to Firestore...`);
             await authService.syncSwipeHistory(swipeHistory);
             console.log('[SwipeTab] ✅ Swipe history synced to Firestore');
+            
+            // ✅ NEW: Track badge progress
+            await this.trackBadgeProgress();
         } catch (error) {
             console.error('[SwipeTab] Failed to sync swipe history:', error);
-            // Don't show error to user - this happens in background
+        }
+    }
+
+    // ✅ NEW METHOD: Track badge progress after swipe
+    async trackBadgeProgress() {
+        try {
+            const user = authService.getCurrentUser();
+            if (!user) return;
+            
+            const state = store.getState();
+            const swipeHistory = state.swipeHistory || [];
+            const lastSwipe = swipeHistory[swipeHistory.length - 1];
+            
+            if (!lastSwipe) return;
+            
+            // Get movie object
+            const movie = lastSwipe.movie || {};
+            const genres = movie.genres || movie.genre_ids || [];
+            
+            // Track swipe for badges
+            const newBadges = await badgeService.checkBadges(user.uid, {
+                type: 'swipe',
+                action: lastSwipe.action,
+                genres: genres
+            });
+            
+            if (newBadges.length > 0) {
+                console.log('[SwipeTab] 🏆 Unlocked badges:', newBadges.map(b => b.name));
+            }
+        } catch (error) {
+            console.error('[SwipeTab] Error tracking badge progress:', error);
         }
     }
 
