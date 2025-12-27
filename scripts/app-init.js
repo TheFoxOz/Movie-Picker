@@ -12,6 +12,7 @@
  * ✅ IMPROVED AUTH WAIT: 5 seconds for Google redirect
  * ✅ Handles onboarding flow for new users
  * ✅ Manages tab navigation and rendering
+ * ✅ BADGE SYSTEM: Initializes badge tracking and notifications
  */
 
 import { onboardingFlow } from './components/onboarding-flow.js';
@@ -23,6 +24,8 @@ import { matchesTab } from './tabs/matches.js';
 import { store } from './state/store.js';
 import { authService } from './services/auth-service.js';
 import { userProfileService } from './services/user-profile-revised.js';
+import { badgeService } from './services/badge-service.js';
+import { badgeNotification } from './components/badge-notification.js';
 
 class MoviEaseApp {
     constructor() {
@@ -60,6 +63,9 @@ class MoviEaseApp {
         this.initializeUserProfile();
         await this.initializeEnhancedServices();
 
+        // ✅ NEW: Initialize Badge System
+        await this.initializeBadgeSystem(user);
+
         console.log('[MoviEase] Initializing tabs...');
         this.tabs = {
             home: new HomeTab(),
@@ -88,6 +94,24 @@ class MoviEaseApp {
         } else {
             console.log('[MoviEase] User already onboarded, showing app');
             this.showApp();
+        }
+    }
+
+    async initializeBadgeSystem(user) {
+        try {
+            console.log('[MoviEase] Initializing badge system...');
+            
+            // Initialize notification component
+            badgeNotification.init();
+            
+            // Initialize user badges if authenticated
+            if (user) {
+                await badgeService.initializeUserBadges(user.uid);
+                console.log('[MoviEase] ✅ Badge system initialized');
+            }
+        } catch (error) {
+            console.error('[MoviEase] Badge system initialization failed:', error);
+            // Non-critical - app can continue without badges
         }
     }
 
