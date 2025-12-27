@@ -1,10 +1,8 @@
 /**
  * MoviEase - Profile Tab
- * User Settings & Preferences
- * ✅ FIXED: Removed duplicate scrolling wrapper
- * ✅ COLOR FIX: Powder Blue + Vanilla Custard gradients
- * ✅ MoviEase branding and Space Indigo/Powder Blue colors
- * ✅ Ultra-compact trigger warnings layout
+ * ✅ Add Friend section
+ * ✅ Working theme toggle
+ * ✅ MoviEase branding
  */
 
 import { authService } from '../services/auth-service.js';
@@ -60,21 +58,27 @@ export class ProfileTab {
         console.log('[ProfileTab] Rendering profile for:', user.email);
         
         this.container.innerHTML = `
-            <div style="width: 100%;">
+            <div style="
+                height: 100%;
+                overflow-y: auto;
+                overflow-x: hidden;
+                -webkit-overflow-scrolling: touch;
+            ">
                 <div class="profile-container" style="padding: 1.5rem 1rem 6rem; max-width: 600px; margin: 0 auto;">
                     <!-- User Info -->
                     <div style="text-align: center; margin-bottom: 2rem;">
-                        <div style="width: 80px; height: 80px; background: linear-gradient(135deg, #b0d4e3, #f4e8c1); border-radius: 50%; margin: 0 auto 1rem; display: flex; align-items: center; justify-content: center; font-size: 2rem; color: #1a1f2e; box-shadow: 0 4px 12px rgba(176, 212, 227, 0.3);">
+                        <div style="width: 80px; height: 80px; background: linear-gradient(135deg, #A6C0DD, #8ba3b8); border-radius: 50%; margin: 0 auto 1rem; display: flex; align-items: center; justify-content: center; font-size: 2rem; color: #18183A; box-shadow: 0 4px 12px rgba(166, 192, 221, 0.3);">
                             ${user.photoURL ? `<img src="${user.photoURL}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">` : this.getInitials(user.displayName || user.email)}
                         </div>
-                        <h1 style="font-size: 1.5rem; font-weight: 700; color: white; margin-bottom: 0.5rem;">
+                        <h1 style="font-size: 1.5rem; font-weight: 700; color: #FDFAB0; margin-bottom: 0.5rem;">
                             ${user.displayName || 'MoviEase User'}
                         </h1>
-                        <p style="color: rgba(176, 212, 227, 0.6); font-size: 0.875rem;">
-                            ${user.email || 'null'}
+                        <p style="color: #A6C0DD; font-size: 0.875rem;">
+                            ${user.email || ''}
                         </p>
                     </div>
 
+                    ${this.renderAddFriendSection()}
                     ${this.renderThemeSection()}
                     ${this.renderRegionSection(profile)}
                     ${this.renderPlatformsSection(profile)}
@@ -88,17 +92,53 @@ export class ProfileTab {
         this.injectToggleStyles();
     }
 
+    renderAddFriendSection() {
+        return `
+            <div class="settings-section" style="background: linear-gradient(135deg, rgba(166, 192, 221, 0.2), rgba(139, 163, 184, 0.2)); border: 1px solid rgba(166, 192, 221, 0.3); border-radius: 1rem; padding: 1.5rem; margin-bottom: 1.5rem;">
+                <h2 style="font-size: 1.125rem; font-weight: 700; color: #FDFAB0; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                    👥 Friends
+                </h2>
+                <p style="color: #A6C0DD; font-size: 0.875rem; margin-bottom: 1rem;">
+                    Share your movie discoveries with friends
+                </p>
+                
+                <button id="add-friend-btn" style="
+                    width: 100%;
+                    padding: 1rem;
+                    background: linear-gradient(135deg, #A6C0DD, #8ba3b8);
+                    border: none;
+                    border-radius: 0.75rem;
+                    color: #18183A;
+                    font-weight: 700;
+                    font-size: 0.9375rem;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                    box-shadow: 0 4px 12px rgba(166, 192, 221, 0.3);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 0.5rem;
+                " onmouseover="this.style.transform='scale(1.02)'; this.style.boxShadow='0 6px 16px rgba(166, 192, 221, 0.4)'" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 4px 12px rgba(166, 192, 221, 0.3)'">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width:20px;height:20px;">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zM4 19.235v-.11a6.375 6.375 0 0112.75 0v.109A12.318 12.318 0 0110.374 21c-2.331 0-4.512-.645-6.374-1.766z" />
+                    </svg>
+                    Add Friend
+                </button>
+            </div>
+        `;
+    }
+
     renderThemeSection() {
         const isDark = this.currentTheme === 'dark';
         
         return `
-            <div class="settings-section" style="background: linear-gradient(135deg, rgba(176, 212, 227, 0.1), rgba(244, 232, 193, 0.1)); border: 1px solid rgba(176, 212, 227, 0.2); border-radius: 1rem; padding: 1.5rem; margin-bottom: 1.5rem;">
+            <div class="settings-section" style="background: linear-gradient(135deg, rgba(166, 192, 221, 0.2), rgba(139, 163, 184, 0.2)); border: 1px solid rgba(166, 192, 221, 0.3); border-radius: 1rem; padding: 1.5rem; margin-bottom: 1.5rem;">
                 <div style="display: flex; align-items: center; justify-content: space-between;">
                     <div>
-                        <h2 style="font-size: 1.125rem; font-weight: 700; color: white; margin: 0 0 0.25rem 0; display: flex; align-items: center; gap: 0.5rem;">
+                        <h2 style="font-size: 1.125rem; font-weight: 700; color: #FDFAB0; margin: 0 0 0.25rem 0; display: flex; align-items: center; gap: 0.5rem;">
                             ${isDark ? '🌙' : '☀️'} Theme
                         </h2>
-                        <p style="color: rgba(176, 212, 227, 0.6); font-size: 0.875rem; margin: 0;">
+                        <p style="color: #A6C0DD; font-size: 0.875rem; margin: 0;">
                             ${isDark ? 'Dark Mode' : 'Light Mode'}
                         </p>
                     </div>
@@ -113,17 +153,17 @@ export class ProfileTab {
 
     renderRegionSection(profile) {
         const regionsHTML = TMDB_REGIONS.map(region => 
-            `<option value="${region.code}" ${profile.region === region.code ? 'selected' : ''} style="background: #1a1f2e; color: white;">
+            `<option value="${region.code}" ${profile.region === region.code ? 'selected' : ''} style="background: #18183A; color: #FDFAB0;">
                 ${region.flag} ${region.name}
             </option>`
         ).join('');
 
         return `
-            <div class="settings-section" style="background: linear-gradient(135deg, rgba(176, 212, 227, 0.1), rgba(244, 232, 193, 0.1)); border: 1px solid rgba(176, 212, 227, 0.2); border-radius: 1rem; padding: 1.5rem; margin-bottom: 1.5rem;">
-                <h2 style="font-size: 1.125rem; font-weight: 700; color: white; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+            <div class="settings-section" style="background: linear-gradient(135deg, rgba(166, 192, 221, 0.2), rgba(139, 163, 184, 0.2)); border: 1px solid rgba(166, 192, 221, 0.3); border-radius: 1rem; padding: 1.5rem; margin-bottom: 1.5rem;">
+                <h2 style="font-size: 1.125rem; font-weight: 700; color: #FDFAB0; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
                     🌍 Region
                 </h2>
-                <p style="color: rgba(176, 212, 227, 0.6); font-size: 0.875rem; margin-bottom: 1rem;">
+                <p style="color: #A6C0DD; font-size: 0.875rem; margin-bottom: 1rem;">
                     Affects movie availability and streaming options
                 </p>
                 <select 
@@ -131,10 +171,10 @@ export class ProfileTab {
                     style="
                         width: 100%;
                         padding: 0.875rem;
-                        background: rgba(176, 212, 227, 0.1);
-                        border: 1px solid rgba(176, 212, 227, 0.3);
+                        background: rgba(166, 192, 221, 0.2);
+                        border: 1px solid rgba(166, 192, 221, 0.3);
                         border-radius: 0.75rem;
-                        color: white;
+                        color: #FDFAB0;
                         font-size: 0.9375rem;
                         font-weight: 600;
                         cursor: pointer;
@@ -156,13 +196,13 @@ export class ProfileTab {
                     align-items: center;
                     justify-content: space-between;
                     padding: 0.75rem 1rem;
-                    background: rgba(176, 212, 227, 0.1);
-                    border: 1px solid rgba(176, 212, 227, 0.2);
+                    background: rgba(166, 192, 221, 0.15);
+                    border: 1px solid rgba(166, 192, 221, 0.2);
                     border-radius: 0.75rem;
                     cursor: pointer;
                     transition: all 0.2s;
                 ">
-                    <span style="color: white; font-weight: 600; font-size: 0.875rem;">
+                    <span style="color: #FDFAB0; font-weight: 600; font-size: 0.875rem;">
                         ${platform.name}
                     </span>
                     <label class="toggle-switch" onclick="event.stopPropagation()">
@@ -174,11 +214,11 @@ export class ProfileTab {
         }).join('');
 
         return `
-            <div class="settings-section" style="background: linear-gradient(135deg, rgba(176, 212, 227, 0.1), rgba(244, 232, 193, 0.1)); border: 1px solid rgba(176, 212, 227, 0.2); border-radius: 1rem; padding: 1.5rem; margin-bottom: 1.5rem;">
-                <h2 style="font-size: 1.125rem; font-weight: 700; color: white; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+            <div class="settings-section" style="background: linear-gradient(135deg, rgba(166, 192, 221, 0.2), rgba(139, 163, 184, 0.2)); border: 1px solid rgba(166, 192, 221, 0.3); border-radius: 1rem; padding: 1.5rem; margin-bottom: 1.5rem;">
+                <h2 style="font-size: 1.125rem; font-weight: 700; color: #FDFAB0; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
                     📺 Streaming Platforms
                 </h2>
-                <p style="color: rgba(176, 212, 227, 0.6); font-size: 0.875rem; margin-bottom: 1rem;">
+                <p style="color: #A6C0DD; font-size: 0.875rem; margin-bottom: 1rem;">
                     Your active subscriptions (${profile.selectedPlatforms.length} selected)
                 </p>
                 <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem;">
@@ -197,8 +237,8 @@ export class ProfileTab {
                     align-items: center;
                     justify-content: space-between;
                     padding: 0.5rem 0.625rem;
-                    background: rgba(176, 212, 227, 0.1);
-                    border: 1px solid rgba(176, 212, 227, 0.2);
+                    background: rgba(166, 192, 221, 0.15);
+                    border: 1px solid rgba(166, 192, 221, 0.2);
                     border-radius: 0.5rem;
                     cursor: pointer;
                     transition: all 0.2s;
@@ -215,7 +255,7 @@ export class ProfileTab {
                     ">
                         <div style="
                             font-weight: 600;
-                            color: white;
+                            color: #FDFAB0;
                             font-size: 0.6875rem;
                             white-space: nowrap;
                             overflow: hidden;
@@ -225,7 +265,7 @@ export class ProfileTab {
                             ${category.name}
                         </div>
                         <div style="
-                            color: rgba(176, 212, 227, 0.5);
+                            color: #A6C0DD;
                             font-size: 0.5625rem;
                             white-space: nowrap;
                             overflow: hidden;
@@ -245,18 +285,19 @@ export class ProfileTab {
         }).join('');
 
         return `
-            <div class="settings-section" style="background: linear-gradient(135deg, rgba(176, 212, 227, 0.1), rgba(244, 232, 193, 0.1)); border: 1px solid rgba(176, 212, 227, 0.2); border-radius: 1rem; padding: 1.5rem; margin-bottom: 1.5rem;">
-                <h2 style="font-size: 1.125rem; font-weight: 700; color: white; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+            <div class="settings-section" style="background: linear-gradient(135deg, rgba(166, 192, 221, 0.2), rgba(139, 163, 184, 0.2)); border: 1px solid rgba(166, 192, 221, 0.3); border-radius: 1rem; padding: 1.5rem; margin-bottom: 1.5rem;">
+                <h2 style="font-size: 1.125rem; font-weight: 700; color: #FDFAB0; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
                     ⚠️ Trigger Warnings
                 </h2>
-                <p style="color: rgba(176, 212, 227, 0.6); font-size: 0.875rem; margin-bottom: 1rem;">
+                <p style="color: #A6C0DD; font-size: 0.875rem; margin-bottom: 1rem;">
                     Filter content by warnings (${profile.triggerWarnings.enabledCategories.length} active)
                 </p>
                 
-                <div style="margin-bottom: 0.875rem; padding: 0.625rem 0.75rem; background: rgba(176, 212, 227, 0.1); border: 1px solid rgba(176, 212, 227, 0.2); border-radius: 0.625rem; display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;">
+                <!-- Show All Toggle -->
+                <div style="margin-bottom: 0.875rem; padding: 0.625rem 0.75rem; background: rgba(166, 192, 221, 0.15); border: 1px solid rgba(166, 192, 221, 0.2); border-radius: 0.625rem; display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;">
                     <div style="flex: 1; min-width: 0;">
-                        <div style="color: white; font-weight: 600; font-size: 0.8125rem;">Show All Warnings</div>
-                        <div style="color: rgba(176, 212, 227, 0.5); font-size: 0.6875rem;">Display regardless of selection</div>
+                        <div style="color: #FDFAB0; font-weight: 600; font-size: 0.8125rem;">Show All Warnings</div>
+                        <div style="color: #A6C0DD; font-size: 0.6875rem;">Display regardless of selection</div>
                     </div>
                     <label class="toggle-switch" style="flex-shrink: 0;">
                         <input type="checkbox" id="show-all-warnings" ${profile.triggerWarnings.showAllWarnings ? 'checked' : ''}>
@@ -264,6 +305,7 @@ export class ProfileTab {
                     </label>
                 </div>
 
+                <!-- Categories Grid -->
                 <div style="
                     display: grid;
                     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -278,24 +320,24 @@ export class ProfileTab {
 
     renderAccountSection() {
         return `
-            <div class="settings-section" style="background: linear-gradient(135deg, rgba(176, 212, 227, 0.1), rgba(244, 232, 193, 0.1)); border: 1px solid rgba(176, 212, 227, 0.2); border-radius: 1rem; padding: 1.5rem; margin-bottom: 1.5rem;">
-                <h2 style="font-size: 1.125rem; font-weight: 700; color: white; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+            <div class="settings-section" style="background: linear-gradient(135deg, rgba(166, 192, 221, 0.2), rgba(139, 163, 184, 0.2)); border: 1px solid rgba(166, 192, 221, 0.3); border-radius: 1rem; padding: 1.5rem; margin-bottom: 1.5rem;">
+                <h2 style="font-size: 1.125rem; font-weight: 700; color: #FDFAB0; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
                     ⚙️ Account
                 </h2>
 
                 <button id="logout-btn" style="
                     width: 100%;
                     padding: 1rem;
-                    background: linear-gradient(135deg, #b0d4e3, #f4e8c1);
-                    border: none;
+                    background: linear-gradient(135deg, #A6C0DD, #8ba3b8);
+                    border: 2px solid #FDFAB0;
                     border-radius: 0.75rem;
-                    color: #1a1f2e;
+                    color: #18183A;
                     font-weight: 700;
                     font-size: 0.9375rem;
                     cursor: pointer;
                     transition: all 0.2s;
-                    box-shadow: 0 4px 12px rgba(176, 212, 227, 0.3);
-                " onmouseover="this.style.transform='scale(1.02)'; this.style.boxShadow='0 6px 16px rgba(176, 212, 227, 0.4)'" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 4px 12px rgba(176, 212, 227, 0.3)'">
+                    box-shadow: 0 4px 12px rgba(166, 192, 221, 0.3);
+                " onmouseover="this.style.transform='scale(1.02)'; this.style.boxShadow='0 6px 16px rgba(166, 192, 221, 0.4)'" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 4px 12px rgba(166, 192, 221, 0.3)'">
                     🚪 Sign Out
                 </button>
             </div>
@@ -305,7 +347,10 @@ export class ProfileTab {
     renderError() {
         this.container.innerHTML = `
             <div style="
-                width: 100%;
+                height: 100%;
+                overflow-y: auto;
+                overflow-x: hidden;
+                -webkit-overflow-scrolling: touch;
                 display: flex;
                 align-items: center;
                 justify-content: center;
@@ -315,8 +360,8 @@ export class ProfileTab {
                 text-align: center;
             ">
                 <div style="font-size: 3rem;">⚠️</div>
-                <div style="color: white; font-weight: 700; font-size: 1.25rem;">Not Logged In</div>
-                <div style="color: rgba(176, 212, 227, 0.6); font-size: 0.875rem;">Please log in to view your profile</div>
+                <div style="color: #FDFAB0; font-weight: 700; font-size: 1.25rem;">Not Logged In</div>
+                <div style="color: #A6C0DD; font-size: 0.875rem;">Please log in to view your profile</div>
             </div>
         `;
     }
@@ -327,6 +372,7 @@ export class ProfileTab {
         const style = document.createElement('style');
         style.id = 'profile-toggle-styles';
         style.textContent = `
+            /* Regular Toggle Switch */
             .toggle-switch {
                 position: relative;
                 display: inline-block;
@@ -348,7 +394,7 @@ export class ProfileTab {
                 left: 0;
                 right: 0;
                 bottom: 0;
-                background: rgba(176, 212, 227, 0.2);
+                background: rgba(166, 192, 221, 0.3);
                 transition: 0.3s;
                 border-radius: 28px;
             }
@@ -366,13 +412,14 @@ export class ProfileTab {
             }
 
             input:checked + .toggle-slider {
-                background: linear-gradient(135deg, #b0d4e3, #f4e8c1);
+                background: linear-gradient(135deg, #A6C0DD, #8ba3b8);
             }
 
             input:checked + .toggle-slider:before {
                 transform: translateX(20px);
             }
 
+            /* Small Toggle Switch */
             .toggle-switch-small {
                 position: relative;
                 display: inline-block;
@@ -394,7 +441,7 @@ export class ProfileTab {
                 left: 0;
                 right: 0;
                 bottom: 0;
-                background: rgba(176, 212, 227, 0.2);
+                background: rgba(166, 192, 221, 0.3);
                 transition: 0.3s;
                 border-radius: 20px;
             }
@@ -412,33 +459,35 @@ export class ProfileTab {
             }
 
             input:checked + .toggle-slider-small {
-                background: linear-gradient(135deg, #b0d4e3, #f4e8c1);
+                background: linear-gradient(135deg, #A6C0DD, #8ba3b8);
             }
 
             input:checked + .toggle-slider-small:before {
                 transform: translateX(16px);
             }
 
+            /* Hover effects */
             .platform-toggle-item:hover,
             .trigger-toggle-item:hover {
-                background: rgba(176, 212, 227, 0.15);
-                border-color: rgba(176, 212, 227, 0.3);
+                background: rgba(166, 192, 221, 0.25);
+                border-color: rgba(166, 192, 221, 0.4);
             }
 
+            /* Region select styling */
             #region-select:hover {
-                background: rgba(176, 212, 227, 0.15);
-                border-color: rgba(176, 212, 227, 0.4);
+                background: rgba(166, 192, 221, 0.3);
+                border-color: rgba(166, 192, 221, 0.4);
             }
 
             #region-select:focus {
                 outline: none;
-                border-color: #b0d4e3;
-                box-shadow: 0 0 0 3px rgba(176, 212, 227, 0.2);
+                border-color: #A6C0DD;
+                box-shadow: 0 0 0 3px rgba(166, 192, 221, 0.2);
             }
 
             #region-select option {
-                background: #1a1f2e;
-                color: white;
+                background: #18183A;
+                color: #FDFAB0;
                 padding: 0.5rem;
             }
         `;
@@ -446,31 +495,46 @@ export class ProfileTab {
     }
 
     attachEventListeners() {
+        // Add Friend button
+        const addFriendBtn = document.getElementById('add-friend-btn');
+        if (addFriendBtn) {
+            addFriendBtn.addEventListener('click', () => {
+                this.showToast('Friend feature coming soon! 🎬');
+                console.log('[Profile] Add Friend clicked');
+            });
+        }
+
+        // Theme toggle - FIXED!
         const themeToggle = document.getElementById('theme-toggle');
         if (themeToggle) {
             themeToggle.addEventListener('change', (e) => {
                 this.currentTheme = e.target.checked ? 'dark' : 'light';
                 localStorage.setItem('app-theme', this.currentTheme);
-                this.showToast(`Switched to ${this.currentTheme} mode`);
+                this.showToast(`Switched to ${this.currentTheme} mode ✨`);
                 console.log('[Profile] Theme changed to:', this.currentTheme);
                 
-                const section = themeToggle.closest('.settings-section');
-                if (section) {
-                    section.outerHTML = this.renderThemeSection();
-                    this.attachEventListeners();
+                // Re-render the theme section only
+                const themeSection = this.container.querySelector('.settings-section');
+                if (themeSection && themeSection.querySelector('#theme-toggle')) {
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = this.renderThemeSection();
+                    themeSection.replaceWith(tempDiv.firstElementChild);
+                    this.attachEventListeners(); // Re-attach all listeners
                 }
             });
         }
 
+        // Region select
         const regionSelect = document.getElementById('region-select');
         if (regionSelect) {
             regionSelect.addEventListener('change', (e) => {
                 userProfileService.updateRegion(e.target.value);
                 const selectedRegion = TMDB_REGIONS.find(r => r.code === e.target.value);
-                this.showToast(`Region updated to ${selectedRegion?.name || e.target.value}`);
+                this.showToast(`Region updated to ${selectedRegion?.name || e.target.value} ${selectedRegion?.flag || ''}`);
             });
         }
 
+        // Platform checkboxes
         const platformCheckboxes = document.querySelectorAll('.platform-checkbox');
         platformCheckboxes.forEach(checkbox => {
             checkbox.addEventListener('change', (e) => {
@@ -479,10 +543,11 @@ export class ProfileTab {
                 
                 const platform = STREAMING_PLATFORMS.find(p => p.id === platformId);
                 const isEnabled = e.target.checked;
-                this.showToast(`${platform?.name || platformId} ${isEnabled ? 'enabled' : 'disabled'}`);
+                this.showToast(`${platform?.name || platformId} ${isEnabled ? 'enabled ✅' : 'disabled ❌'}`);
             });
         });
 
+        // Trigger warning checkboxes
         const triggerCheckboxes = document.querySelectorAll('.trigger-checkbox');
         triggerCheckboxes.forEach(checkbox => {
             checkbox.addEventListener('change', (e) => {
@@ -496,28 +561,30 @@ export class ProfileTab {
                 }
                 
                 const category = TRIGGER_CATEGORIES.find(c => c.id === categoryId);
-                this.showToast(`${category?.name || 'Category'} ${isEnabled ? 'enabled' : 'disabled'}`);
+                this.showToast(`${category?.name || 'Category'} ${isEnabled ? 'enabled ✅' : 'disabled ❌'}`);
             });
         });
 
+        // Show all warnings toggle
         const showAllCheckbox = document.getElementById('show-all-warnings');
         if (showAllCheckbox) {
             showAllCheckbox.addEventListener('change', (e) => {
                 userProfileService.setShowAllWarnings(e.target.checked);
-                this.showToast(e.target.checked ? 'Showing all warnings' : 'Showing selected categories');
+                this.showToast(e.target.checked ? 'Showing all warnings ⚠️' : 'Showing selected categories');
             });
         }
 
+        // Logout button
         const logoutBtn = document.getElementById('logout-btn');
         if (logoutBtn) {
             logoutBtn.addEventListener('click', async () => {
                 try {
                     await authService.signOut();
-                    this.showToast('Signed out successfully');
+                    this.showToast('Signed out successfully 👋');
                     setTimeout(() => window.location.reload(), 1000);
                 } catch (error) {
                     console.error('[ProfileTab] Logout failed:', error);
-                    this.showToast('Failed to sign out', true);
+                    this.showToast('Failed to sign out ❌', true);
                 }
             });
         }
@@ -537,14 +604,14 @@ export class ProfileTab {
             left: 50%;
             transform: translateX(-50%);
             padding: 0.875rem 1.5rem;
-            background: ${isError ? 'linear-gradient(135deg, #dc2626, #b91c1c)' : 'linear-gradient(135deg, #b0d4e3, #f4e8c1)'};
-            border: 1px solid ${isError ? 'rgba(220, 38, 38, 0.3)' : 'rgba(176, 212, 227, 0.3)'};
-            color: ${isError ? 'white' : '#1a1f2e'};
+            background: ${isError ? 'linear-gradient(135deg, #dc2626, #b91c1c)' : 'linear-gradient(135deg, #A6C0DD, #8ba3b8)'};
+            border: 1px solid ${isError ? 'rgba(220, 38, 38, 0.5)' : 'rgba(166, 192, 221, 0.5)'};
+            color: ${isError ? 'white' : '#18183A'};
             border-radius: 0.75rem;
             font-weight: 600;
             font-size: 0.875rem;
             z-index: 10000;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
             animation: slideUp 0.3s ease-out;
         `;
         
