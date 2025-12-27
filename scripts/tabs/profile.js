@@ -231,13 +231,26 @@ export class ProfileTab {
     }
 
     generateFriendCode(uid) {
-        // Generate a 6-character alphanumeric code from UID
-        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Removed similar chars
+        // Generate a consistent 6-character code from UID using simple hash
+        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 32 chars (no confusing I,O,0,1)
         let code = '';
-        for (let i = 0; i < 6; i++) {
-            const index = parseInt(uid.charAt(i * 3), 16) % chars.length;
-            code += chars[index];
+        
+        // Create a simple hash from the UID
+        let hash = 0;
+        for (let i = 0; i < uid.length; i++) {
+            hash = ((hash << 5) - hash) + uid.charCodeAt(i);
+            hash = hash & hash; // Convert to 32-bit integer
         }
+        
+        // Convert hash to positive number
+        hash = Math.abs(hash);
+        
+        // Generate 6 characters
+        for (let i = 0; i < 6; i++) {
+            code += chars[hash % chars.length];
+            hash = Math.floor(hash / chars.length);
+        }
+        
         return code;
     }
 
