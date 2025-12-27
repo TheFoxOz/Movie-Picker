@@ -5,10 +5,12 @@
  * ✅ MOVIE WHEEL: Random movie picker integration
  * ✅ RANKING SYSTEM: Score-based sorting with visual badges
  * ✅ FILTERS: All / Unwatched / Watched tabs
+ * ✅ BADGE TRACKING: Tracks matches and watched movies for achievements
  */
 
 import { tmdbService } from '../services/tmdb.js';
 import { authService } from '../services/auth-service.js';
+import { badgeService } from '../services/badge-service.js';
 import { movieModal } from '../components/movie-modal.js';
 import { renderTriggerBadge } from '../utils/trigger-warnings.js';
 import { movieWheel } from '../components/movie-wheel.js';
@@ -573,6 +575,11 @@ class MatchesTab {
             matchCount.textContent = `${validMovies.length} matches`;
             this.renderMatchesGrid(validMovies);
 
+            // ✅ NEW: Track match badge
+            if (validMovies.length > 0) {
+                await this.trackMatchBadge();
+            }
+
         } catch (error) {
             console.error('[Matches] Error calculating matches:', error);
             matchesGrid.innerHTML = `
@@ -633,6 +640,9 @@ class MatchesTab {
                     }
                 }, { merge: true });
                 this.showToast('Marked as watched ✅');
+                
+                // ✅ NEW: Track watched badge
+                await this.trackWatchedBadge();
             }
             
             // Re-render with current filter
@@ -667,6 +677,57 @@ class MatchesTab {
         matchCount.textContent = `${filteredMovies.length} matches`;
         
         this.renderMatchesGrid(filteredMovies);
+    }
+
+    async trackMatchBadge() {
+        try {
+            const user = authService.getCurrentUser();
+            if (!user) return;
+            
+            const newBadges = await badgeService.checkBadges(user.uid, {
+                type: 'match'
+            });
+            
+            if (newBadges.length > 0) {
+                console.log('[Matches] 🏆 Unlocked badges:', newBadges.map(b => b.name));
+            }
+        } catch (error) {
+            console.error('[Matches] Error tracking match badge:', error);
+        }
+    }
+
+    async trackWatchedBadge() {
+        try {
+            const user = authService.getCurrentUser();
+            if (!user) return;
+            
+            const newBadges = await badgeService.checkBadges(user.uid, {
+                type: 'watched'
+            });
+            
+            if (newBadges.length > 0) {
+                console.log('[Matches] 🏆 Unlocked badges:', newBadges.map(b => b.name));
+            }
+        } catch (error) {
+            console.error('[Matches] Error tracking watched badge:', error);
+        }
+    }
+
+    async trackWheelSpinBadge() {
+        try {
+            const user = authService.getCurrentUser();
+            if (!user) return;
+            
+            const newBadges = await badgeService.checkBadges(user.uid, {
+                type: 'wheel_spin'
+            });
+            
+            if (newBadges.length > 0) {
+                console.log('[Matches] 🏆 Unlocked badges:', newBadges.map(b => b.name));
+            }
+        } catch (error) {
+            console.error('[Matches] Error tracking wheel spin badge:', error);
+        }
     }
 
     async calculateMatches(friend) {
@@ -998,8 +1059,12 @@ class MatchesTab {
         }
         
         // Open movie wheel with current matches
-        movieWheel.open(unwatchedMovies, this.selectedFriend.displayName, (selectedMovie) => {
+        movieWheel.open(unwatchedMovies, this.selectedFriend.displayName, async (selectedMovie) => {
             console.log('[Matches] Movie selected from wheel:', selectedMovie.title);
+            
+            // ✅ NEW: Track wheel spin badge
+            await this.trackWheelSpinBadge();
+            
             // Optionally open modal or mark as watched
             if (movieModal) {
                 movieModal.show(selectedMovie);
