@@ -488,19 +488,19 @@ export class ProfileTab {
             const user = authService.getCurrentUser();
             if (!user) return;
             
-            const achievements = await badgeService.getUserAchievements(user.uid);
-            this.renderBadges(achievements);
+            const badgeData = await badgeService.getUserBadges(user.uid);
+            this.renderBadges(badgeData);
         } catch (error) {
             console.error('[ProfileTab] Error loading badges:', error);
         }
     }
 
-    renderBadges(achievements) {
+    renderBadges(badgeData) {
         const badgesContainer = document.getElementById('badges-container');
         if (!badgesContainer) return;
         
-        const unlockedBadges = achievements.unlockedBadges || [];
-        const totalPoints = achievements.totalPoints || 0;
+        const unlockedBadges = badgeData.unlockedBadges || [];
+        const totalPoints = badgeData.points || 0;
         
         if (unlockedBadges.length === 0) {
             badgesContainer.innerHTML = `
