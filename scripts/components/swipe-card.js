@@ -8,6 +8,8 @@
  * ✅ CRITICAL FIX: Proper poster URL construction with fallbacks
  * ✅ FIX: Added event listener for async trigger warnings
  * ✅ UNIVERSAL TRIGGER WARNINGS: Category-based badges with tooltips
+ * ✅ NEW: Platform update method for background enrichment
+ * ✅ FIX: Platform badge uses class for easy DOM targeting
  */
 
 import { store } from '../state/store.js';
@@ -47,6 +49,29 @@ export class SwipeCard {
             }
         };
         document.addEventListener('trigger-warnings-loaded', this.warningsListener);
+    }
+
+    /**
+     * ✅ NEW: Update platform display after background enrichment
+     */
+    updatePlatform(platform, availableOn) {
+        if (!this.movie) return;
+        
+        // Update movie object
+        this.movie.platform = platform;
+        this.movie.availableOn = availableOn || [];
+        
+        // Determine display platform
+        const displayPlatform = availableOn && availableOn.length > 0 
+            ? availableOn[0] 
+            : (platform && platform !== 'Loading...' ? platform : 'Not Available');
+        
+        // Find and update the platform badge in the DOM
+        const platformBadge = this.element?.querySelector('.platform-badge');
+        if (platformBadge) {
+            platformBadge.textContent = displayPlatform;
+            console.log(`[SwipeCard] ✅ Updated platform display: ${displayPlatform}`);
+        }
     }
 
     async fetchTriggerWarnings() {
@@ -124,10 +149,10 @@ export class SwipeCard {
         // ✅ FIX: Use overview or synopsis
         const description = this.movie.overview || this.movie.synopsis || 'No description available.';
         
-        // ✅ FIX: Platform with fallback
-        const platform = this.movie.platform || 
-                        (this.movie.availableOn && this.movie.availableOn.length > 0 ? this.movie.availableOn[0] : null) ||
-                        'Not Available';
+        // ✅ FIX: Platform with availableOn priority
+        const platform = (this.movie.availableOn && this.movie.availableOn.length > 0) 
+            ? this.movie.availableOn[0]
+            : (this.movie.platform || 'Loading...');
 
         this.element = document.createElement('div');
         this.element.className = 'swipe-card';
@@ -170,8 +195,8 @@ export class SwipeCard {
                     <!-- Gradient overlay -->
                     <div style="position: absolute; inset: 0; background: linear-gradient(0deg, rgba(0,0,0,0.8) 0%, transparent 40%);"></div>
                     
-                    <!-- Platform badge -->
-                    <div style="position: absolute; top: 1rem; right: 1rem; padding: 0.5rem 1rem; background: rgba(0,0,0,0.7); backdrop-filter: blur(10px); border-radius: 1rem; border: 1px solid rgba(255,255,255,0.1);">
+                    <!-- ✅ FIXED: Platform badge with class for DOM targeting -->
+                    <div class="platform-badge" style="position: absolute; top: 1rem; right: 1rem; padding: 0.5rem 1rem; background: rgba(0,0,0,0.7); backdrop-filter: blur(10px); border-radius: 1rem; border: 1px solid rgba(255,255,255,0.1);">
                         <span style="color: white; font-weight: 700; font-size: 0.875rem;">${platform}</span>
                     </div>
 
