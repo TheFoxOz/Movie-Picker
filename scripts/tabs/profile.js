@@ -12,6 +12,7 @@ import { userProfileService } from '../services/user-profile-revised.js';
 import { STREAMING_PLATFORMS } from '../config/streaming-platforms.js';
 import { TRIGGER_CATEGORIES } from '../config/trigger-categories.js';
 import { avatarUpload } from '../components/avatar-upload.js';
+import { badgeService } from '../services/badge-service.js';
 
 // Import db from existing firebase-config
 import { db } from '../services/firebase-config.js';
@@ -156,6 +157,9 @@ export class ProfileTab {
                         </p>
                     </div>
 
+                    <!-- Badges Section -->
+                    <div id="badges-container"></div>
+                    
                     ${this.renderAddFriendSection(user)}
                     ${this.renderRegionSection(profile)}
                     ${this.renderPlatformsSection(profile)}
@@ -282,6 +286,9 @@ export class ProfileTab {
 
         this.attachEventListeners();
         this.injectToggleStyles();
+        
+        // Load badges
+        await this.loadBadges();
     }
 
     generateFriendCode(uid) {
@@ -416,6 +423,9 @@ export class ProfileTab {
                 friends: arrayUnion(user.uid)
             });
 
+            // ✅ NEW: Track badge progress for adding friend
+            await this.trackFriendBadge();
+
             this.showToast('Friend added successfully! 🎉');
             
             // Close modal
@@ -454,6 +464,112 @@ export class ProfileTab {
             console.error('[ProfileTab] Error removing friend:', error);
             this.showToast('Failed to remove friend ❌', true);
         }
+    }
+
+    async trackFriendBadge() {
+        try {
+            const user = authService.getCurrentUser();
+            if (!user) return;
+            
+            const newBadges = await badgeService.checkBadges(user.uid, {
+                type: 'friend'
+            });
+            
+            if (newBadges.length > 0) {
+                console.log('[ProfileTab] 🏆 Unlocked badges:', newBadges.map(b => b.name));
+            }
+        } catch (error) {
+            console.error('[ProfileTab] Error tracking friend badge:', error);
+        }
+    }
+
+    async loadBadges() {
+        try {
+            const user = authService.getCurrentUser();
+            if (!user) return;
+            
+            const achievements = await badgeService.getUserAchievements(user.uid);
+            this.renderBadges(achievements);
+        } catch (error) {
+            console.error('[ProfileTab] Error loading badges:', error);
+        }
+    }
+
+    renderBadges(achievements) {
+        const badgesContainer = document.getElementById('badges-container');
+        if (!badgesContainer) return;
+        
+        const unlockedBadges = achievements.unlockedBadges || [];
+        const totalPoints = achievements.totalPoints || 0;
+        
+        if (unlockedBadges.length === 0) {
+            badgesContainer.innerHTML = `
+                <div style="text-align: center; padding: 2rem; color: #A6C0DD;">
+                    <p style="font-size: 3rem; margin-bottom: 0.5rem;">🏆</p>
+                    <p style="font-size: 0.9rem;">No badges yet. Start swiping to unlock achievements!</p>
+                </div>
+            `;
+            return;
+        }
+        
+        badgesContainer.innerHTML = `
+            <div style="
+                background: linear-gradient(135deg, rgba(166, 192, 221, 0.1), rgba(253, 250, 176, 0.05));
+                border: 1px solid rgba(166, 192, 221, 0.2);
+                border-radius: 1rem;
+                padding: 1.5rem;
+                margin-bottom: 2rem;
+            ">
+                <h3 style="
+                    color: #FDFAB0;
+                    margin: 0 0 1rem 0;
+                    font-size: 1.1rem;
+                    font-weight: 700;
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                ">
+                    <span>🏆 Your Badges</span>
+                    <span style="font-size: 0.85rem; color: #A6C0DD; font-weight: 500;">
+                        ${unlockedBadges.length} badges • ${totalPoints} pts
+                    </span>
+                </h3>
+                <div style="
+                    display: grid;
+                    grid-template-columns: repeat(3, 1fr);
+                    gap: 1rem;
+                ">
+                    ${unlockedBadges.slice(0, 6).map(badge => `
+                        <div style="
+                            background: linear-gradient(135deg, rgba(166, 192, 221, 0.15), rgba(253, 250, 176, 0.1));
+                            border: 1px solid rgba(166, 192, 221, 0.25);
+                            border-radius: 0.75rem;
+                            padding: 1rem;
+                            text-align: center;
+                            transition: all 0.3s;
+                        " onmouseover="this.style.transform='translateY(-4px)'; this.style.borderColor='rgba(253, 250, 176, 0.4)';" 
+                           onmouseout="this.style.transform='translateY(0)'; this.style.borderColor='rgba(166, 192, 221, 0.25)';">
+                            <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">${badge.icon}</div>
+                            <div style="
+                                font-size: 0.75rem;
+                                color: #FDFAB0;
+                                font-weight: 600;
+                                margin-bottom: 0.25rem;
+                                line-height: 1.2;
+                            ">${badge.name}</div>
+                            <div style="font-size: 0.65rem; color: #A6C0DD;">+${badge.points} pts</div>
+                        </div>
+                    `).join('')}
+                </div>
+                ${unlockedBadges.length > 6 ? `
+                    <div style="text-align: center; margin-top: 1rem;">
+                        <span style="font-size: 0.8rem; color: #A6C0DD;">
+                            +${unlockedBadges.length - 6} more badges
+                        </span>
+                    </div>
+                ` : ''}
+            </div>
+        `;
     }
 
     renderFriendsList() {
