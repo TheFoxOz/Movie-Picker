@@ -160,12 +160,23 @@ class MatchesTab {
             }
 
             const friendData = friendDoc.data();
+            
+            // Debug: Log all available name fields
+            console.log('[Matches] Friend data for', friendId, ':', {
+                displayName: friendData.displayName,
+                userName: friendData.userName,
+                email: friendData.email,
+                uid: friendData.uid
+            });
+            
             const friend = {
                 id: friendId,
-                displayName: friendData.displayName || friendData.userName || friendData.email?.split('@')[0] || 'Anonymous',
+                displayName: friendData.displayName || friendData.userName || friendData.email?.split('@')[0] || 'MoviEase User',
                 photoURL: friendData.photoURL || null,
                 swipeHistory: friendData.swipeHistory || []
             };
+            
+            console.log('[Matches] Final displayName used:', friend.displayName);
 
             this.setupFriendListener(friendId, friend);
 
@@ -298,10 +309,12 @@ class MatchesTab {
             }
 
             const moviesWithDetails = await Promise.all(
-                matches.map(async (matchedMovie) => {
-                    const movie = await tmdbService.getMovieDetails(matchedMovie.id);
+                matches.map(async (matchData) => {
+                    const movie = await tmdbService.getMovieDetails(matchData.id);
                     if (movie) {
                         await tmdbService.loadWatchProvidersForMovies([movie]);
+                        // ✅ Attach match data to movie object
+                        movie.matchData = matchData;
                     }
                     return movie;
                 })
@@ -336,50 +349,83 @@ class MatchesTab {
         console.log('[Matches] Sample user swipe:', userSwipes[0]);
         console.log('[Matches] Sample friend swipe:', friendSwipes[0]);
 
-        // ✅ FIX: Use action field ('like' or 'love') instead of liked boolean
-        const userLikes = new Set();
+        // ✅ Action score mapping
+        const getActionScore = (action) => {
+            const scores = {
+                'love': 5,
+                'like': 3,
+                'maybe': 1,
+                'nope': -3,
+                'pass': -3
+            };
+            return scores[action] || 0;
+        };
+
+        // Build user likes map with scores
+        const userLikes = new Map(); // movieId -> score
         userSwipes.forEach(swipe => {
-            // Support both old (liked boolean) and new (action string) formats
-            const isLiked = swipe.action === 'like' || swipe.action === 'love' || swipe.liked === true;
-            if (isLiked) {
-                const movieId = swipe.movieId || swipe.movie?.id;
-                if (movieId) {
-                    userLikes.add(movieId.toString());
+            const movieId = swipe.movieId || swipe.movie?.id;
+            if (movieId) {
+                const score = getActionScore(swipe.action);
+                if (score > 0) { // Only count positive actions (love, like, maybe)
+                    userLikes.set(movieId.toString(), score);
                 }
             }
         });
 
-        console.log(`[Matches] User liked ${userLikes.size} movies:`, Array.from(userLikes).slice(0, 5));
+        console.log(`[Matches] User liked ${userLikes.size} movies`);
 
-        const friendLikes = new Set();
         const matches = [];
         
         friendSwipes.forEach(swipe => {
-            const isLiked = swipe.action === 'like' || swipe.action === 'love' || swipe.liked === true;
-            if (isLiked) {
-                const movieId = swipe.movieId || swipe.movie?.id;
-                if (movieId) {
-                    const movieIdStr = movieId.toString();
-                    friendLikes.add(movieIdStr);
+            const movieId = swipe.movieId || swipe.movie?.id;
+            if (movieId) {
+                const movieIdStr = movieId.toString();
+                const friendScore = getActionScore(swipe.action);
+                
+                // Check if user also liked this movie (positive score)
+                if (friendScore > 0 && userLikes.has(movieIdStr)) {
+                    const userScore = userLikes.get(movieIdStr);
+                    const combinedScore = userScore + friendScore;
                     
-                    // Check if user also liked this movie
-                    if (userLikes.has(movieIdStr)) {
-                        matches.push({
-                            id: parseInt(movieId),
-                            timestamp: swipe.timestamp || Date.now()
-                        });
-                    }
+                    matches.push({
+                        id: parseInt(movieId),
+                        timestamp: swipe.timestamp || Date.now(),
+                        userScore: userScore,
+                        friendScore: friendScore,
+                        combinedScore: combinedScore,
+                        userAction: this.getActionName(userScore),
+                        friendAction: this.getActionName(friendScore)
+                    });
                 }
             }
         });
 
-        console.log(`[Matches] Friend liked ${friendLikes.size} movies:`, Array.from(friendLikes).slice(0, 5));
         console.log(`[Matches] Found ${matches.length} mutual likes`);
 
-        // Sort by most recent
-        matches.sort((a, b) => b.timestamp - a.timestamp);
+        // ✅ Sort by combined score (highest first), then by timestamp
+        matches.sort((a, b) => {
+            if (b.combinedScore !== a.combinedScore) {
+                return b.combinedScore - a.combinedScore;
+            }
+            return b.timestamp - a.timestamp;
+        });
+
+        console.log('[Matches] Top 3 matches by score:', matches.slice(0, 3).map(m => ({
+            id: m.id,
+            combinedScore: m.combinedScore,
+            userAction: m.userAction,
+            friendAction: m.friendAction
+        })));
 
         return matches;
+    }
+
+    getActionName(score) {
+        if (score === 5) return 'love';
+        if (score === 3) return 'like';
+        if (score === 1) return 'maybe';
+        return 'unknown';
     }
 
     renderLoadingCards(count) {
@@ -423,6 +469,52 @@ class MatchesTab {
         let ratingColor = '#10b981';
         if (parseFloat(rating) < 5) ratingColor = '#ef4444';
         else if (parseFloat(rating) < 7) ratingColor = '#fbbf24';
+
+        // ✅ Match ranking badge
+        const matchData = movie.matchData;
+        let rankingBadge = '';
+        if (matchData) {
+            const { combinedScore, userAction, friendAction } = matchData;
+            
+            // Emoji mapping
+            const actionEmoji = {
+                'love': '❤️',
+                'like': '👍',
+                'maybe': '🤔'
+            };
+            
+            // Color based on combined score
+            let rankColor = '#10b981'; // green
+            if (combinedScore >= 10) rankColor = '#ff2e63'; // love+love = red
+            else if (combinedScore >= 8) rankColor = '#ec4899'; // pink
+            else if (combinedScore >= 6) rankColor = '#8b5cf6'; // purple
+            else if (combinedScore >= 4) rankColor = '#3b82f6'; // blue
+            
+            rankingBadge = `
+                <div style="
+                    position: absolute;
+                    bottom: 4.5rem;
+                    left: 0.5rem;
+                    background: linear-gradient(135deg, ${rankColor}, ${rankColor}dd);
+                    border: 2px solid white;
+                    padding: 4px 8px;
+                    border-radius: 8px;
+                    font-size: 0.75rem;
+                    font-weight: 700;
+                    color: white;
+                    display: flex;
+                    align-items: center;
+                    gap: 4px;
+                    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+                    z-index: 10;
+                " title="Combined Score: ${combinedScore} (You: ${userAction}, Friend: ${friendAction})">
+                    <span style="font-size: 0.9rem;">${actionEmoji[userAction] || '👤'}</span>
+                    <span style="font-size: 1rem; margin: 0 2px;">+</span>
+                    <span style="font-size: 0.9rem;">${actionEmoji[friendAction] || '👥'}</span>
+                    <span style="margin-left: 2px;">= ${combinedScore}</span>
+                </div>
+            `;
+        }
 
         return `
             <div class="movie-card" data-movie-id="${movie.id}" style="
@@ -486,6 +578,9 @@ class MatchesTab {
                 ">
                     ⭐ ${rating}
                 </div>
+                
+                <!-- ✅ NEW: Ranking Badge -->
+                ${rankingBadge}
                 
                 <div style="
                     position: absolute;
