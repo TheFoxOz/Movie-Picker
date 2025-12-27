@@ -10,6 +10,7 @@
  * ✅ MoviEase branding and colors
  * ✅ INFINITE LOADING: Continuously loads movies from Discover API
  * ✅ BADGE TRACKING: Tracks swipes for achievement badges
+ * ✅ NEW: Platform update notification for live card updates
  */
 
 import { store } from "../state/store.js";
@@ -336,6 +337,15 @@ export class SwipeTab {
             
             // Enrich platform data
             await this.enrichWithPlatformData(movies);
+            
+            // ✅ NEW: Notify current card to update platform display
+            if (this.currentCard && this.currentCard.movie) {
+                const currentMovieId = this.currentCard.movie.id;
+                const enrichedMovie = movies.find(m => m.id === currentMovieId);
+                if (enrichedMovie && enrichedMovie.platform !== 'Loading...') {
+                    this.currentCard.updatePlatform(enrichedMovie.platform, enrichedMovie.availableOn);
+                }
+            }
             
             // Filter out cinema-only movies
             const beforeFilter = this.movieQueue.length;
