@@ -402,7 +402,12 @@ export class ProfileTab {
             `;
         }
 
-        return this.friends.map(friend => `
+        return this.friends.map(friend => {
+            // Get display name with fallback chain
+            const displayName = friend.displayName || friend.userName || friend.email?.split('@')[0] || 'MoviEase User';
+            console.log('[ProfileTab] Friend data:', { id: friend.id, displayName: friend.displayName, userName: friend.userName, email: friend.email, finalName: displayName });
+            
+            return `
             <div style="
                 display: flex;
                 align-items: center;
@@ -426,14 +431,11 @@ export class ProfileTab {
                         font-weight: 700;
                         color: #18183A;
                     ">
-                        ${this.getInitials(friend.displayName || friend.email)}
+                        ${this.getInitials(displayName)}
                     </div>
                     <div>
                         <div style="font-size: 0.875rem; font-weight: 600; color: #FDFAB0;">
-                            ${friend.displayName || 'MoviEase User'}
-                        </div>
-                        <div style="font-size: 0.75rem; color: #A6C0DD; opacity: 0.8;">
-                            ${friend.email || ''}
+                            ${displayName}
                         </div>
                     </div>
                 </div>
@@ -457,7 +459,8 @@ export class ProfileTab {
                     Remove
                 </button>
             </div>
-        `).join('');
+        `;
+        }).join('');
     }
 
     renderAddFriendSection(user) {
