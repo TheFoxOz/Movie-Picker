@@ -1,16 +1,17 @@
 /**
  * MoviEase - Profile Tab  
  * ✅ Complete Add Friend feature with Firebase
+ * ✅ Avatar Upload with camera/gallery
  * ✅ Friend codes, friend list, real-time sync
  * ✅ Working theme toggle
  * ✅ MoviEase branding
  */
-import { avatarUpload } from '../components/avatar-upload.js';
 
 import { authService } from '../services/auth-service.js';
 import { userProfileService } from '../services/user-profile-revised.js';
 import { STREAMING_PLATFORMS } from '../config/streaming-platforms.js';
 import { TRIGGER_CATEGORIES } from '../config/trigger-categories.js';
+import { avatarUpload } from '../components/avatar-upload.js';
 
 // Import db from existing firebase-config
 import { db } from '../services/firebase-config.js';
@@ -1075,7 +1076,6 @@ export class ProfileTab {
         // Listen for avatar updates
         this.avatarUpdateHandler = (event) => {
             console.log('[ProfileTab] Avatar updated:', event.detail.photoURL);
-            // Refresh profile to show new avatar
             this.render(this.container);
         };
         window.addEventListener('avatar-updated', this.avatarUpdateHandler);
@@ -1147,19 +1147,9 @@ export class ProfileTab {
             this.friendsUnsubscribe();
             this.friendsUnsubscribe = null;
         }
-    }
-}
-
-    cleanup() {
-        // Unsubscribe from friends listener
-        if (this.friendsUnsubscribe) {
-            this.friendsUnsubscribe();
-            this.friendsUnsubscribe = null;
-        }
         
-        // Remove avatar update listener
         if (this.avatarUpdateHandler) {
-            window.removeEventListener("avatar-updated", this.avatarUpdateHandler);
+            window.removeEventListener('avatar-updated', this.avatarUpdateHandler);
             this.avatarUpdateHandler = null;
         }
     }
