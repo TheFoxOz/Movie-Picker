@@ -12,7 +12,7 @@ import { userProfileService } from '../services/user-profile-revised.js';
 import { STREAMING_PLATFORMS } from '../config/streaming-platforms.js';
 import { TRIGGER_CATEGORIES } from '../config/trigger-categories.js';
 import { avatarUpload } from '../components/avatar-upload.js';
-import { badgeService } from '../services/badge-service.js';
+import { badgeService, BADGES } from '../services/badge-service.js';
 
 // Import db from existing firebase-config
 import { db } from '../services/firebase-config.js';
@@ -499,14 +499,28 @@ export class ProfileTab {
         const badgesContainer = document.getElementById('badges-container');
         if (!badgesContainer) return;
         
-        const unlockedBadges = badgeData.unlockedBadges || [];
+        const unlockedBadgeIds = badgeData.unlockedBadges || [];
         const totalPoints = badgeData.points || 0;
+        
+        // Map badge IDs to actual badge objects
+        const unlockedBadges = unlockedBadgeIds
+            .map(badgeId => BADGES[badgeId])
+            .filter(badge => badge); // Filter out any undefined badges
         
         if (unlockedBadges.length === 0) {
             badgesContainer.innerHTML = `
-                <div style="text-align: center; padding: 2rem; color: #A6C0DD;">
-                    <p style="font-size: 3rem; margin-bottom: 0.5rem;">🏆</p>
-                    <p style="font-size: 0.9rem;">No badges yet. Start swiping to unlock achievements!</p>
+                <div style="
+                    background: linear-gradient(135deg, rgba(166, 192, 221, 0.1), rgba(253, 250, 176, 0.05));
+                    border: 1px solid rgba(166, 192, 221, 0.2);
+                    border-radius: 1rem;
+                    padding: 1.5rem;
+                    margin-bottom: 1.5rem;
+                    text-align: center;
+                ">
+                    <p style="font-size: 2rem; margin: 0 0 0.5rem 0;">🏆</p>
+                    <p style="font-size: 0.85rem; color: #A6C0DD; margin: 0;">
+                        No badges yet. Start swiping to unlock achievements!
+                    </p>
                 </div>
             `;
             return;
@@ -517,54 +531,60 @@ export class ProfileTab {
                 background: linear-gradient(135deg, rgba(166, 192, 221, 0.1), rgba(253, 250, 176, 0.05));
                 border: 1px solid rgba(166, 192, 221, 0.2);
                 border-radius: 1rem;
-                padding: 1.5rem;
-                margin-bottom: 2rem;
+                padding: 1rem;
+                margin-bottom: 1.5rem;
             ">
-                <h3 style="
-                    color: #FDFAB0;
-                    margin: 0 0 1rem 0;
-                    font-size: 1.1rem;
-                    font-weight: 700;
+                <div style="
                     display: flex;
                     align-items: center;
                     justify-content: space-between;
+                    margin-bottom: 0.75rem;
                 ">
-                    <span>🏆 Your Badges</span>
-                    <span style="font-size: 0.85rem; color: #A6C0DD; font-weight: 500;">
-                        ${unlockedBadges.length} badges • ${totalPoints} pts
-                    </span>
-                </h3>
+                    <h3 style="
+                        color: #FDFAB0;
+                        margin: 0;
+                        font-size: 0.95rem;
+                        font-weight: 700;
+                    ">🏆 Your Badges</h3>
+                    <span style="
+                        font-size: 0.75rem;
+                        color: #A6C0DD;
+                        font-weight: 500;
+                    ">${unlockedBadges.length} badges • ${totalPoints} pts</span>
+                </div>
                 <div style="
                     display: grid;
                     grid-template-columns: repeat(3, 1fr);
-                    gap: 1rem;
+                    gap: 0.75rem;
                 ">
                     ${unlockedBadges.slice(0, 6).map(badge => `
                         <div style="
                             background: linear-gradient(135deg, rgba(166, 192, 221, 0.15), rgba(253, 250, 176, 0.1));
                             border: 1px solid rgba(166, 192, 221, 0.25);
-                            border-radius: 0.75rem;
-                            padding: 1rem;
+                            border-radius: 0.5rem;
+                            padding: 0.75rem;
                             text-align: center;
-                            transition: all 0.3s;
-                        " onmouseover="this.style.transform='translateY(-4px)'; this.style.borderColor='rgba(253, 250, 176, 0.4)';" 
-                           onmouseout="this.style.transform='translateY(0)'; this.style.borderColor='rgba(166, 192, 221, 0.25)';">
-                            <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">${badge.icon}</div>
+                            transition: all 0.2s;
+                        " 
+                        onmouseover="this.style.transform='translateY(-2px)'; this.style.borderColor='rgba(253, 250, 176, 0.4)';" 
+                        onmouseout="this.style.transform='translateY(0)'; this.style.borderColor='rgba(166, 192, 221, 0.25)';"
+                        title="${badge.description}">
+                            <div style="font-size: 1.75rem; margin-bottom: 0.25rem;">${badge.icon}</div>
                             <div style="
-                                font-size: 0.75rem;
+                                font-size: 0.7rem;
                                 color: #FDFAB0;
                                 font-weight: 600;
-                                margin-bottom: 0.25rem;
+                                margin-bottom: 0.15rem;
                                 line-height: 1.2;
                             ">${badge.name}</div>
-                            <div style="font-size: 0.65rem; color: #A6C0DD;">+${badge.points} pts</div>
+                            <div style="font-size: 0.6rem; color: #A6C0DD;">+${badge.points} pts</div>
                         </div>
                     `).join('')}
                 </div>
                 ${unlockedBadges.length > 6 ? `
-                    <div style="text-align: center; margin-top: 1rem;">
-                        <span style="font-size: 0.8rem; color: #A6C0DD;">
-                            +${unlockedBadges.length - 6} more badges
+                    <div style="text-align: center; margin-top: 0.75rem;">
+                        <span style="font-size: 0.75rem; color: #A6C0DD;">
+                            +${unlockedBadges.length - 6} more badge${unlockedBadges.length - 6 > 1 ? 's' : ''}
                         </span>
                     </div>
                 ` : ''}
