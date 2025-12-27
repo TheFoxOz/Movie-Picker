@@ -1,7 +1,7 @@
 /**
- * MoviEase - Profile Tab
- * ✅ Working Add Friend feature with friend codes
- * ✅ Friend list display
+ * MoviEase - Profile Tab  
+ * ✅ Complete Add Friend feature with Firebase
+ * ✅ Friend codes, friend list, real-time sync
  * ✅ Working theme toggle
  * ✅ MoviEase branding
  */
@@ -10,8 +10,23 @@ import { authService } from '../services/auth-service.js';
 import { userProfileService } from '../services/user-profile-revised.js';
 import { STREAMING_PLATFORMS } from '../config/streaming-platforms.js';
 import { TRIGGER_CATEGORIES } from '../config/trigger-categories.js';
-import { db } from '../config/firebase.js';
-import { collection, doc, getDoc, setDoc, updateDoc, arrayUnion, arrayRemove, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+
+// Import db from existing firebase-config
+import { db } from '../services/firebase-config.js';
+
+// Import Firestore functions
+import { 
+    collection, 
+    doc, 
+    getDoc, 
+    getDocs,
+    setDoc, 
+    updateDoc, 
+    arrayUnion, 
+    arrayRemove, 
+    onSnapshot,
+    query 
+} from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
 const TMDB_REGIONS = [
     { code: 'US', name: 'United States', flag: '🇺🇸' },
@@ -259,6 +274,8 @@ export class ProfileTab {
                         const friendsContainer = this.container.querySelector('#friends-list');
                         if (friendsContainer) {
                             friendsContainer.innerHTML = this.renderFriendsList();
+                            // Re-attach remove buttons
+                            this.attachRemoveFriendListeners();
                         }
                     }
                 } else {
@@ -281,20 +298,16 @@ export class ProfileTab {
         if (!user) return;
 
         try {
-            // Find user by friend code
+            // Find user by friend code - scan all users
             const usersRef = collection(db, 'users');
-            const snapshot = await getDoc(doc(db, 'users', user.uid));
+            const usersSnapshot = await getDocs(usersRef);
             
-            // Search all users for matching friend code
             let friendId = null;
-            const allUsersSnapshot = await getDocs(usersRef);
-            
-            for (const doc of allUsersSnapshot.docs) {
+            usersSnapshot.forEach((doc) => {
                 if (this.generateFriendCode(doc.id) === friendCode.toUpperCase()) {
                     friendId = doc.id;
-                    break;
                 }
-            }
+            });
 
             if (!friendId) {
                 this.showToast('Friend code not found ❌', true);
@@ -307,7 +320,8 @@ export class ProfileTab {
             }
 
             // Check if already friends
-            const currentFriends = snapshot.exists() ? snapshot.data().friends || [] : [];
+            const userDoc = await getDoc(doc(db, 'users', user.uid));
+            const currentFriends = userDoc.exists() ? userDoc.data().friends || [] : [];
             if (currentFriends.includes(friendId)) {
                 this.showToast('Already friends! 👥');
                 return;
@@ -406,7 +420,7 @@ export class ProfileTab {
                             ${friend.displayName || 'MoviEase User'}
                         </div>
                         <div style="font-size: 0.75rem; color: #A6C0DD; opacity: 0.8;">
-                            ${friend.email}
+                            ${friend.email || ''}
                         </div>
                     </div>
                 </div>
@@ -926,15 +940,7 @@ export class ProfileTab {
         }
 
         // Remove friend buttons
-        const removeFriendBtns = this.container.querySelectorAll('.remove-friend-btn');
-        removeFriendBtns.forEach(btn => {
-            btn.addEventListener('click', () => {
-                const friendId = btn.dataset.friendId;
-                if (confirm('Remove this friend?')) {
-                    this.removeFriend(friendId);
-                }
-            });
-        });
+        this.attachRemoveFriendListeners();
 
         // Theme toggle
         const themeToggle = document.getElementById('theme-toggle');
@@ -1019,6 +1025,18 @@ export class ProfileTab {
                 }
             });
         }
+    }
+
+    attachRemoveFriendListeners() {
+        const removeFriendBtns = this.container.querySelectorAll('.remove-friend-btn');
+        removeFriendBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const friendId = btn.dataset.friendId;
+                if (confirm('Remove this friend?')) {
+                    this.removeFriend(friendId);
+                }
+            });
+        });
     }
 
     getInitials(name) {
