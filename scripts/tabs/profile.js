@@ -14,7 +14,7 @@ import { TRIGGER_CATEGORIES } from '../config/trigger-categories.js';
 // Import db from existing firebase-config
 import { db } from '../services/firebase-config.js';
 
-// Import Firestore functions
+// Import Firestore functions from the same Firebase package
 import { 
     collection, 
     doc, 
@@ -26,7 +26,7 @@ import {
     arrayRemove, 
     onSnapshot,
     query 
-} from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+} from 'firebase/firestore';
 
 const TMDB_REGIONS = [
     { code: 'US', name: 'United States', flag: '🇺🇸' },
