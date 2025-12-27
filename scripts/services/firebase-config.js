@@ -1,8 +1,8 @@
 // services/firebase-config.js
-
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore, enableIndexedDbPersistence, CACHE_SIZE_UNLIMITED } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage'; // ✅ NEW: Storage for avatar uploads
 
 // Configuration loaded securely from environment variables exposed by Vite
 const firebaseConfig = {
@@ -21,6 +21,7 @@ const app = initializeApp(firebaseConfig);
 // Initialize and Export Services
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+export const storage = getStorage(app); // ✅ NEW: Initialize and export Storage
 
 // --- Offline Persistence (Modern v10+ API) ---
 try {
@@ -47,4 +48,3 @@ try {
 // If you still need to set it, it's passed during getFirestore initialization options, not via db.settings().
 
 console.log('[Firebase] Initialized successfully');
-
