@@ -1,6 +1,7 @@
 /**
  * MoviEase - Profile Tab
- * ✅ Add Friend section
+ * ✅ Working Add Friend feature with friend codes
+ * ✅ Friend list display
  * ✅ Working theme toggle
  * ✅ MoviEase branding
  */
@@ -9,6 +10,8 @@ import { authService } from '../services/auth-service.js';
 import { userProfileService } from '../services/user-profile-revised.js';
 import { STREAMING_PLATFORMS } from '../config/streaming-platforms.js';
 import { TRIGGER_CATEGORIES } from '../config/trigger-categories.js';
+import { db } from '../config/firebase.js';
+import { collection, doc, getDoc, setDoc, updateDoc, arrayUnion, arrayRemove, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
 const TMDB_REGIONS = [
     { code: 'US', name: 'United States', flag: '🇺🇸' },
@@ -41,6 +44,8 @@ export class ProfileTab {
     constructor() {
         this.container = null;
         this.currentTheme = localStorage.getItem('app-theme') || 'dark';
+        this.friends = [];
+        this.friendsUnsubscribe = null;
     }
 
     async render(container) {
@@ -56,6 +61,9 @@ export class ProfileTab {
         }
 
         console.log('[ProfileTab] Rendering profile for:', user.email);
+        
+        // Load friends
+        await this.loadFriends(user.uid);
         
         this.container.innerHTML = `
             <div style="
@@ -78,12 +86,127 @@ export class ProfileTab {
                         </p>
                     </div>
 
-                    ${this.renderAddFriendSection()}
+                    ${this.renderAddFriendSection(user)}
                     ${this.renderThemeSection()}
                     ${this.renderRegionSection(profile)}
                     ${this.renderPlatformsSection(profile)}
                     ${this.renderTriggerWarningsSection(profile)}
                     ${this.renderAccountSection()}
+                </div>
+            </div>
+
+            <!-- Add Friend Modal -->
+            <div id="add-friend-modal" style="
+                position: fixed;
+                inset: 0;
+                background: rgba(0, 0, 0, 0.8);
+                display: none;
+                align-items: center;
+                justify-content: center;
+                z-index: 2000;
+                padding: 1rem;
+            ">
+                <div style="
+                    background: linear-gradient(180deg, #18183A 0%, #0f0f26 100%);
+                    border: 2px solid rgba(166, 192, 221, 0.3);
+                    border-radius: 1.5rem;
+                    padding: 2rem;
+                    max-width: 500px;
+                    width: 100%;
+                    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+                ">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem;">
+                        <h2 style="font-size: 1.5rem; font-weight: 800; color: #FDFAB0; margin: 0;">Add Friend</h2>
+                        <button id="close-friend-modal" style="
+                            width: 36px;
+                            height: 36px;
+                            border-radius: 50%;
+                            background: rgba(166, 192, 221, 0.2);
+                            border: none;
+                            color: #FDFAB0;
+                            font-size: 1.25rem;
+                            cursor: pointer;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                        ">✕</button>
+                    </div>
+
+                    <!-- Your Friend Code -->
+                    <div style="background: rgba(166, 192, 221, 0.15); border: 1px solid rgba(166, 192, 221, 0.3); border-radius: 1rem; padding: 1.25rem; margin-bottom: 1.5rem;">
+                        <h3 style="font-size: 0.875rem; font-weight: 700; color: #A6C0DD; text-transform: uppercase; margin: 0 0 0.75rem 0;">
+                            Your Friend Code
+                        </h3>
+                        <div style="display: flex; align-items: center; gap: 0.75rem;">
+                            <input 
+                                type="text" 
+                                id="my-friend-code" 
+                                value="${this.generateFriendCode(user.uid)}" 
+                                readonly
+                                style="
+                                    flex: 1;
+                                    padding: 0.875rem;
+                                    background: rgba(166, 192, 221, 0.1);
+                                    border: 1px solid rgba(166, 192, 221, 0.3);
+                                    border-radius: 0.75rem;
+                                    color: #FDFAB0;
+                                    font-size: 1.125rem;
+                                    font-weight: 700;
+                                    text-align: center;
+                                    letter-spacing: 0.1em;
+                                "
+                            >
+                            <button id="copy-friend-code" style="
+                                padding: 0.875rem 1.25rem;
+                                background: linear-gradient(135deg, #A6C0DD, #8ba3b8);
+                                border: none;
+                                border-radius: 0.75rem;
+                                color: #18183A;
+                                font-size: 0.875rem;
+                                font-weight: 700;
+                                cursor: pointer;
+                                white-space: nowrap;
+                            ">Copy</button>
+                        </div>
+                    </div>
+
+                    <!-- Add Friend by Code -->
+                    <div style="background: rgba(166, 192, 221, 0.15); border: 1px solid rgba(166, 192, 221, 0.3); border-radius: 1rem; padding: 1.25rem;">
+                        <h3 style="font-size: 0.875rem; font-weight: 700; color: #A6C0DD; text-transform: uppercase; margin: 0 0 0.75rem 0;">
+                            Enter Friend Code
+                        </h3>
+                        <div style="display: flex; align-items: center; gap: 0.75rem;">
+                            <input 
+                                type="text" 
+                                id="friend-code-input" 
+                                placeholder="ABC123"
+                                style="
+                                    flex: 1;
+                                    padding: 0.875rem;
+                                    background: rgba(166, 192, 221, 0.1);
+                                    border: 1px solid rgba(166, 192, 221, 0.3);
+                                    border-radius: 0.75rem;
+                                    color: #FDFAB0;
+                                    font-size: 1rem;
+                                    text-transform: uppercase;
+                                "
+                            >
+                            <button id="add-friend-submit" style="
+                                padding: 0.875rem 1.25rem;
+                                background: linear-gradient(135deg, #A6C0DD, #8ba3b8);
+                                border: none;
+                                border-radius: 0.75rem;
+                                color: #18183A;
+                                font-size: 0.875rem;
+                                font-weight: 700;
+                                cursor: pointer;
+                                white-space: nowrap;
+                            ">Add</button>
+                        </div>
+                        <p style="color: #A6C0DD; font-size: 0.75rem; margin: 0.75rem 0 0 0; opacity: 0.8;">
+                            Share your code with friends to connect on MoviEase
+                        </p>
+                    </div>
                 </div>
             </div>
         `;
@@ -92,15 +215,238 @@ export class ProfileTab {
         this.injectToggleStyles();
     }
 
-    renderAddFriendSection() {
+    generateFriendCode(uid) {
+        // Generate a 6-character alphanumeric code from UID
+        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Removed similar chars
+        let code = '';
+        for (let i = 0; i < 6; i++) {
+            const index = parseInt(uid.charAt(i * 3), 16) % chars.length;
+            code += chars[index];
+        }
+        return code;
+    }
+
+    async loadFriends(uid) {
+        try {
+            // Subscribe to friends list changes
+            if (this.friendsUnsubscribe) {
+                this.friendsUnsubscribe();
+            }
+
+            const userDocRef = doc(db, 'users', uid);
+            
+            this.friendsUnsubscribe = onSnapshot(userDocRef, async (docSnap) => {
+                if (docSnap.exists()) {
+                    const friendIds = docSnap.data().friends || [];
+                    
+                    // Load friend details
+                    const friendPromises = friendIds.map(async (friendId) => {
+                        const friendDoc = await getDoc(doc(db, 'users', friendId));
+                        if (friendDoc.exists()) {
+                            return {
+                                id: friendId,
+                                ...friendDoc.data()
+                            };
+                        }
+                        return null;
+                    });
+                    
+                    this.friends = (await Promise.all(friendPromises)).filter(f => f !== null);
+                    console.log('[ProfileTab] Friends loaded:', this.friends.length);
+                    
+                    // Update friends display if container exists
+                    if (this.container) {
+                        const friendsContainer = this.container.querySelector('#friends-list');
+                        if (friendsContainer) {
+                            friendsContainer.innerHTML = this.renderFriendsList();
+                        }
+                    }
+                } else {
+                    // Create user document if it doesn't exist
+                    await setDoc(userDocRef, {
+                        email: authService.getCurrentUser()?.email,
+                        displayName: authService.getCurrentUser()?.displayName,
+                        friends: [],
+                        createdAt: new Date().toISOString()
+                    });
+                }
+            });
+        } catch (error) {
+            console.error('[ProfileTab] Error loading friends:', error);
+        }
+    }
+
+    async addFriend(friendCode) {
+        const user = authService.getCurrentUser();
+        if (!user) return;
+
+        try {
+            // Find user by friend code
+            const usersRef = collection(db, 'users');
+            const snapshot = await getDoc(doc(db, 'users', user.uid));
+            
+            // Search all users for matching friend code
+            let friendId = null;
+            const allUsersSnapshot = await getDocs(usersRef);
+            
+            for (const doc of allUsersSnapshot.docs) {
+                if (this.generateFriendCode(doc.id) === friendCode.toUpperCase()) {
+                    friendId = doc.id;
+                    break;
+                }
+            }
+
+            if (!friendId) {
+                this.showToast('Friend code not found ❌', true);
+                return;
+            }
+
+            if (friendId === user.uid) {
+                this.showToast('Cannot add yourself as a friend ❌', true);
+                return;
+            }
+
+            // Check if already friends
+            const currentFriends = snapshot.exists() ? snapshot.data().friends || [] : [];
+            if (currentFriends.includes(friendId)) {
+                this.showToast('Already friends! 👥');
+                return;
+            }
+
+            // Add to both users' friend lists
+            const userDocRef = doc(db, 'users', user.uid);
+            const friendDocRef = doc(db, 'users', friendId);
+
+            await updateDoc(userDocRef, {
+                friends: arrayUnion(friendId)
+            });
+
+            await updateDoc(friendDocRef, {
+                friends: arrayUnion(user.uid)
+            });
+
+            this.showToast('Friend added successfully! 🎉');
+            
+            // Close modal
+            const modal = this.container.querySelector('#add-friend-modal');
+            if (modal) modal.style.display = 'none';
+            
+            // Clear input
+            const input = this.container.querySelector('#friend-code-input');
+            if (input) input.value = '';
+
+        } catch (error) {
+            console.error('[ProfileTab] Error adding friend:', error);
+            this.showToast('Failed to add friend ❌', true);
+        }
+    }
+
+    async removeFriend(friendId) {
+        const user = authService.getCurrentUser();
+        if (!user) return;
+
+        try {
+            const userDocRef = doc(db, 'users', user.uid);
+            const friendDocRef = doc(db, 'users', friendId);
+
+            await updateDoc(userDocRef, {
+                friends: arrayRemove(friendId)
+            });
+
+            await updateDoc(friendDocRef, {
+                friends: arrayRemove(user.uid)
+            });
+
+            this.showToast('Friend removed 👋');
+
+        } catch (error) {
+            console.error('[ProfileTab] Error removing friend:', error);
+            this.showToast('Failed to remove friend ❌', true);
+        }
+    }
+
+    renderFriendsList() {
+        if (this.friends.length === 0) {
+            return `
+                <div style="text-align: center; padding: 2rem 1rem; color: #A6C0DD; opacity: 0.6;">
+                    <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">👥</div>
+                    <p style="font-size: 0.875rem; margin: 0;">No friends yet. Add friends to share your movie discoveries!</p>
+                </div>
+            `;
+        }
+
+        return this.friends.map(friend => `
+            <div style="
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 0.875rem;
+                background: rgba(166, 192, 221, 0.1);
+                border: 1px solid rgba(166, 192, 221, 0.2);
+                border-radius: 0.75rem;
+                margin-bottom: 0.5rem;
+            ">
+                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                    <div style="
+                        width: 40px;
+                        height: 40px;
+                        background: linear-gradient(135deg, #A6C0DD, #8ba3b8);
+                        border-radius: 50%;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        font-size: 1rem;
+                        font-weight: 700;
+                        color: #18183A;
+                    ">
+                        ${this.getInitials(friend.displayName || friend.email)}
+                    </div>
+                    <div>
+                        <div style="font-size: 0.875rem; font-weight: 600; color: #FDFAB0;">
+                            ${friend.displayName || 'MoviEase User'}
+                        </div>
+                        <div style="font-size: 0.75rem; color: #A6C0DD; opacity: 0.8;">
+                            ${friend.email}
+                        </div>
+                    </div>
+                </div>
+                <button 
+                    class="remove-friend-btn" 
+                    data-friend-id="${friend.id}"
+                    style="
+                        padding: 0.5rem 0.875rem;
+                        background: rgba(239, 68, 68, 0.2);
+                        border: 1px solid rgba(239, 68, 68, 0.4);
+                        border-radius: 0.5rem;
+                        color: #ef4444;
+                        font-size: 0.75rem;
+                        font-weight: 600;
+                        cursor: pointer;
+                        transition: all 0.2s;
+                    "
+                    onmouseover="this.style.background='rgba(239, 68, 68, 0.3)'"
+                    onmouseout="this.style.background='rgba(239, 68, 68, 0.2)'"
+                >
+                    Remove
+                </button>
+            </div>
+        `).join('');
+    }
+
+    renderAddFriendSection(user) {
         return `
             <div class="settings-section" style="background: linear-gradient(135deg, rgba(166, 192, 221, 0.2), rgba(139, 163, 184, 0.2)); border: 1px solid rgba(166, 192, 221, 0.3); border-radius: 1rem; padding: 1.5rem; margin-bottom: 1.5rem;">
                 <h2 style="font-size: 1.125rem; font-weight: 700; color: #FDFAB0; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
-                    👥 Friends
+                    👥 Friends ${this.friends.length > 0 ? `(${this.friends.length})` : ''}
                 </h2>
                 <p style="color: #A6C0DD; font-size: 0.875rem; margin-bottom: 1rem;">
                     Share your movie discoveries with friends
                 </p>
+                
+                <!-- Friends List -->
+                <div id="friends-list" style="margin-bottom: 1rem; max-height: 300px; overflow-y: auto;">
+                    ${this.renderFriendsList()}
+                </div>
                 
                 <button id="add-friend-btn" style="
                     width: 100%;
@@ -490,21 +836,107 @@ export class ProfileTab {
                 color: #FDFAB0;
                 padding: 0.5rem;
             }
+
+            /* Friends list scrollbar */
+            #friends-list::-webkit-scrollbar {
+                width: 6px;
+            }
+
+            #friends-list::-webkit-scrollbar-track {
+                background: rgba(166, 192, 221, 0.1);
+                border-radius: 3px;
+            }
+
+            #friends-list::-webkit-scrollbar-thumb {
+                background: rgba(166, 192, 221, 0.3);
+                border-radius: 3px;
+            }
+
+            #friends-list::-webkit-scrollbar-thumb:hover {
+                background: rgba(166, 192, 221, 0.5);
+            }
         `;
         document.head.appendChild(style);
     }
 
     attachEventListeners() {
-        // Add Friend button
+        // Add Friend button - Open modal
         const addFriendBtn = document.getElementById('add-friend-btn');
         if (addFriendBtn) {
             addFriendBtn.addEventListener('click', () => {
-                this.showToast('Friend feature coming soon! 🎬');
-                console.log('[Profile] Add Friend clicked');
+                const modal = this.container.querySelector('#add-friend-modal');
+                if (modal) modal.style.display = 'flex';
             });
         }
 
-        // Theme toggle - FIXED!
+        // Close modal
+        const closeModalBtn = document.getElementById('close-friend-modal');
+        if (closeModalBtn) {
+            closeModalBtn.addEventListener('click', () => {
+                const modal = this.container.querySelector('#add-friend-modal');
+                if (modal) modal.style.display = 'none';
+            });
+        }
+
+        // Close modal on backdrop click
+        const modal = this.container.querySelector('#add-friend-modal');
+        if (modal) {
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    modal.style.display = 'none';
+                }
+            });
+        }
+
+        // Copy friend code
+        const copyCodeBtn = document.getElementById('copy-friend-code');
+        if (copyCodeBtn) {
+            copyCodeBtn.addEventListener('click', () => {
+                const input = document.getElementById('my-friend-code');
+                if (input) {
+                    input.select();
+                    navigator.clipboard.writeText(input.value);
+                    this.showToast('Friend code copied! 📋');
+                }
+            });
+        }
+
+        // Add friend submit
+        const addFriendSubmit = document.getElementById('add-friend-submit');
+        if (addFriendSubmit) {
+            addFriendSubmit.addEventListener('click', () => {
+                const input = document.getElementById('friend-code-input');
+                if (input && input.value.trim()) {
+                    this.addFriend(input.value.trim());
+                }
+            });
+        }
+
+        // Enter key on friend code input
+        const friendCodeInput = document.getElementById('friend-code-input');
+        if (friendCodeInput) {
+            friendCodeInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    const input = document.getElementById('friend-code-input');
+                    if (input && input.value.trim()) {
+                        this.addFriend(input.value.trim());
+                    }
+                }
+            });
+        }
+
+        // Remove friend buttons
+        const removeFriendBtns = this.container.querySelectorAll('.remove-friend-btn');
+        removeFriendBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const friendId = btn.dataset.friendId;
+                if (confirm('Remove this friend?')) {
+                    this.removeFriend(friendId);
+                }
+            });
+        });
+
+        // Theme toggle
         const themeToggle = document.getElementById('theme-toggle');
         if (themeToggle) {
             themeToggle.addEventListener('change', (e) => {
@@ -513,13 +945,12 @@ export class ProfileTab {
                 this.showToast(`Switched to ${this.currentTheme} mode ✨`);
                 console.log('[Profile] Theme changed to:', this.currentTheme);
                 
-                // Re-render the theme section only
                 const themeSection = this.container.querySelector('.settings-section');
                 if (themeSection && themeSection.querySelector('#theme-toggle')) {
                     const tempDiv = document.createElement('div');
                     tempDiv.innerHTML = this.renderThemeSection();
                     themeSection.replaceWith(tempDiv.firstElementChild);
-                    this.attachEventListeners(); // Re-attach all listeners
+                    this.attachEventListeners();
                 }
             });
         }
@@ -637,5 +1068,12 @@ export class ProfileTab {
                 keyframes.remove();
             }, 300);
         }, 2500);
+    }
+
+    destroy() {
+        if (this.friendsUnsubscribe) {
+            this.friendsUnsubscribe();
+            this.friendsUnsubscribe = null;
+        }
     }
 }
