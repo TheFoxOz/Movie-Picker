@@ -488,10 +488,18 @@ export class ProfileTab {
 
     async syncPreferencesToLocalStorage(userId, profile) {
         try {
+            // Get platforms from profile.selectedPlatforms (this is what renders the checkboxes)
+            const enabledPlatforms = profile.selectedPlatforms || [];
+            
+            // Get blocked triggers (items that are UNCHECKED in trigger warnings)
+            const allTriggerCategories = TRIGGER_CATEGORIES.map(c => c.id);
+            const enabledTriggers = profile.triggers || [];
+            const blockedTriggers = allTriggerCategories.filter(id => !enabledTriggers.includes(id));
+            
             const prefs = {
                 region: profile.region || 'US',
-                platforms: profile.platforms || [],
-                blockedTriggers: profile.blockedTriggers || []
+                platforms: enabledPlatforms,
+                blockedTriggers: blockedTriggers
             };
             
             localStorage.setItem(`userPreferences_${userId}`, JSON.stringify(prefs));
