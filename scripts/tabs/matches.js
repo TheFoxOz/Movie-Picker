@@ -1,20 +1,18 @@
 /**
- * Matches Tab - Friend Movie Matches
- * ✅ FIXED: Action-based matching (like/love) instead of boolean
- * ✅ FIXED: Supports both movieId and movie.id formats
- * ✅ FIXED: String comparison for movie IDs
- * ✅ COLOR UPDATE: Space Indigo (#18183A), Powder Blue (#A6C0DD), Vanilla Custard (#FDFAB0)
- * ✅ Real-time Firestore listener for friend swipe history
- * ✅ Correct movieModal import and usage
- * ✅ Universal trigger warnings with tooltips
+ * Matches Tab - Enhanced with Watched Tracking & UI Improvements
+ * ✅ WATCHED TRACKING: Mark movies as watched with friends
+ * ✅ UI IMPROVEMENTS: Glass morphism, animations, hover effects
+ * ✅ MOVIE WHEEL: Random movie picker integration
+ * ✅ RANKING SYSTEM: Score-based sorting with visual badges
+ * ✅ FILTERS: All / Unwatched / Watched tabs
  */
 
 import { tmdbService } from '../services/tmdb.js';
 import { authService } from '../services/auth-service.js';
-import { userProfileService } from '../services/user-profile-revised.js';
 import { movieModal } from '../components/movie-modal.js';
 import { renderTriggerBadge } from '../utils/trigger-warnings.js';
-import { doc, getDoc, onSnapshot } from 'firebase/firestore';
+import { movieWheel } from '../components/movie-wheel.js';
+import { doc, getDoc, onSnapshot, setDoc } from 'firebase/firestore';
 import { db } from '../services/firebase-config.js';
 
 class MatchesTab {
@@ -25,6 +23,8 @@ class MatchesTab {
         this.selectedFriend = null;
         this.isLoading = false;
         this.friendListeners = new Map();
+        this.watchedMovies = new Set();
+        this.currentFilter = 'all';
     }
 
     async init(container) {
@@ -34,9 +34,193 @@ class MatchesTab {
         }
         
         this.container = container;
+        this.injectStyles();
         await this.render();
         await this.loadFriends();
         this.attachEventListeners();
+    }
+
+    injectStyles() {
+        if (document.getElementById('matches-enhanced-styles')) return;
+
+        const style = document.createElement('style');
+        style.id = 'matches-enhanced-styles';
+        style.textContent = `
+            /* Glass Morphism */
+            .glass-card {
+                background: rgba(166, 192, 221, 0.1);
+                backdrop-filter: blur(10px);
+                border: 1px solid rgba(166, 192, 221, 0.2);
+            }
+
+            /* Animations */
+            @keyframes bounce-in {
+                0% { transform: scale(0); }
+                50% { transform: scale(1.2); }
+                100% { transform: scale(1); }
+            }
+
+            .bounce-in {
+                animation: bounce-in 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            }
+
+            @keyframes slide-up {
+                from {
+                    opacity: 0;
+                    transform: translateY(20px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+
+            .slide-up {
+                animation: slide-up 0.4s ease-out forwards;
+            }
+
+            @keyframes glow-pulse {
+                0%, 100% { box-shadow: 0 0 20px rgba(166, 192, 221, 0.4); }
+                50% { box-shadow: 0 0 40px rgba(166, 192, 221, 0.6); }
+            }
+
+            .glow-pulse {
+                animation: glow-pulse 2s ease-in-out infinite;
+            }
+
+            /* Movie Card Enhancements */
+            .movie-card {
+                position: relative;
+                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            }
+
+            .movie-card:hover {
+                transform: translateY(-8px) scale(1.02);
+                box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+            }
+
+            .movie-card.watched {
+                opacity: 0.75;
+            }
+
+            .movie-card.watched::after {
+                content: '✓ WATCHED';
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: rgba(16, 185, 129, 0.95);
+                color: white;
+                padding: 0.5rem 1rem;
+                border-radius: 0.5rem;
+                font-weight: 700;
+                font-size: 0.875rem;
+                pointer-events: none;
+                opacity: 0;
+                transition: opacity 0.3s;
+            }
+
+            .movie-card.watched:hover::after {
+                opacity: 1;
+            }
+
+            /* Watched Checkbox */
+            .watched-checkbox {
+                position: absolute;
+                top: 0.5rem;
+                left: 0.5rem;
+                width: 28px;
+                height: 28px;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                cursor: pointer;
+                z-index: 20;
+                transition: all 0.2s;
+                border: 2px solid;
+            }
+
+            .watched-checkbox:hover {
+                transform: scale(1.1);
+            }
+
+            .watched-checkbox input {
+                display: none;
+            }
+
+            .watched-checkbox .checkmark {
+                color: white;
+                font-size: 16px;
+                font-weight: 700;
+                transition: opacity 0.2s;
+            }
+
+            /* Filter Tabs */
+            .filter-tab {
+                flex: 1;
+                padding: 0.75rem;
+                border: none;
+                border-radius: 0.5rem;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.2s;
+                background: transparent;
+                color: #A6C0DD;
+            }
+
+            .filter-tab.active {
+                background: linear-gradient(135deg, #A6C0DD, #8ba3b8);
+                color: #18183A;
+            }
+
+            .filter-tab:hover:not(.active) {
+                background: rgba(166, 192, 221, 0.2);
+            }
+
+            /* Action Button */
+            .action-btn {
+                transition: all 0.3s;
+            }
+
+            .action-btn:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 6px 20px rgba(255, 46, 99, 0.5);
+            }
+
+            .action-btn:active {
+                transform: translateY(0);
+            }
+
+            /* Toast Notification */
+            .toast {
+                position: fixed;
+                bottom: 6rem;
+                left: 50%;
+                transform: translateX(-50%);
+                background: rgba(24, 24, 58, 0.95);
+                color: #FDFAB0;
+                padding: 1rem 1.5rem;
+                border-radius: 0.75rem;
+                border: 2px solid #A6C0DD;
+                font-weight: 600;
+                z-index: 3000;
+                animation: toast-in 0.3s ease-out;
+                backdrop-filter: blur(10px);
+            }
+
+            @keyframes toast-in {
+                from {
+                    opacity: 0;
+                    transform: translate(-50%, 20px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translate(-50%, 0);
+                }
+            }
+        `;
+        document.head.appendChild(style);
     }
 
     async render() {
@@ -51,29 +235,92 @@ class MatchesTab {
                 padding: 1rem;
                 padding-bottom: 6rem;
             ">
-                <div class="matches-header" style="margin-bottom: 2rem;">
+                <!-- Header with gradient -->
+                <div class="matches-header glass-card" style="
+                    margin-bottom: 2rem;
+                    padding: 1.5rem;
+                    border-radius: 1rem;
+                    background: linear-gradient(135deg, rgba(166, 192, 221, 0.15), rgba(253, 250, 176, 0.1));
+                ">
                     <h1 style="
                         font-size: 1.75rem;
                         font-weight: 700;
                         color: #FDFAB0;
                         margin-bottom: 0.5rem;
-                    ">🤝 Movie Matches</h1>
+                        display: flex;
+                        align-items: center;
+                        gap: 0.5rem;
+                    ">
+                        <span class="bounce-in">🤝</span>
+                        <span>Movie Matches</span>
+                    </h1>
                     <p style="color: #A6C0DD; font-size: 0.95rem;">
                         Find movies you and your friends both liked
                     </p>
                 </div>
 
+                <!-- Friends List -->
                 <div id="friends-list" class="friends-list" style="margin-bottom: 2rem;">
                     ${this.renderLoadingState()}
                 </div>
 
+                <!-- Filter Tabs -->
+                <div id="filter-tabs" style="display: none; margin-bottom: 1.5rem;">
+                    <div style="
+                        display: flex;
+                        gap: 0.5rem;
+                        background: rgba(166, 192, 221, 0.1);
+                        padding: 0.5rem;
+                        border-radius: 0.75rem;
+                        border: 1px solid rgba(166, 192, 221, 0.2);
+                    ">
+                        <button class="filter-tab active" data-filter="all">All Matches</button>
+                        <button class="filter-tab" data-filter="unwatched">Unwatched</button>
+                        <button class="filter-tab" data-filter="watched">Watched</button>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div id="action-buttons" style="display: none; margin-bottom: 1.5rem;">
+                    <button id="movie-wheel-btn" class="action-btn" style="
+                        width: 100%;
+                        padding: 1rem;
+                        background: linear-gradient(135deg, #ff2e63, #ff6b9d);
+                        border: none;
+                        border-radius: 0.75rem;
+                        color: white;
+                        font-weight: 700;
+                        font-size: 1rem;
+                        cursor: pointer;
+                        box-shadow: 0 4px 15px rgba(255, 46, 99, 0.3);
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        gap: 0.5rem;
+                    ">
+                        <span style="font-size: 1.5rem;">🎡</span>
+                        <span>Random Pick</span>
+                    </button>
+                </div>
+
+                <!-- Matches Display -->
                 <div id="matches-display" class="matches-display" style="display: none;">
                     <h2 class="section-title" style="
                         font-size: 1.25rem;
                         font-weight: 600;
                         color: #FDFAB0;
                         margin-bottom: 1rem;
-                    "></h2>
+                        display: flex;
+                        align-items: center;
+                        justify-content: space-between;
+                    ">
+                        <span id="match-title"></span>
+                        <span id="match-count" style="
+                            font-size: 0.875rem;
+                            color: #A6C0DD;
+                            font-weight: 500;
+                        "></span>
+                    </h2>
                     <div id="matches-grid" class="movie-grid" style="
                         display: grid;
                         grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
@@ -81,13 +328,14 @@ class MatchesTab {
                     "></div>
                 </div>
 
+                <!-- Empty State -->
                 <div id="empty-state" style="
                     display: none;
                     text-align: center;
                     padding: 3rem 1rem;
                     color: #A6C0DD;
                 ">
-                    <p style="font-size: 3rem; margin-bottom: 1rem;">👥</p>
+                    <p style="font-size: 3rem; margin-bottom: 1rem;" class="bounce-in">👥</p>
                     <h3 style="color: #FDFAB0; margin-bottom: 0.5rem;">No Friends Yet</h3>
                     <p>Add friends to find movie matches!</p>
                 </div>
@@ -98,7 +346,7 @@ class MatchesTab {
     renderLoadingState() {
         return `
             <div style="text-align: center; padding: 2rem;">
-                <div class="spinner" style="
+                <div class="spinner glow-pulse" style="
                     width: 40px;
                     height: 40px;
                     border: 4px solid rgba(166, 192, 221, 0.2);
@@ -160,23 +408,12 @@ class MatchesTab {
             }
 
             const friendData = friendDoc.data();
-            
-            // Debug: Log all available name fields
-            console.log('[Matches] Friend data for', friendId, ':', {
-                displayName: friendData.displayName,
-                userName: friendData.userName,
-                email: friendData.email,
-                uid: friendData.uid
-            });
-            
             const friend = {
                 id: friendId,
                 displayName: friendData.displayName || friendData.userName || friendData.email?.split('@')[0] || 'MoviEase User',
                 photoURL: friendData.photoURL || null,
                 swipeHistory: friendData.swipeHistory || []
             };
-            
-            console.log('[Matches] Final displayName used:', friend.displayName);
 
             this.setupFriendListener(friendId, friend);
 
@@ -228,26 +465,27 @@ class MatchesTab {
                 grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
                 gap: 1rem;
             ">
-                ${validFriends.map(friend => this.renderFriendCard(friend)).join('')}
+                ${validFriends.map((friend, index) => this.renderFriendCard(friend, index)).join('')}
             </div>
         `;
     }
 
-    renderFriendCard(friend) {
+    renderFriendCard(friend, index) {
         const photoUrl = friend.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(friend.displayName)}&background=A6C0DD&color=18183A`;
         const swipeCount = friend.swipeHistory?.length || 0;
 
         return `
-            <div class="friend-card" data-friend-id="${friend.id}" style="
-                background: linear-gradient(135deg, #A6C0DD 0%, #FDFAB0 100%);
+            <div class="friend-card slide-up glass-card" data-friend-id="${friend.id}" style="
+                background: linear-gradient(135deg, rgba(166, 192, 221, 0.2), rgba(253, 250, 176, 0.15));
                 border-radius: 12px;
                 padding: 1rem;
                 text-align: center;
                 cursor: pointer;
-                transition: all 0.2s ease;
+                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
                 border: 2px solid transparent;
-            " onmouseover="this.style.borderColor='#FDFAB0'; this.style.transform='translateY(-4px)';" 
-               onmouseout="this.style.borderColor='transparent'; this.style.transform='translateY(0)';">
+                animation-delay: ${index * 0.1}s;
+            " onmouseover="this.style.borderColor='#FDFAB0'; this.style.transform='translateY(-4px)'; this.style.boxShadow='0 8px 20px rgba(166, 192, 221, 0.3)';" 
+               onmouseout="this.style.borderColor='transparent'; this.style.transform='translateY(0)'; this.style.boxShadow='none';">
                 <img 
                     src="${photoUrl}" 
                     alt="${friend.displayName}"
@@ -259,12 +497,13 @@ class MatchesTab {
                         margin: 0 auto 0.75rem;
                         border: 3px solid #18183A;
                         display: block;
+                        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
                     "
                 >
                 <h3 style="
                     font-size: 0.95rem;
                     font-weight: 600;
-                    color: #18183A;
+                    color: #FDFAB0;
                     margin: 0 0 0.25rem 0;
                     overflow: hidden;
                     text-overflow: ellipsis;
@@ -272,7 +511,7 @@ class MatchesTab {
                 ">${friend.displayName}</h3>
                 <p style="
                     font-size: 0.8rem;
-                    color: rgba(24, 24, 58, 0.7);
+                    color: #A6C0DD;
                     margin: 0;
                 ">${swipeCount} swipes</p>
             </div>
@@ -282,11 +521,19 @@ class MatchesTab {
     async showMatchesForFriend(friend) {
         this.selectedFriend = friend;
         
+        // Load watched movies for this friend
+        await this.loadWatchedMovies(friend.id);
+        
         const matchesDisplay = document.getElementById('matches-display');
-        const sectionTitle = matchesDisplay.querySelector('.section-title');
+        const filterTabs = document.getElementById('filter-tabs');
+        const actionButtons = document.getElementById('action-buttons');
+        const sectionTitle = document.getElementById('match-title');
+        const matchCount = document.getElementById('match-count');
         const matchesGrid = document.getElementById('matches-grid');
 
         matchesDisplay.style.display = 'block';
+        filterTabs.style.display = 'block';
+        actionButtons.style.display = 'block';
         sectionTitle.textContent = `Matches with ${friend.displayName}`;
         matchesGrid.innerHTML = this.renderLoadingCards(6);
 
@@ -300,7 +547,7 @@ class MatchesTab {
                         text-align: center;
                         padding: 2rem;
                         color: #A6C0DD;
-                    ">
+                    " class="slide-up">
                         <p style="font-size: 2rem; margin-bottom: 0.5rem;">🎬</p>
                         <p>No matches yet. Keep swiping!</p>
                     </div>
@@ -313,7 +560,6 @@ class MatchesTab {
                     const movie = await tmdbService.getMovieDetails(matchData.id);
                     if (movie) {
                         await tmdbService.loadWatchProvidersForMovies([movie]);
-                        // ✅ Attach match data to movie object
                         movie.matchData = matchData;
                     }
                     return movie;
@@ -322,6 +568,9 @@ class MatchesTab {
 
             const validMovies = moviesWithDetails.filter(m => m !== null);
             this.matches = validMovies;
+            this.currentFilter = 'all';
+            
+            matchCount.textContent = `${validMovies.length} matches`;
             this.renderMatchesGrid(validMovies);
 
         } catch (error) {
@@ -332,6 +581,92 @@ class MatchesTab {
                 </div>
             `;
         }
+    }
+
+    async loadWatchedMovies(friendId) {
+        try {
+            const currentUser = authService.getCurrentUser();
+            if (!currentUser) return;
+
+            const watchedRef = doc(db, 'users', currentUser.uid, 'watchHistory', friendId);
+            const watchedDoc = await getDoc(watchedRef);
+            
+            this.watchedMovies.clear();
+            
+            if (watchedDoc.exists()) {
+                const data = watchedDoc.data();
+                Object.keys(data).forEach(movieId => {
+                    this.watchedMovies.add(parseInt(movieId));
+                });
+                console.log('[Matches] Loaded watched movies:', this.watchedMovies.size);
+            }
+        } catch (error) {
+            console.error('[Matches] Error loading watched movies:', error);
+        }
+    }
+
+    async toggleWatched(movieId, friendId) {
+        try {
+            const currentUser = authService.getCurrentUser();
+            if (!currentUser) return;
+
+            const watchedRef = doc(db, 'users', currentUser.uid, 'watchHistory', friendId);
+            const isWatched = this.watchedMovies.has(movieId);
+            
+            if (isWatched) {
+                // Remove from watched
+                this.watchedMovies.delete(movieId);
+                const watchedDoc = await getDoc(watchedRef);
+                if (watchedDoc.exists()) {
+                    const data = watchedDoc.data();
+                    delete data[movieId.toString()];
+                    await setDoc(watchedRef, data);
+                }
+                this.showToast('Removed from watched 📝');
+            } else {
+                // Add to watched
+                this.watchedMovies.add(movieId);
+                await setDoc(watchedRef, {
+                    [movieId.toString()]: {
+                        watchedAt: Date.now(),
+                        timestamp: new Date().toISOString()
+                    }
+                }, { merge: true });
+                this.showToast('Marked as watched ✅');
+            }
+            
+            // Re-render with current filter
+            this.applyFilter(this.currentFilter);
+            
+        } catch (error) {
+            console.error('[Matches] Error toggling watched:', error);
+            this.showToast('Failed to update ❌');
+        }
+    }
+
+    applyFilter(filter) {
+        this.currentFilter = filter;
+        
+        // Update active tab
+        document.querySelectorAll('.filter-tab').forEach(tab => {
+            tab.classList.remove('active');
+            if (tab.dataset.filter === filter) {
+                tab.classList.add('active');
+            }
+        });
+        
+        let filteredMovies = this.matches;
+        
+        if (filter === 'watched') {
+            filteredMovies = this.matches.filter(m => this.watchedMovies.has(m.id));
+        } else if (filter === 'unwatched') {
+            filteredMovies = this.matches.filter(m => !this.watchedMovies.has(m.id));
+        }
+        
+        const matchCount = document.getElementById('match-count');
+        matchCount.textContent = `${filteredMovies.length} matches`;
+        
+        this.renderMatchesGrid(filteredMovies);
     }
 
     async calculateMatches(friend) {
@@ -346,10 +681,7 @@ class MatchesTab {
         const friendSwipes = friend.swipeHistory || [];
 
         console.log(`[Matches] User swipes: ${userSwipes.length}, Friend swipes: ${friendSwipes.length}`);
-        console.log('[Matches] Sample user swipe:', userSwipes[0]);
-        console.log('[Matches] Sample friend swipe:', friendSwipes[0]);
 
-        // ✅ Action score mapping
         const getActionScore = (action) => {
             const scores = {
                 'love': 5,
@@ -361,19 +693,16 @@ class MatchesTab {
             return scores[action] || 0;
         };
 
-        // Build user likes map with scores
-        const userLikes = new Map(); // movieId -> score
+        const userLikes = new Map();
         userSwipes.forEach(swipe => {
             const movieId = swipe.movieId || swipe.movie?.id;
             if (movieId) {
                 const score = getActionScore(swipe.action);
-                if (score > 0) { // Only count positive actions (love, like, maybe)
+                if (score > 0) {
                     userLikes.set(movieId.toString(), score);
                 }
             }
         });
-
-        console.log(`[Matches] User liked ${userLikes.size} movies`);
 
         const matches = [];
         
@@ -383,7 +712,6 @@ class MatchesTab {
                 const movieIdStr = movieId.toString();
                 const friendScore = getActionScore(swipe.action);
                 
-                // Check if user also liked this movie (positive score)
                 if (friendScore > 0 && userLikes.has(movieIdStr)) {
                     const userScore = userLikes.get(movieIdStr);
                     const combinedScore = userScore + friendScore;
@@ -401,9 +729,6 @@ class MatchesTab {
             }
         });
 
-        console.log(`[Matches] Found ${matches.length} mutual likes`);
-
-        // ✅ Sort by combined score (highest first), then by timestamp
         matches.sort((a, b) => {
             if (b.combinedScore !== a.combinedScore) {
                 return b.combinedScore - a.combinedScore;
@@ -411,12 +736,7 @@ class MatchesTab {
             return b.timestamp - a.timestamp;
         });
 
-        console.log('[Matches] Top 3 matches by score:', matches.slice(0, 3).map(m => ({
-            id: m.id,
-            combinedScore: m.combinedScore,
-            userAction: m.userAction,
-            friendAction: m.friendAction
-        })));
+        console.log(`[Matches] Found ${matches.length} mutual likes`);
 
         return matches;
     }
@@ -432,7 +752,7 @@ class MatchesTab {
         return Array(count).fill(0).map(() => `
             <div class="movie-card loading" style="
                 aspect-ratio: 2/3;
-                background: linear-gradient(90deg, #A6C0DD 0%, #FDFAB0 50%, #A6C0DD 100%);
+                background: linear-gradient(90deg, rgba(166, 192, 221, 0.2) 0%, rgba(253, 250, 176, 0.2) 50%, rgba(166, 192, 221, 0.2) 100%);
                 background-size: 200% 100%;
                 animation: shimmer 1.5s infinite;
                 border-radius: 8px;
@@ -450,45 +770,40 @@ class MatchesTab {
         const grid = document.getElementById('matches-grid');
         if (!grid) return;
 
-        grid.innerHTML = movies.map(movie => this.renderMovieCard(movie)).join('');
+        grid.innerHTML = movies.map((movie, index) => this.renderMovieCard(movie, index)).join('');
     }
 
-    renderMovieCard(movie) {
+    renderMovieCard(movie, index) {
         const posterUrl = movie.posterURL || 'https://via.placeholder.com/300x450?text=No+Poster';
         const rating = movie.rating ? movie.rating.toFixed(1) : 'N/A';
         const platform = movie.platform || movie.availableOn?.[0] || 'Not Available';
+        const isWatched = this.watchedMovies.has(movie.id);
         
-        // Trailer
         const hasTrailer = movie.trailerKey && movie.trailerKey.trim() !== '';
         const trailerUrl = hasTrailer ? `https://www.youtube.com/watch?v=${movie.trailerKey}` : null;
         
-        // Universal trigger warning badge
         const triggerBadgeHTML = renderTriggerBadge(movie, { size: 'small', position: 'top-left' });
         
-        // Rating color
         let ratingColor = '#10b981';
         if (parseFloat(rating) < 5) ratingColor = '#ef4444';
         else if (parseFloat(rating) < 7) ratingColor = '#fbbf24';
 
-        // ✅ Match ranking badge
         const matchData = movie.matchData;
         let rankingBadge = '';
         if (matchData) {
             const { combinedScore, userAction, friendAction } = matchData;
             
-            // Emoji mapping
             const actionEmoji = {
                 'love': '❤️',
                 'like': '👍',
                 'maybe': '🤔'
             };
             
-            // Color based on combined score
-            let rankColor = '#10b981'; // green
-            if (combinedScore >= 10) rankColor = '#ff2e63'; // love+love = red
-            else if (combinedScore >= 8) rankColor = '#ec4899'; // pink
-            else if (combinedScore >= 6) rankColor = '#8b5cf6'; // purple
-            else if (combinedScore >= 4) rankColor = '#3b82f6'; // blue
+            let rankColor = '#10b981';
+            if (combinedScore >= 10) rankColor = '#ff2e63';
+            else if (combinedScore >= 8) rankColor = '#ec4899';
+            else if (combinedScore >= 6) rankColor = '#8b5cf6';
+            else if (combinedScore >= 4) rankColor = '#3b82f6';
             
             rankingBadge = `
                 <div style="
@@ -517,15 +832,14 @@ class MatchesTab {
         }
 
         return `
-            <div class="movie-card" data-movie-id="${movie.id}" style="
+            <div class="movie-card slide-up ${isWatched ? 'watched' : ''}" data-movie-id="${movie.id}" style="
                 position: relative;
                 cursor: pointer;
                 border-radius: 8px;
                 overflow: hidden;
-                transition: transform 0.2s ease;
                 background: #18183A;
-            " onmouseover="this.style.transform='scale(1.05)';" 
-               onmouseout="this.style.transform='scale(1)';">
+                animation-delay: ${index * 0.05}s;
+            ">
                 <img 
                     src="${posterUrl}" 
                     alt="${movie.title}"
@@ -533,7 +847,20 @@ class MatchesTab {
                     onerror="this.src='https://via.placeholder.com/300x450?text=No+Poster'"
                 >
                 
-                <!-- Trailer Button (Top Right) -->
+                <!-- Watched Checkbox -->
+                <label class="watched-checkbox" 
+                       onclick="event.stopPropagation();"
+                       style="
+                           background: ${isWatched ? '#10b981' : 'rgba(24, 24, 58, 0.9)'};
+                           border-color: ${isWatched ? 'white' : '#A6C0DD'};
+                       ">
+                    <input type="checkbox" 
+                           ${isWatched ? 'checked' : ''}
+                           onchange="window.matchesTab.toggleWatched(${movie.id}, '${this.selectedFriend.id}')">
+                    <span class="checkmark" style="opacity: ${isWatched ? 1 : 0};">✓</span>
+                </label>
+                
+                <!-- Trailer Button -->
                 ${hasTrailer ? `
                     <button 
                         onclick="event.stopPropagation(); window.open('${trailerUrl}', '_blank')"
@@ -561,7 +888,6 @@ class MatchesTab {
                     </button>
                 ` : ''}
                 
-                <!-- Universal Trigger Warning Badge -->
                 ${triggerBadgeHTML}
                 
                 <!-- Rating Badge -->
@@ -575,11 +901,11 @@ class MatchesTab {
                     border-radius: 6px;
                     font-size: 0.8rem;
                     font-weight: 700;
+                    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
                 ">
                     ⭐ ${rating}
                 </div>
                 
-                <!-- ✅ NEW: Ranking Badge -->
                 ${rankingBadge}
                 
                 <div style="
@@ -600,7 +926,6 @@ class MatchesTab {
                         white-space: nowrap;
                     ">${movie.title}</h3>
                     
-                    <!-- Platform Badge -->
                     <div style="
                         display: inline-block;
                         background: rgba(166, 192, 221, 0.2);
@@ -621,6 +946,7 @@ class MatchesTab {
     attachEventListeners() {
         if (!this.container) return;
         
+        // Friend card clicks
         this.container.addEventListener('click', async (e) => {
             const friendCard = e.target.closest('.friend-card');
             if (friendCard) {
@@ -632,6 +958,7 @@ class MatchesTab {
                 return;
             }
 
+            // Movie card clicks
             const movieCard = e.target.closest('.movie-card');
             if (movieCard && !movieCard.classList.contains('loading')) {
                 const movieId = parseInt(movieCard.dataset.movieId);
@@ -641,6 +968,55 @@ class MatchesTab {
                 }
             }
         });
+
+        // Filter tabs
+        this.container.addEventListener('click', (e) => {
+            const filterTab = e.target.closest('.filter-tab');
+            if (filterTab) {
+                const filter = filterTab.dataset.filter;
+                this.applyFilter(filter);
+            }
+        });
+
+        // Movie wheel button
+        this.container.addEventListener('click', (e) => {
+            if (e.target.closest('#movie-wheel-btn')) {
+                this.openMovieWheel();
+            }
+        });
+    }
+
+    openMovieWheel() {
+        if (!this.selectedFriend) return;
+        
+        // Get unwatched movies
+        const unwatchedMovies = this.matches.filter(m => !this.watchedMovies.has(m.id));
+        
+        if (unwatchedMovies.length < 3) {
+            this.showToast('Need at least 3 unwatched movies for the wheel! 🎡');
+            return;
+        }
+        
+        // Open movie wheel with current matches
+        movieWheel.open(unwatchedMovies, this.selectedFriend.displayName, (selectedMovie) => {
+            console.log('[Matches] Movie selected from wheel:', selectedMovie.title);
+            // Optionally open modal or mark as watched
+            if (movieModal) {
+                movieModal.show(selectedMovie);
+            }
+        });
+    }
+
+    showToast(message) {
+        const toast = document.createElement('div');
+        toast.className = 'toast';
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        
+        setTimeout(() => {
+            toast.style.animation = 'toast-in 0.3s ease-out reverse';
+            setTimeout(() => toast.remove(), 300);
+        }, 2500);
     }
 
     showEmptyState() {
@@ -669,8 +1045,10 @@ class MatchesTab {
         this.friends = [];
         this.matches = [];
         this.selectedFriend = null;
+        this.watchedMovies.clear();
     }
 }
 
 const matchesTab = new MatchesTab();
+window.matchesTab = matchesTab; // Expose globally for watched checkbox
 export { matchesTab, MatchesTab };
