@@ -5,6 +5,7 @@
  * ✅ FIXED: 20 movies per row
  * ✅ FIXED: No duplicate movies across sections
  * ✅ FIXED: Null check for movie.genres to prevent crashes
+ * ✅ NEW: Platform filtering by user's selected platforms
  */
 
 import { tmdbService } from '../services/tmdb.js';
@@ -101,6 +102,11 @@ export class HomeTab {
             console.log(`[Home] Enriching ${this.allMovies.length} movies with platform data...`);
             await this.enrichWithPlatformData(this.allMovies);
             console.log('[Home] ✅ Platform data loaded');
+
+            // ✅ CRITICAL: Filter by user's selected platforms
+            const beforePlatformFilter = this.allMovies.length;
+            this.allMovies = tmdbService.filterByUserPlatforms(this.allMovies);
+            console.log(`[Home] Platform filter: ${beforePlatformFilter} → ${this.allMovies.length} movies`);
 
             // ✅ Separate movies by cinema status FIRST
             const cinemaMovies = this.filterCinemaMovies(this.allMovies);
