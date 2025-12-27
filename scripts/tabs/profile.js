@@ -5,6 +5,7 @@
  * ✅ Working theme toggle
  * ✅ MoviEase branding
  */
+import { avatarUpload } from '../components/avatar-upload.js';
 
 import { authService } from '../services/auth-service.js';
 import { userProfileService } from '../services/user-profile-revised.js';
@@ -58,9 +59,12 @@ const TMDB_REGIONS = [
 export class ProfileTab {
     constructor() {
         this.container = null;
-        this.currentTheme = localStorage.getItem('app-theme') || 'dark';
         this.friends = [];
         this.friendsUnsubscribe = null;
+        this.avatarUpdateHandler = null;
+        
+        // Initialize avatar upload component
+        avatarUpload.init();
     }
 
     async render(container) {
@@ -90,9 +94,59 @@ export class ProfileTab {
                 <div class="profile-container" style="padding: 1.5rem 1rem 6rem; max-width: 600px; margin: 0 auto;">
                     <!-- User Info -->
                     <div style="text-align: center; margin-bottom: 2rem;">
-                        <div style="width: 80px; height: 80px; background: linear-gradient(135deg, #A6C0DD, #8ba3b8); border-radius: 50%; margin: 0 auto 1rem; display: flex; align-items: center; justify-content: center; font-size: 2rem; color: #18183A; box-shadow: 0 4px 12px rgba(166, 192, 221, 0.3);">
-                            ${user.photoURL ? `<img src="${user.photoURL}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">` : this.getInitials(user.displayName || user.email)}
+                        <!-- Avatar with Upload -->
+                        <div id="avatar-container" style="
+                            position: relative;
+                            width: 100px;
+                            height: 100px;
+                            margin: 0 auto 1rem;
+                            cursor: pointer;
+                            transition: all 0.2s;
+                        " 
+                        onmouseover="this.style.transform='scale(1.05)';"
+                        onmouseout="this.style.transform='scale(1)';">
+                            <!-- Avatar Image -->
+                            <div style="
+                                width: 100%;
+                                height: 100%;
+                                background: linear-gradient(135deg, #A6C0DD, #8ba3b8);
+                                border-radius: 50%;
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                                font-size: 2.5rem;
+                                color: #18183A;
+                                box-shadow: 0 4px 12px rgba(166, 192, 221, 0.3);
+                                overflow: hidden;
+                            ">
+                                ${user.photoURL 
+                                    ? `<img src="${user.photoURL}" style="width: 100%; height: 100%; object-fit: cover;">`
+                                    : this.getInitials(user.displayName || user.email)
+                                }
+                            </div>
+                            
+                            <!-- Camera Icon Overlay -->
+                            <div style="
+                                position: absolute;
+                                bottom: 0;
+                                right: 0;
+                                width: 36px;
+                                height: 36px;
+                                background: linear-gradient(135deg, #3b82f6, #2563eb);
+                                border: 3px solid #18183A;
+                                border-radius: 50%;
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                                font-size: 1.125rem;
+                                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+                                transition: all 0.2s;
+                            " onmouseover="this.style.transform='scale(1.1)';"
+                               onmouseout="this.style.transform='scale(1)';">
+                                📷
+                            </div>
                         </div>
+                        
                         <h1 style="font-size: 1.5rem; font-weight: 700; color: #FDFAB0; margin-bottom: 0.5rem;">
                             ${user.displayName || 'MoviEase User'}
                         </h1>
@@ -102,7 +156,6 @@ export class ProfileTab {
                     </div>
 
                     ${this.renderAddFriendSection(user)}
-                    ${this.renderThemeSection()}
                     ${this.renderRegionSection(profile)}
                     ${this.renderPlatformsSection(profile)}
                     ${this.renderTriggerWarningsSection(profile)}
@@ -267,13 +320,23 @@ export class ProfileTab {
                 if (docSnap.exists()) {
                     const friendIds = docSnap.data().friends || [];
                     
+                    console.log('[ProfileTab] Loading friends, IDs:', friendIds);
+                    
                     // Load friend details
                     const friendPromises = friendIds.map(async (friendId) => {
                         const friendDoc = await getDoc(doc(db, 'users', friendId));
                         if (friendDoc.exists()) {
+                            const data = friendDoc.data();
+                            console.log('[ProfileTab] Raw friend data:', {
+                                id: friendId,
+                                displayName: data.displayName,
+                                userName: data.userName,
+                                email: data.email,
+                                allFields: Object.keys(data)
+                            });
                             return {
                                 id: friendId,
-                                ...friendDoc.data()
+                                ...data
                             };
                         }
                         return null;
@@ -500,29 +563,6 @@ export class ProfileTab {
                     </svg>
                     Add Friend
                 </button>
-            </div>
-        `;
-    }
-
-    renderThemeSection() {
-        const isDark = this.currentTheme === 'dark';
-        
-        return `
-            <div class="settings-section" style="background: linear-gradient(135deg, rgba(166, 192, 221, 0.2), rgba(139, 163, 184, 0.2)); border: 1px solid rgba(166, 192, 221, 0.3); border-radius: 1rem; padding: 1.5rem; margin-bottom: 1.5rem;">
-                <div style="display: flex; align-items: center; justify-content: space-between;">
-                    <div>
-                        <h2 style="font-size: 1.125rem; font-weight: 700; color: #FDFAB0; margin: 0 0 0.25rem 0; display: flex; align-items: center; gap: 0.5rem;">
-                            ${isDark ? '🌙' : '☀️'} Theme
-                        </h2>
-                        <p style="color: #A6C0DD; font-size: 0.875rem; margin: 0;">
-                            ${isDark ? 'Dark Mode' : 'Light Mode'}
-                        </p>
-                    </div>
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="theme-toggle" ${isDark ? 'checked' : ''}>
-                        <span class="toggle-slider"></span>
-                    </label>
-                </div>
             </div>
         `;
     }
@@ -958,25 +998,6 @@ export class ProfileTab {
         // Remove friend buttons
         this.attachRemoveFriendListeners();
 
-        // Theme toggle
-        const themeToggle = document.getElementById('theme-toggle');
-        if (themeToggle) {
-            themeToggle.addEventListener('change', (e) => {
-                this.currentTheme = e.target.checked ? 'dark' : 'light';
-                localStorage.setItem('app-theme', this.currentTheme);
-                this.showToast(`Switched to ${this.currentTheme} mode ✨`);
-                console.log('[Profile] Theme changed to:', this.currentTheme);
-                
-                const themeSection = this.container.querySelector('.settings-section');
-                if (themeSection && themeSection.querySelector('#theme-toggle')) {
-                    const tempDiv = document.createElement('div');
-                    tempDiv.innerHTML = this.renderThemeSection();
-                    themeSection.replaceWith(tempDiv.firstElementChild);
-                    this.attachEventListeners();
-                }
-            });
-        }
-
         // Region select
         const regionSelect = document.getElementById('region-select');
         if (regionSelect) {
@@ -1041,6 +1062,23 @@ export class ProfileTab {
                 }
             });
         }
+        
+        // Avatar upload click handler
+        const avatarContainer = document.getElementById('avatar-container');
+        if (avatarContainer) {
+            avatarContainer.addEventListener('click', () => {
+                console.log('[ProfileTab] Opening avatar upload');
+                avatarUpload.open();
+            });
+        }
+
+        // Listen for avatar updates
+        this.avatarUpdateHandler = (event) => {
+            console.log('[ProfileTab] Avatar updated:', event.detail.photoURL);
+            // Refresh profile to show new avatar
+            this.render(this.container);
+        };
+        window.addEventListener('avatar-updated', this.avatarUpdateHandler);
     }
 
     attachRemoveFriendListeners() {
@@ -1111,3 +1149,21 @@ export class ProfileTab {
         }
     }
 }
+
+    cleanup() {
+        // Unsubscribe from friends listener
+        if (this.friendsUnsubscribe) {
+            this.friendsUnsubscribe();
+            this.friendsUnsubscribe = null;
+        }
+        
+        // Remove avatar update listener
+        if (this.avatarUpdateHandler) {
+            window.removeEventListener("avatar-updated", this.avatarUpdateHandler);
+            this.avatarUpdateHandler = null;
+        }
+    }
+}
+
+const profileTab = new ProfileTab();
+export default profileTab;
