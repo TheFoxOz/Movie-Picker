@@ -52,6 +52,60 @@ export class SwipeCard {
     }
 
     /**
+     * ✅ NEW: Render all available platforms as badges
+     */
+    renderAllPlatformBadges() {
+        const availableOn = this.movie.availableOn || [];
+        const platform = this.movie.platform;
+        
+        // If we have multiple platforms, show them all
+        if (availableOn.length > 0) {
+            // Get user's selected platforms for highlighting
+            const prefs = JSON.parse(localStorage.getItem(`userPreferences_${authService.getCurrentUser()?.uid}`) || '{}');
+            const selectedPlatforms = prefs.platforms || [];
+            
+            const normalize = (str) => str.toLowerCase().replace(/[^a-z0-9]/g, '');
+            const userNormalized = new Set(selectedPlatforms.map(normalize));
+            
+            return availableOn.map(platformName => {
+                const isUserPlatform = userNormalized.has(normalize(platformName));
+                return `
+                    <div class="platform-badge" style="
+                        padding: 0.5rem 0.875rem; 
+                        background: ${isUserPlatform ? 'rgba(16, 185, 129, 0.9)' : 'rgba(0,0,0,0.7)'}; 
+                        backdrop-filter: blur(10px); 
+                        border-radius: 1rem; 
+                        border: 1px solid ${isUserPlatform ? 'rgba(16, 185, 129, 0.5)' : 'rgba(255,255,255,0.1)'};
+                        transition: all 0.2s;
+                    ">
+                        <span style="color: white; font-weight: ${isUserPlatform ? '800' : '600'}; font-size: 0.75rem;">
+                            ${isUserPlatform ? '✓ ' : ''}${platformName}
+                        </span>
+                    </div>
+                `;
+            }).join('');
+        } else {
+            // Single platform or loading state
+            const displayPlatform = platform || 'Loading...';
+            const isInCinemas = displayPlatform === 'In Cinemas';
+            
+            return `
+                <div class="platform-badge" style="
+                    padding: 0.5rem 1rem; 
+                    background: ${isInCinemas ? 'rgba(217, 119, 6, 0.9)' : 'rgba(0,0,0,0.7)'}; 
+                    backdrop-filter: blur(10px); 
+                    border-radius: 1rem; 
+                    border: 1px solid ${isInCinemas ? 'rgba(217, 119, 6, 0.5)' : 'rgba(255,255,255,0.1)'};
+                ">
+                    <span style="color: white; font-weight: 700; font-size: 0.875rem;">
+                        ${isInCinemas ? '🎬 ' : ''}${displayPlatform}
+                    </span>
+                </div>
+            `;
+        }
+    }
+
+    /**
      * ✅ NEW: Update platform display after background enrichment
      */
     updatePlatform(platform, availableOn) {
@@ -61,16 +115,11 @@ export class SwipeCard {
         this.movie.platform = platform;
         this.movie.availableOn = availableOn || [];
         
-        // ✅ FIX: Show the platform that matches user's preferences
-        const displayPlatform = this.getPreferredPlatform(availableOn) || 
-                               (availableOn && availableOn.length > 0 ? availableOn[0] : null) ||
-                               (platform && platform !== 'Loading...' ? platform : 'Not Available');
-        
-        // Find and update the platform badge in the DOM
-        const platformBadge = this.element?.querySelector('.platform-badge');
-        if (platformBadge) {
-            platformBadge.textContent = displayPlatform;
-            console.log(`[SwipeCard] ✅ Updated platform display: ${displayPlatform}`);
+        // Find and update the platform badges container in the DOM
+        const badgesContainer = this.element?.querySelector('.platform-badges-container');
+        if (badgesContainer) {
+            badgesContainer.innerHTML = this.renderAllPlatformBadges();
+            console.log(`[SwipeCard] ✅ Updated platform display: ${availableOn?.length || 0} platform(s)`);
         }
     }
     
@@ -229,9 +278,17 @@ export class SwipeCard {
                     <!-- Gradient overlay -->
                     <div style="position: absolute; inset: 0; background: linear-gradient(0deg, rgba(0,0,0,0.8) 0%, transparent 40%);"></div>
                     
-                    <!-- ✅ FIXED: Platform badge with class for DOM targeting -->
-                    <div class="platform-badge" style="position: absolute; top: 1rem; right: 1rem; padding: 0.5rem 1rem; background: rgba(0,0,0,0.7); backdrop-filter: blur(10px); border-radius: 1rem; border: 1px solid rgba(255,255,255,0.1);">
-                        <span style="color: white; font-weight: 700; font-size: 0.875rem;">${platform}</span>
+                    <!-- ✅ UPDATED: Platform badges showing ALL available platforms -->
+                    <div class="platform-badges-container" style="
+                        position: absolute; 
+                        top: 1rem; 
+                        right: 1rem; 
+                        display: flex; 
+                        flex-direction: column; 
+                        gap: 0.5rem;
+                        align-items: flex-end;
+                    ">
+                        ${this.renderAllPlatformBadges()}
                     </div>
 
                     <!-- ✅ Universal Trigger Warning Badge (will be added dynamically if warnings exist) -->
