@@ -332,16 +332,6 @@ export class HomeTab {
 
         this.container.innerHTML = `
             <div style="width: 100%; padding: 1.5rem 0 6rem;">
-                <!-- Header -->
-                <div style="padding: 0 1rem 1.5rem;">
-                    <h1 style="font-size: 1.75rem; font-weight: 800; background: linear-gradient(135deg, #b0d4e3, #f4e8c1); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin: 0 0 0.5rem;">
-                        Discover
-                    </h1>
-                    <p style="color: rgba(176, 212, 227, 0.6); font-size: 0.875rem; margin: 0;">
-                        Your personalized movie feed
-                    </p>
-                </div>
-
                 <!-- Movie Rows -->
                 ${sectionsHTML}
             </div>
