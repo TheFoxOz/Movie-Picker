@@ -79,7 +79,6 @@ export class LibraryTab {
             if (page === 1) {
                 console.log('[Library] Loading initial collection with genre diversity...');
                 
-                // ✅ Load base collections
                 const baseCollections = await Promise.all([
                     tmdbService.getPopularMovies(1).catch(() => []),
                     tmdbService.getPopularMovies(2).catch(() => []),
@@ -88,8 +87,7 @@ export class LibraryTab {
                     tmdbService.discoverMovies({ sortBy: 'vote_average.desc', minVotes: 1000, page: 1 }).catch(() => ({ movies: [] }))
                 ]);
 
-                // ✅ Load genre-specific pages using direct fetch
-                const genreIds = [28, 35, 18, 27, 878, 10749, 53, 16]; // Action, Comedy, Drama, Horror, Sci-Fi, Romance, Thriller, Animation
+                const genreIds = [28, 35, 18, 27, 878, 10749, 53, 16];
                 const genreCollections = await Promise.all(
                     genreIds.map(async (genreId) => {
                         try {
@@ -106,7 +104,6 @@ export class LibraryTab {
                     })
                 );
 
-                // Combine all sources
                 const allSources = [...baseCollections, ...genreCollections];
 
                 const map = new Map();
@@ -181,9 +178,7 @@ export class LibraryTab {
                     if (tmdbService.getWatchProviders) {
                         movie.availableOn = await tmdbService.getWatchProviders(movie.id);
                         
-                        // ✅ FIXED: Smart platform assignment with "In Cinemas" support
                         if (!movie.availableOn || movie.availableOn.length === 0) {
-                            // Check if movie is recent (released within last 6 months)
                             const releaseDate = new Date(movie.releaseDate || movie.release_date);
                             const sixMonthsAgo = new Date();
                             sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
@@ -315,7 +310,6 @@ export class LibraryTab {
         const state = store.getState();
         const swipeHistory = state.swipeHistory || [];
         
-        // ✅ FIX: Count swipes by action
         const swipeCounts = {
             loved: swipeHistory.filter(s => s.action === 'love').length,
             liked: swipeHistory.filter(s => s.action === 'like').length,
@@ -333,14 +327,11 @@ export class LibraryTab {
                 -webkit-overflow-scrolling: touch;
                 padding: 1.5rem 1rem 6rem;
             ">
-                <!-- Header with Filter Button -->
-                <div style="margin-bottom:1.5rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;">
-                    <div style="flex:1;">
-                        <h1 style="font-size:1.75rem;font-weight:800;color:#FDFAB0;margin:0 0 0.5rem 0;">Movie Library</h1>
-                        <p style="color:#A6C0DD;font-size:0.875rem;margin:0;">
-                            ${this.filteredMovies.length.toLocaleString()} of ${this.allMovies.length.toLocaleString()}+ movies
-                        </p>
-                    </div>
+                <!-- Search and Filter Controls -->
+                <div style="margin-bottom:1.5rem;display:flex;align-items:center;gap:1rem;">
+                    <!-- Search Bar -->
+                    <input type="text" id="search-input" placeholder="Search movies..." value="${this.searchQuery}" 
+                           style="flex:1;padding:1rem;background:rgba(166,192,221,0.1);border:1px solid rgba(166,192,221,0.2);border-radius:1rem;color:#FDFAB0;font-size:1rem;">
                     
                     <!-- Filter Button -->
                     <button id="toggle-filters-btn" style="
@@ -357,18 +348,13 @@ export class LibraryTab {
                         gap: 0.5rem;
                         transition: transform 0.2s, box-shadow 0.2s;
                         box-shadow: 0 4px 12px rgba(166, 192, 221, 0.3);
+                        white-space: nowrap;
                     " onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='0 6px 16px rgba(166, 192, 221, 0.4)'" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 4px 12px rgba(166, 192, 221, 0.3)'">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width:20px;height:20px;">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" />
                         </svg>
                         Filters ${hasFilters ? `(${this.getActiveFilterCount()})` : ''}
                     </button>
-                </div>
-
-                <!-- Search Bar -->
-                <div style="margin-bottom:1rem;">
-                    <input type="text" id="search-input" placeholder="Search movies..." value="${this.searchQuery}" 
-                           style="width:100%;padding:1rem;background:rgba(166,192,221,0.1);border:1px solid rgba(166,192,221,0.2);border-radius:1rem;color:#FDFAB0;font-size:1rem;">
                 </div>
 
                 <!-- Movies Grid -->
@@ -574,7 +560,6 @@ export class LibraryTab {
     renderMoviesGrid() {
         let moviesToShow = [...this.allMovies];
 
-        // ✅ CRITICAL FIX: Use movieId OR movie.id for swipe filtering
         if (this.currentFilter !== 'all') {
             const swiped = store.getState().swipeHistory || [];
             const ids = swiped
@@ -649,19 +634,15 @@ export class LibraryTab {
         const rating = movie.rating || movie.vote_average;
         const year = movie.year || movie.releaseDate?.split('-')[0] || '';
         
-        // ✅ Trailer
         const hasTrailer = movie.trailerKey && movie.trailerKey.trim() !== '';
         const trailerUrl = hasTrailer ? `https://www.youtube.com/watch?v=${movie.trailerKey}` : null;
         
-        // ✅ NEW: Universal trigger warning badge
         const triggerBadgeHTML = renderTriggerBadge(movie, { size: 'small', position: 'top-left' });
         
-        // ✅ FIXED: Smart platform display with "In Cinemas" support
         const platform = (() => {
             if (movie.platform && movie.platform !== 'Not Available') return movie.platform;
             if (movie.availableOn && movie.availableOn.length > 0) return movie.availableOn[0];
             
-            // Check if recent release (in theaters)
             const releaseDate = new Date(movie.releaseDate || movie.release_date);
             const sixMonthsAgo = new Date();
             sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
@@ -685,7 +666,6 @@ export class LibraryTab {
                     <img src="${posterUrl}" alt="${movie.title}" style="width:100%;height:100%;object-fit:cover;"
                          onerror="this.src='https://placehold.co/300x450/18183A/FDFAB0?text=${encodeURIComponent(movie.title)}'">
                     
-                    <!-- ✅ Trailer Button (Top Right) -->
                     ${hasTrailer ? `
                         <button 
                             onclick="event.stopPropagation(); window.open('${trailerUrl}', '_blank')"
@@ -713,10 +693,8 @@ export class LibraryTab {
                         </button>
                     ` : ''}
                     
-                    <!-- ✅ NEW: Universal Trigger Warning Badge -->
                     ${triggerBadgeHTML}
                     
-                    <!-- Rating -->
                     ${rating ? `
                         <div style="
                             position:absolute;
@@ -738,7 +716,6 @@ export class LibraryTab {
                             ${year}${movie.runtime ? ` • ${movie.runtime}min` : ''}
                         </p>
                         
-                        <!-- ✅ Platform Badge -->
                         <div style="
                             display: inline-block;
                             background: rgba(166, 192, 221, 0.2);
@@ -759,7 +736,6 @@ export class LibraryTab {
     }
 
     attachListeners() {
-        // Search
         const search = this.container.querySelector('#search-input');
         if (search) {
             let searchTimeout;
@@ -778,7 +754,6 @@ export class LibraryTab {
             });
         }
 
-        // Filter modal toggle
         const toggleFiltersBtn = this.container.querySelector('#toggle-filters-btn');
         if (toggleFiltersBtn) {
             toggleFiltersBtn.addEventListener('click', () => this.toggleFilterModal(true));
@@ -794,7 +769,6 @@ export class LibraryTab {
             backdrop.addEventListener('click', () => this.toggleFilterModal(false));
         }
 
-        // Reset filters button
         const resetFiltersBtn = this.container.querySelector('#reset-filters-btn');
         if (resetFiltersBtn) {
             resetFiltersBtn.addEventListener('click', () => {
@@ -803,11 +777,9 @@ export class LibraryTab {
             });
         }
 
-        // Load more
         const loadMoreBtn = this.container.querySelector('#load-more-btn');
         if (loadMoreBtn) {
             loadMoreBtn.addEventListener('click', async () => {
-                // ✅ Load 5 pages sequentially for faster catalog building
                 console.log('[Library] Loading 5 pages...');
                 const originalText = loadMoreBtn.textContent;
                 loadMoreBtn.disabled = true;
@@ -823,7 +795,6 @@ export class LibraryTab {
             });
         }
 
-        // Filter buttons
         this.container.querySelectorAll('.filter-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 this.currentFilter = btn.dataset.filter;
@@ -864,7 +835,6 @@ export class LibraryTab {
             });
         }
 
-        // Movie cards
         this.container.querySelectorAll('.library-movie-card').forEach(card => {
             card.addEventListener('mouseover', () => card.style.transform = 'scale(1.05)');
             card.addEventListener('mouseout', () => card.style.transform = 'scale(1)');
@@ -915,7 +885,6 @@ export class LibraryTab {
         if (grid) {
             grid.innerHTML = this.renderMoviesGrid();
             
-            // Re-attach card listeners
             this.container.querySelectorAll('.library-movie-card').forEach(card => {
                 card.addEventListener('mouseover', () => card.style.transform = 'scale(1.05)');
                 card.addEventListener('mouseout', () => card.style.transform = 'scale(1)');
@@ -926,7 +895,6 @@ export class LibraryTab {
             });
         }
         
-        // Update filter button count
         const filterBtn = this.container.querySelector('#toggle-filters-btn');
         const hasFilters = this.hasActiveFilters();
         if (filterBtn) {
@@ -938,12 +906,6 @@ export class LibraryTab {
                 Filters ${hasFilters ? `(${count})` : ''}
             `;
         }
-        
-        // Update movie count
-        const countText = this.container.querySelector('p');
-        if (countText && countText.textContent.includes('of')) {
-            countText.textContent = `${this.filteredMovies.length.toLocaleString()} of ${this.allMovies.length.toLocaleString()}+ movies`;
-        }
     }
 
     destroy() {
@@ -953,7 +915,6 @@ export class LibraryTab {
             this.scrollListener = null;
         }
         
-        // Reset body overflow
         document.body.style.overflow = '';
     }
 }
