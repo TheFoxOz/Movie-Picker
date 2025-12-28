@@ -6,6 +6,7 @@
  * ✅ RANKING SYSTEM: Score-based sorting with visual badges
  * ✅ FILTERS: All / Unwatched / Watched tabs
  * ✅ BADGE TRACKING: Tracks matches and watched movies for achievements
+ * ✅ NO DUPLICATE HEADER: Header now from app-init.js
  */
 
 import { tmdbService } from '../services/tmdb.js';
@@ -237,30 +238,6 @@ class MatchesTab {
                 padding: 1rem;
                 padding-bottom: 6rem;
             ">
-                <!-- Header with gradient -->
-                <div class="matches-header glass-card" style="
-                    margin-bottom: 2rem;
-                    padding: 1.5rem;
-                    border-radius: 1rem;
-                    background: linear-gradient(135deg, rgba(166, 192, 221, 0.15), rgba(253, 250, 176, 0.1));
-                ">
-                    <h1 style="
-                        font-size: 1.75rem;
-                        font-weight: 700;
-                        color: #FDFAB0;
-                        margin-bottom: 0.5rem;
-                        display: flex;
-                        align-items: center;
-                        gap: 0.5rem;
-                    ">
-                        <span class="bounce-in">🤝</span>
-                        <span>Movie Matches</span>
-                    </h1>
-                    <p style="color: #A6C0DD; font-size: 0.95rem;">
-                        Find movies you and your friends both liked
-                    </p>
-                </div>
-
                 <!-- Friends List -->
                 <div id="friends-list" class="friends-list" style="margin-bottom: 2rem;">
                     ${this.renderLoadingState()}
