@@ -76,6 +76,7 @@ export class SwipeCard {
     
     /**
      * Get the user's preferred platform from the available platforms
+     * (Rental platforms already filtered by tmdb.js)
      */
     getPreferredPlatform(availableOn) {
         if (!availableOn || availableOn.length === 0) return null;
@@ -103,7 +104,8 @@ export class SwipeCard {
             }
         }
         
-        return null; // No match found
+        // If no match, return first platform
+        return availableOn.length > 0 ? availableOn[0] : null;
     }
 
     async fetchTriggerWarnings() {
