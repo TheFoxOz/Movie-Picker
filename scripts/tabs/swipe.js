@@ -395,6 +395,29 @@ export class SwipeTab {
                 const beforePlatformFilter = this.movieQueue.length;
                 this.movieQueue = tmdbService.filterByUserPlatforms(this.movieQueue);
                 console.log(`[SwipeTab] Platform filter: ${beforePlatformFilter} → ${this.movieQueue.length} movies`);
+                
+                // ✅ FALLBACK: If platform filtering removed EVERYTHING, show movies anyway
+                // This happens when TMDB's region data is incomplete (common for non-US regions)
+                if (this.movieQueue.length === 0 && beforePlatformFilter > 0) {
+                    console.warn('[SwipeTab] ⚠️ Platform filter removed all movies - TMDB region data may be incomplete');
+                    console.warn('[SwipeTab] Showing movies anyway (they have platforms, just not your selected ones)');
+                    
+                    // Restore the movies (they had platforms, just not user's platforms)
+                    this.movieQueue = movies.filter(movie => {
+                        if (movie.availableOn && movie.availableOn.length > 0) {
+                            return true;
+                        }
+                        
+                        const platform = movie.platform;
+                        if (platform === 'Cinema' || platform === 'Coming Soon' || platform === 'Not Available') {
+                            return false;
+                        }
+                        
+                        return true;
+                    });
+                    
+                    console.log(`[SwipeTab] ✅ Fallback: Showing ${this.movieQueue.length} movies with any streaming platform`);
+                }
             }
 
             // Apply trigger warnings filter
