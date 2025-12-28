@@ -74,7 +74,7 @@ class TMDBService {
     async loadWatchProviders(region = 'US') {
         try {
             const response = await fetch(
-                `${this.baseURL}/watch/providers/movie?api_key=${this.apiKey}&language=en-US&watch_region=${region}`
+                `${this.baseURL}/watch/providers/movie?api_key=${this.apiKey}&language=en-US&region=${region}`
             );
             const data = await response.json();
             
