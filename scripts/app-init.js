@@ -736,8 +736,8 @@ class MoviEaseApp {
                 }
 
                 #swipe-btn {
-                    width: 5.5rem;
-                    height: 5.5rem;
+                    width: 4rem;
+                    height: 4rem;
                     background: linear-gradient(135deg, #DFDFB0, #F4E8C1);
                     border: 3px solid #151529;
                     border-radius: 50%;
@@ -768,14 +768,14 @@ class MoviEaseApp {
                 .swipe-arrows {
                     display: flex;
                     flex-direction: column;
-                    gap: 4px;
+                    gap: 8px;
                     align-items: center;
                     justify-content: center;
                 }
 
                 .swipe-arrow {
-                    width: 50px;
-                    height: 25px;
+                    width: 35px;
+                    height: 18px;
                     flex-shrink: 0;
                 }
 
