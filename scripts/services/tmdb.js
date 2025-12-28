@@ -427,6 +427,15 @@ class TMDBService {
 
         let debugCount = 0;  // ✅ FIX: Use counter instead of filtered.length
         const filtered = movies.filter(movie => {
+            // ✅ UPDATED: Check if user has "In Cinemas" enabled in their platforms
+            if (movie.platform === 'In Cinemas') {
+                const hasInCinemasEnabled = userNormalized.has(normalize('In Cinemas'));
+                if (!hasInCinemasEnabled) {
+                    console.log(`[TMDB] 🎬 Filtering out cinema movie: "${movie.title}" (user hasn't enabled In Cinemas)`);
+                }
+                return hasInCinemasEnabled;
+            }
+            
             // No platform data yet? → keep it (will be filtered later when enriched)
             if (!movie.availableOn?.length && !movie.platform) return true;
 
