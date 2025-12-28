@@ -606,22 +606,25 @@ class MoviEaseApp {
                     border-color: #b0d4e3;
                 }
 
-                /* Swipe Icon - Modern Arrows */
+                /* Swipe Icon - Modern Arrows (Stacked) */
                 .swipe-arrows {
                     display: flex;
-                    gap: 4px;
+                    flex-direction: column;
+                    gap: 2px;
                     align-items: center;
                     justify-content: center;
                 }
 
                 .swipe-arrow {
-                    width: 16px;
-                    height: 16px;
+                    width: 20px;
+                    height: 10px;
                     flex-shrink: 0;
                 }
 
                 .swipe-arrow svg {
                     color: #18183A !important;
+                    width: 100%;
+                    height: 100%;
                 }
 
                 #swipe-btn:hover .swipe-arrow.right {
@@ -703,8 +706,8 @@ class MoviEaseApp {
                     }
 
                     .swipe-arrow {
-                        width: 14px;
-                        height: 14px;
+                        width: 18px;
+                        height: 9px;
                     }
                 }
             </style>
@@ -733,11 +736,15 @@ class MoviEaseApp {
                 <div id="swipe-btn-wrapper">
                     <button id="swipe-btn" data-tab="swipe">
                         <div class="swipe-arrows">
-                            <svg class="swipe-arrow right" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M5 12h14M12 5l7 7-7 7"/>
+                            <!-- Right Arrow (top) -->
+                            <svg class="swipe-arrow right" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="5" y1="8" x2="19" y2="8"/>
+                                <polyline points="15,4 19,8 15,12"/>
                             </svg>
-                            <svg class="swipe-arrow left" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M19 12H5M12 19l-7-7 7-7"/>
+                            <!-- Left Arrow (bottom) -->
+                            <svg class="swipe-arrow left" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="19" y1="16" x2="5" y2="16"/>
+                                <polyline points="9,12 5,16 9,20"/>
                             </svg>
                         </div>
                     </button>
