@@ -420,6 +420,7 @@ class TMDBService {
         const userNormalized = new Set(selectedPlatforms.map(normalize));
         console.log('[TMDB] Normalized user platforms:', Array.from(userNormalized));
 
+        let debugCount = 0;  // ✅ FIX: Use counter instead of filtered.length
         const filtered = movies.filter(movie => {
             // No platform data yet? → keep it (will be filtered later when enriched)
             if (!movie.availableOn?.length && !movie.platform) return true;
@@ -430,11 +431,12 @@ class TMDBService {
             ].filter(Boolean);
 
             // ✅ DEBUG: Log first 3 movies to see what's happening
-            if (filtered.length < 3 && platformsToCheck.length > 0) {
+            if (debugCount < 3 && platformsToCheck.length > 0) {
                 console.log(`[TMDB] 🔍 DEBUG Movie "${movie.title}":`);
                 console.log(`[TMDB] 🔍   Raw platforms:`, platformsToCheck);
                 console.log(`[TMDB] 🔍   Normalized:`, platformsToCheck.map(normalize));
                 console.log(`[TMDB] 🔍   User wants:`, Array.from(userNormalized));
+                debugCount++;
             }
 
             const hasMatch = platformsToCheck.some(p => {
