@@ -922,17 +922,13 @@ class MoviEaseApp {
                 <div id="swipe-btn-wrapper">
                     <button id="swipe-btn" data-tab="swipe">
                         <div class="swipe-arrows">
-                            <!-- Right Arrow (top) - Fun curved design -->
-                            <svg class="swipe-arrow right" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 16" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M2 8 Q 10 8, 20 8" />
-                                <path d="M16 4 L 23 8 L 16 12" />
-                                <circle cx="23" cy="8" r="1.5" fill="currentColor" />
+                            <!-- Right Arrow (top) - Solid filled style -->
+                            <svg class="swipe-arrow right" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 16" fill="currentColor">
+                                <path d="M 2 6 L 22 6 L 22 2 L 30 8 L 22 14 L 22 10 L 2 10 Z" />
                             </svg>
-                            <!-- Left Arrow (bottom) - Fun curved design -->
-                            <svg class="swipe-arrow left" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 16" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M30 8 Q 22 8, 12 8" />
-                                <path d="M16 4 L 9 8 L 16 12" />
-                                <circle cx="9" cy="8" r="1.5" fill="currentColor" />
+                            <!-- Left Arrow (bottom) - Solid filled style -->
+                            <svg class="swipe-arrow left" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 16" fill="currentColor">
+                                <path d="M 30 6 L 10 6 L 10 2 L 2 8 L 10 14 L 10 10 L 30 10 Z" />
                             </svg>
                         </div>
                     </button>
