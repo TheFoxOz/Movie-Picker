@@ -787,7 +787,45 @@ export class ProfileTab {
     }
 
     renderPlatformsSection(profile) {
-        const platformsHTML = STREAMING_PLATFORMS.map(platform => {
+        // ✅ NEW: Filter platforms by user's region
+        const userRegion = profile.region || 'US';
+        
+        // Get region-specific platforms
+        let availablePlatforms = STREAMING_PLATFORMS;
+        
+        // Region-specific platform filtering
+        const regionPlatformMap = {
+            'US': ['Netflix', 'Hulu', 'Prime Video', 'Disney+', 'HBO Max', 'Apple TV+', 'Paramount+', 'Peacock', 'Max', 'Showtime'],
+            'GB': ['Netflix', 'Prime Video', 'Disney+', 'Apple TV+', 'Sky Go', 'Now', 'BBC iPlayer', 'Channel 4', 'ITV Hub'],
+            'CA': ['Netflix', 'Prime Video', 'Disney+', 'Apple TV+', 'Crave', 'Paramount+'],
+            'AU': ['Netflix', 'Prime Video', 'Disney+', 'Apple TV+', 'Stan'],
+            'IN': ['Netflix', 'Prime Video', 'Disney+', 'Apple TV+', 'Hotstar'],
+            'DE': ['Netflix', 'Prime Video', 'Disney+', 'Apple TV+'],
+            'FR': ['Netflix', 'Prime Video', 'Disney+', 'Apple TV+'],
+            'ES': ['Netflix', 'Prime Video', 'Disney+', 'Apple TV+'],
+            'IT': ['Netflix', 'Prime Video', 'Disney+', 'Apple TV+'],
+            'JP': ['Netflix', 'Prime Video', 'Disney+', 'Apple TV+'],
+            'KR': ['Netflix', 'Prime Video', 'Disney+', 'Apple TV+'],
+            'BR': ['Netflix', 'Prime Video', 'Disney+', 'Apple TV+'],
+            'MX': ['Netflix', 'Prime Video', 'Disney+', 'Apple TV+', 'Paramount+'],
+            'NL': ['Netflix', 'Prime Video', 'Disney+', 'Apple TV+', 'Viaplay'],
+            'SE': ['Netflix', 'Prime Video', 'Disney+', 'Apple TV+', 'Viaplay'],
+            'NO': ['Netflix', 'Prime Video', 'Disney+', 'Apple TV+', 'Viaplay'],
+            'DK': ['Netflix', 'Prime Video', 'Disney+', 'Apple TV+', 'Viaplay'],
+            'FI': ['Netflix', 'Prime Video', 'Disney+', 'Apple TV+', 'Viaplay']
+        };
+        
+        // Get platform IDs for current region (fallback to global platforms)
+        const regionPlatformIds = regionPlatformMap[userRegion] || ['Netflix', 'Prime Video', 'Disney+', 'Apple TV+'];
+        
+        // Filter platforms to only show those available in the user's region
+        availablePlatforms = STREAMING_PLATFORMS.filter(platform => 
+            regionPlatformIds.includes(platform.id)
+        );
+        
+        console.log(`[ProfileTab] Showing ${availablePlatforms.length} platforms for region ${userRegion}`);
+        
+        const platformsHTML = availablePlatforms.map(platform => {
             const isSelected = profile.selectedPlatforms.includes(platform.id);
             return `
                 <div class="platform-toggle-item" data-platform="${platform.id}" style="
@@ -802,7 +840,7 @@ export class ProfileTab {
                     transition: all 0.2s;
                 ">
                     <span style="color: #FDFAB0; font-weight: 600; font-size: 0.875rem;">
-                        ${platform.name}
+                        ${platform.icon} ${platform.name}
                     </span>
                     <label class="toggle-switch" onclick="event.stopPropagation()">
                         <input type="checkbox" class="platform-checkbox" data-platform="${platform.id}" ${isSelected ? 'checked' : ''}>
@@ -818,13 +856,18 @@ export class ProfileTab {
                     📺 Streaming Platforms
                 </h2>
                 <p style="color: #A6C0DD; font-size: 0.875rem; margin-bottom: 1rem;">
-                    Your active subscriptions (${profile.selectedPlatforms.length} selected)
+                    Available in ${this.getRegionName(userRegion)} (${profile.selectedPlatforms.length} selected)
                 </p>
                 <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem;">
                     ${platformsHTML}
                 </div>
             </div>
         `;
+    }
+
+    getRegionName(code) {
+        const region = TMDB_REGIONS.find(r => r.code === code);
+        return region ? `${region.flag} ${region.name}` : code;
     }
 
     renderTriggerWarningsSection(profile) {
@@ -1199,36 +1242,26 @@ export class ProfileTab {
                 
                 const selectedRegion = TMDB_REGIONS.find(r => r.code === e.target.value);
                 this.showToast(`Region updated to ${selectedRegion?.name || e.target.value} ${selectedRegion?.flag || ''}`);
+                
+                // ✅ NEW: Re-render platforms section to show region-specific platforms
+                const profile = userProfileService.getProfile();
+                const platformsSection = this.container.querySelector('.settings-section');
+                if (platformsSection && platformsSection.querySelector('#region-select')) {
+                    // Find the platforms section (it's the one after region section)
+                    const allSections = this.container.querySelectorAll('.settings-section');
+                    allSections.forEach((section, index) => {
+                        if (section.textContent.includes('Streaming Platforms')) {
+                            section.outerHTML = this.renderPlatformsSection(profile);
+                            // Re-attach event listeners for new platform checkboxes
+                            setTimeout(() => this.attachPlatformListeners(), 100);
+                        }
+                    });
+                }
             });
         }
 
         // Platform checkboxes
-        const platformCheckboxes = document.querySelectorAll('.platform-checkbox');
-        platformCheckboxes.forEach(checkbox => {
-            checkbox.addEventListener('change', async (e) => {
-                const platformId = e.target.dataset.platform;
-                await userProfileService.togglePlatform(platformId);
-                
-                // ✅ CRITICAL: Save to localStorage for TMDB service
-                const user = authService.getCurrentUser();
-                if (user) {
-                    // Get all checked platforms
-                    const allCheckboxes = document.querySelectorAll('.platform-checkbox');
-                    const enabledPlatforms = Array.from(allCheckboxes)
-                        .filter(cb => cb.checked)
-                        .map(cb => cb.dataset.platform);
-                    
-                    const prefs = JSON.parse(localStorage.getItem(`userPreferences_${user.uid}`) || '{}');
-                    prefs.platforms = enabledPlatforms;
-                    localStorage.setItem(`userPreferences_${user.uid}`, JSON.stringify(prefs));
-                    console.log('[ProfileTab] ✅ Platforms saved to localStorage:', enabledPlatforms);
-                }
-                
-                const platform = STREAMING_PLATFORMS.find(p => p.id === platformId);
-                const isEnabled = e.target.checked;
-                this.showToast(`${platform?.name || platformId} ${isEnabled ? 'enabled ✅' : 'disabled ❌'}`);
-            });
-        });
+        this.attachPlatformListeners();
 
         // Trigger warning checkboxes
         const triggerCheckboxes = document.querySelectorAll('.trigger-checkbox');
@@ -1302,6 +1335,35 @@ export class ProfileTab {
             this.render(this.container);
         };
         window.addEventListener('avatar-updated', this.avatarUpdateHandler);
+    }
+
+    attachPlatformListeners() {
+        const platformCheckboxes = document.querySelectorAll('.platform-checkbox');
+        platformCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', async (e) => {
+                const platformId = e.target.dataset.platform;
+                await userProfileService.togglePlatform(platformId);
+                
+                // ✅ CRITICAL: Save to localStorage for TMDB service
+                const user = authService.getCurrentUser();
+                if (user) {
+                    // Get all checked platforms
+                    const allCheckboxes = document.querySelectorAll('.platform-checkbox');
+                    const enabledPlatforms = Array.from(allCheckboxes)
+                        .filter(cb => cb.checked)
+                        .map(cb => cb.dataset.platform);
+                    
+                    const prefs = JSON.parse(localStorage.getItem(`userPreferences_${user.uid}`) || '{}');
+                    prefs.platforms = enabledPlatforms;
+                    localStorage.setItem(`userPreferences_${user.uid}`, JSON.stringify(prefs));
+                    console.log('[ProfileTab] ✅ Platforms saved to localStorage:', enabledPlatforms);
+                }
+                
+                const platform = STREAMING_PLATFORMS.find(p => p.id === platformId);
+                const isEnabled = e.target.checked;
+                this.showToast(`${platform?.icon} ${platform?.name || platformId} ${isEnabled ? 'enabled ✅' : 'disabled ❌'}`);
+            });
+        });
     }
 
     attachRemoveFriendListeners() {
