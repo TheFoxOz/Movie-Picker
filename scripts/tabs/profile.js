@@ -795,28 +795,28 @@ export class ProfileTab {
         
         // Region-specific platform filtering
         const regionPlatformMap = {
-            'US': ['Netflix', 'Hulu', 'Prime Video', 'Disney+', 'HBO Max', 'Apple TV+', 'Paramount+', 'Peacock', 'Max', 'Showtime'],
-            'GB': ['Netflix', 'Prime Video', 'Disney+', 'Apple TV+', 'Sky Go', 'Now', 'BBC iPlayer', 'Channel 4', 'ITV Hub'],
-            'CA': ['Netflix', 'Prime Video', 'Disney+', 'Apple TV+', 'Crave', 'Paramount+'],
-            'AU': ['Netflix', 'Prime Video', 'Disney+', 'Apple TV+', 'Stan'],
-            'IN': ['Netflix', 'Prime Video', 'Disney+', 'Apple TV+', 'Hotstar'],
-            'DE': ['Netflix', 'Prime Video', 'Disney+', 'Apple TV+'],
-            'FR': ['Netflix', 'Prime Video', 'Disney+', 'Apple TV+'],
-            'ES': ['Netflix', 'Prime Video', 'Disney+', 'Apple TV+'],
-            'IT': ['Netflix', 'Prime Video', 'Disney+', 'Apple TV+'],
-            'JP': ['Netflix', 'Prime Video', 'Disney+', 'Apple TV+'],
-            'KR': ['Netflix', 'Prime Video', 'Disney+', 'Apple TV+'],
-            'BR': ['Netflix', 'Prime Video', 'Disney+', 'Apple TV+'],
-            'MX': ['Netflix', 'Prime Video', 'Disney+', 'Apple TV+', 'Paramount+'],
-            'NL': ['Netflix', 'Prime Video', 'Disney+', 'Apple TV+', 'Viaplay'],
-            'SE': ['Netflix', 'Prime Video', 'Disney+', 'Apple TV+', 'Viaplay'],
-            'NO': ['Netflix', 'Prime Video', 'Disney+', 'Apple TV+', 'Viaplay'],
-            'DK': ['Netflix', 'Prime Video', 'Disney+', 'Apple TV+', 'Viaplay'],
-            'FI': ['Netflix', 'Prime Video', 'Disney+', 'Apple TV+', 'Viaplay']
+            'US': ['In Cinemas', 'Netflix', 'Hulu', 'Prime Video', 'Disney+', 'HBO Max', 'Apple TV+', 'Paramount+', 'Peacock', 'Max', 'Showtime'],
+            'GB': ['In Cinemas', 'Netflix', 'Prime Video', 'Disney+', 'Apple TV+', 'Sky Go', 'Now', 'BBC iPlayer', 'Channel 4', 'ITV Hub'],
+            'CA': ['In Cinemas', 'Netflix', 'Prime Video', 'Disney+', 'Apple TV+', 'Crave', 'Paramount+'],
+            'AU': ['In Cinemas', 'Netflix', 'Prime Video', 'Disney+', 'Apple TV+', 'Stan'],
+            'IN': ['In Cinemas', 'Netflix', 'Prime Video', 'Disney+', 'Apple TV+', 'Hotstar'],
+            'DE': ['In Cinemas', 'Netflix', 'Prime Video', 'Disney+', 'Apple TV+'],
+            'FR': ['In Cinemas', 'Netflix', 'Prime Video', 'Disney+', 'Apple TV+'],
+            'ES': ['In Cinemas', 'Netflix', 'Prime Video', 'Disney+', 'Apple TV+'],
+            'IT': ['In Cinemas', 'Netflix', 'Prime Video', 'Disney+', 'Apple TV+'],
+            'JP': ['In Cinemas', 'Netflix', 'Prime Video', 'Disney+', 'Apple TV+'],
+            'KR': ['In Cinemas', 'Netflix', 'Prime Video', 'Disney+', 'Apple TV+'],
+            'BR': ['In Cinemas', 'Netflix', 'Prime Video', 'Disney+', 'Apple TV+'],
+            'MX': ['In Cinemas', 'Netflix', 'Prime Video', 'Disney+', 'Apple TV+', 'Paramount+'],
+            'NL': ['In Cinemas', 'Netflix', 'Prime Video', 'Disney+', 'Apple TV+', 'Viaplay'],
+            'SE': ['In Cinemas', 'Netflix', 'Prime Video', 'Disney+', 'Apple TV+', 'Viaplay'],
+            'NO': ['In Cinemas', 'Netflix', 'Prime Video', 'Disney+', 'Apple TV+', 'Viaplay'],
+            'DK': ['In Cinemas', 'Netflix', 'Prime Video', 'Disney+', 'Apple TV+', 'Viaplay'],
+            'FI': ['In Cinemas', 'Netflix', 'Prime Video', 'Disney+', 'Apple TV+', 'Viaplay']
         };
         
         // Get platform IDs for current region (fallback to global platforms)
-        const regionPlatformIds = regionPlatformMap[userRegion] || ['Netflix', 'Prime Video', 'Disney+', 'Apple TV+'];
+        const regionPlatformIds = regionPlatformMap[userRegion] || ['In Cinemas', 'Netflix', 'Prime Video', 'Disney+', 'Apple TV+'];
         
         // Filter platforms to only show those available in the user's region
         availablePlatforms = STREAMING_PLATFORMS.filter(platform => 
