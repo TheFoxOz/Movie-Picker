@@ -155,102 +155,67 @@ class TMDBService {
     }
 
     filterByUserPlatforms(movies) {
-        if (!movies || movies.length === 0) {
-            return [];
-        }
+        if (!movies?.length) return [];
 
-        // ✅ NEW: Helper function to normalize platform names for comparison
-        const normalizePlatform = (name) => {
-            if (!name) return '';
-            return name
-                .toLowerCase()
-                .replace(/\+/g, 'plus')  // "Apple TV+" → "apple tv plus"
-                .replace(/[^a-z0-9]/g, '')  // Remove all non-alphanumeric
-                .trim();
-        };
-
+        // 1. Try to read preferences from multiple possible locations
         let selectedPlatforms = [];
-        
-        // Strategy 1: Try userProfileService
-        try {
-            const userProfile = userProfileService?.getProfile();
-            if (userProfile) {
-                selectedPlatforms = userProfile.streamingPlatforms || 
-                                   userProfile.selectedPlatforms || 
-                                   [];
-            }
-        } catch (error) {
-            console.warn('[TMDB] UserProfileService not available:', error);
+
+        // Most recent location (onboarding + profile)
+        const profile = userProfileService?.getProfile?.();
+        if (profile?.selectedPlatforms?.length) {
+            selectedPlatforms = profile.selectedPlatforms;
         }
-        
-        // Strategy 2: Try store.getState()
-        if (!selectedPlatforms || selectedPlatforms.length === 0) {
-            try {
-                const state = store.getState();
-                const prefs = state.preferences || {};
-                
-                selectedPlatforms = prefs.streamingPlatforms || 
-                                   prefs.selectedPlatforms || 
-                                   [];
-                
-                // Strategy 3: Check if platforms is an object {Netflix: true, Hulu: false}
-                if (!Array.isArray(selectedPlatforms) && typeof prefs.platforms === 'object') {
-                    selectedPlatforms = Object.keys(prefs.platforms).filter(p => prefs.platforms[p]);
-                }
-            } catch (error) {
-                console.warn('[TMDB] Store not available:', error);
-            }
+        // Fallback 1 - store
+        else if (store.getState().preferences?.platforms?.length) {
+            selectedPlatforms = store.getState().preferences.platforms;
         }
-        
-        // Strategy 4: Try localStorage directly
-        if (!selectedPlatforms || selectedPlatforms.length === 0) {
+        // Fallback 2 - localStorage (last resort)
+        else {
             try {
                 const prefs = JSON.parse(localStorage.getItem('moviePickerPreferences') || '{}');
-                
-                selectedPlatforms = prefs.streamingPlatforms || 
-                                   prefs.selectedPlatforms || 
-                                   [];
-                
-                // Check object format
-                if (!Array.isArray(selectedPlatforms) && typeof prefs.platforms === 'object') {
-                    selectedPlatforms = Object.keys(prefs.platforms).filter(p => prefs.platforms[p]);
-                }
-            } catch (error) {
-                console.warn('[TMDB] LocalStorage not available:', error);
-            }
+                selectedPlatforms = Array.isArray(prefs.platforms) ? prefs.platforms : [];
+            } catch {}
         }
-        
-        // If no platforms selected, show ALL movies (don't filter)
-        if (!selectedPlatforms || selectedPlatforms.length === 0) {
-            console.log('[TMDB] No platform filtering (no platforms selected) - showing all movies');
+
+        // If user has no platforms selected → show everything (don't filter)
+        if (!selectedPlatforms.length) {
+            console.warn('[TMDB] No platforms selected → showing all movies (no filtering)');
             return movies;
         }
 
-        console.log('[TMDB] Filtering by platforms:', selectedPlatforms);
-        
-        // ✅ NEW: Normalize user platforms for comparison
-        const normalizedUserPlatforms = selectedPlatforms.map(normalizePlatform);
-        console.log('[TMDB] Normalized user platforms:', normalizedUserPlatforms);
+        console.log('[TMDB] Filtering by user platforms:', selectedPlatforms);
+
+        // ✅ GROK'S RECOMMENDATION: Robust normalization function
+        const normalize = str => (str || '')
+            .toLowerCase()
+            .replace(/\+/g, 'plus')
+            .replace(/[^a-z0-9]/g, '')
+            .trim();
+
+        const userNormalized = new Set(selectedPlatforms.map(normalize));
+        console.log('[TMDB] Normalized user platforms:', Array.from(userNormalized));
 
         const filtered = movies.filter(movie => {
-            // If movie doesn't have platform data yet, include it (will be filtered later)
-            if (!movie.availableOn || movie.availableOn.length === 0) {
-                return true;
-            }
-            
-            // ✅ NEW: Normalize movie platforms and compare
-            const isAvailable = movie.availableOn.some(platform => {
-                const normalized = normalizePlatform(platform);
-                const matches = normalizedUserPlatforms.includes(normalized);
+            // No platform data yet? → keep it (will be filtered later when enriched)
+            if (!movie.availableOn?.length && !movie.platform) return true;
+
+            const platformsToCheck = [
+                ...(movie.availableOn || []),
+                movie.platform
+            ].filter(Boolean);
+
+            const hasMatch = platformsToCheck.some(p => {
+                const normalized = normalize(p);
+                const matches = userNormalized.has(normalized);
                 
                 if (matches) {
-                    console.log(`[TMDB] ✅ "${movie.title}" matches: "${platform}" (normalized: "${normalized}")`);
+                    console.log(`[TMDB] ✅ "${movie.title}" matches: "${p}" (normalized: "${normalized}")`);
                 }
                 
                 return matches;
             });
-            
-            return isAvailable;
+
+            return hasMatch;
         });
 
         console.log(`[TMDB] Platform filtering: ${movies.length} → ${filtered.length} movies`);
