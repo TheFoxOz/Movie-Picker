@@ -4,6 +4,7 @@
  * ✅ FIXED: Proper platform detection from multiple sources
  * ✅ FIXED: Updated color references to new palette
  * ✅ FIXED: Syntax error in filterByUserPlatforms
+ * ✅ NEW: Platform name normalization for fuzzy matching
  */
 
 import { doesTheDogDieService } from './does-the-dog-die.js';
@@ -158,6 +159,16 @@ class TMDBService {
             return [];
         }
 
+        // ✅ NEW: Helper function to normalize platform names for comparison
+        const normalizePlatform = (name) => {
+            if (!name) return '';
+            return name
+                .toLowerCase()
+                .replace(/\+/g, 'plus')  // "Apple TV+" → "apple tv plus"
+                .replace(/[^a-z0-9]/g, '')  // Remove all non-alphanumeric
+                .trim();
+        };
+
         let selectedPlatforms = [];
         
         // Strategy 1: Try userProfileService
@@ -216,6 +227,10 @@ class TMDBService {
         }
 
         console.log('[TMDB] Filtering by platforms:', selectedPlatforms);
+        
+        // ✅ NEW: Normalize user platforms for comparison
+        const normalizedUserPlatforms = selectedPlatforms.map(normalizePlatform);
+        console.log('[TMDB] Normalized user platforms:', normalizedUserPlatforms);
 
         const filtered = movies.filter(movie => {
             // If movie doesn't have platform data yet, include it (will be filtered later)
@@ -223,10 +238,17 @@ class TMDBService {
                 return true;
             }
             
-            // Check if movie is available on at least one user platform
-            const isAvailable = movie.availableOn.some(platform => 
-                selectedPlatforms.includes(platform)
-            );
+            // ✅ NEW: Normalize movie platforms and compare
+            const isAvailable = movie.availableOn.some(platform => {
+                const normalized = normalizePlatform(platform);
+                const matches = normalizedUserPlatforms.includes(normalized);
+                
+                if (matches) {
+                    console.log(`[TMDB] ✅ "${movie.title}" matches: "${platform}" (normalized: "${normalized}")`);
+                }
+                
+                return matches;
+            });
             
             return isAvailable;
         });
