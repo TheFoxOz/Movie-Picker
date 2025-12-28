@@ -768,7 +768,7 @@ class MoviEaseApp {
                 .swipe-arrows {
                     display: flex;
                     flex-direction: column;
-                    gap: 8px;
+                    gap: 4px;
                     align-items: center;
                     justify-content: center;
                 }
@@ -783,6 +783,34 @@ class MoviEaseApp {
                     color: #18183A !important;
                     width: 100%;
                     height: 100%;
+                }
+
+                /* Fun arrow animations */
+                #swipe-btn:hover .swipe-arrow.right {
+                    animation: arrow-bounce-right 0.6s ease-in-out infinite;
+                }
+
+                #swipe-btn:hover .swipe-arrow.left {
+                    animation: arrow-bounce-left 0.6s ease-in-out infinite;
+                }
+
+                @keyframes arrow-bounce-right {
+                    0%, 100% { transform: translateX(0); }
+                    50% { transform: translateX(3px); }
+                }
+
+                @keyframes arrow-bounce-left {
+                    0%, 100% { transform: translateX(0); }
+                    50% { transform: translateX(-3px); }
+                }
+
+                #swipe-btn.active .swipe-arrows {
+                    animation: arrows-pulse 1s ease-in-out infinite;
+                }
+
+                @keyframes arrows-pulse {
+                    0%, 100% { transform: scale(1); }
+                    50% { transform: scale(1.1); }
                 }
 
                 #swipe-btn:hover .swipe-arrow.right {
@@ -894,15 +922,17 @@ class MoviEaseApp {
                 <div id="swipe-btn-wrapper">
                     <button id="swipe-btn" data-tab="swipe">
                         <div class="swipe-arrows">
-                            <!-- Right Arrow (top) -->
-                            <svg class="swipe-arrow right" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                                <line x1="5" y1="8" x2="19" y2="8"/>
-                                <polyline points="15,4 19,8 15,12"/>
+                            <!-- Right Arrow (top) - Fun curved design -->
+                            <svg class="swipe-arrow right" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 16" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M2 8 Q 10 8, 20 8" />
+                                <path d="M16 4 L 23 8 L 16 12" />
+                                <circle cx="23" cy="8" r="1.5" fill="currentColor" />
                             </svg>
-                            <!-- Left Arrow (bottom) -->
-                            <svg class="swipe-arrow left" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                                <line x1="19" y1="16" x2="5" y2="16"/>
-                                <polyline points="9,12 5,16 9,20"/>
+                            <!-- Left Arrow (bottom) - Fun curved design -->
+                            <svg class="swipe-arrow left" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 16" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M30 8 Q 22 8, 12 8" />
+                                <path d="M16 4 L 9 8 L 16 12" />
+                                <circle cx="9" cy="8" r="1.5" fill="currentColor" />
                             </svg>
                         </div>
                     </button>
