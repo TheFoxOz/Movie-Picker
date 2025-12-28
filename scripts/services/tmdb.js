@@ -411,7 +411,8 @@ class TMDBService {
             .toLowerCase()
             .replace(/hbo\s*max/gi, 'max')      // HBO Max → Max (2023+ rebrand)
             .replace(/\bmax\b/gi, 'max')         // Normalize Max
-            .replace(/amazon\s*prime\s*video/gi, 'prime video')
+            .replace(/amazon\s*video/gi, 'primevideo')  // ✅ FIX: Amazon Video → Prime Video
+            .replace(/amazon\s*prime\s*video/gi, 'primevideo')
             .replace(/prime\s*video/gi, 'primevideo')
             .replace(/\+/g, 'plus')              // Disney+ → disneyplus
             .replace(/[^a-z0-9]/g, '')           // Remove special chars
