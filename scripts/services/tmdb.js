@@ -25,6 +25,7 @@ class TMDBService {
         };
         this.genreList = [];
         this.dynamicProviderMap = null;  // ✅ NEW: Dynamically loaded providers
+        this.availableRegions = [];       // ✅ NEW: Dynamically loaded regions
         this.isInitialized = false;
     }
 
@@ -37,7 +38,16 @@ class TMDBService {
         this.apiKey = apiKey;
         
         try {
+            // Load genres (required)
             await this.loadGenres();
+            
+            // ✅ GROK RECOMMENDATION: Auto-load available regions
+            await this.loadAvailableRegions();
+            
+            // ✅ GROK RECOMMENDATION: Load providers for default/user region
+            const defaultRegion = userProfileService?.getProfile?.()?.region || 'US';
+            await this.loadWatchProviders(defaultRegion);
+            
             this.isInitialized = true;
             console.log('[TMDB] ✅ Service initialized');
             return true;
@@ -100,6 +110,78 @@ class TMDBService {
         } catch (error) {
             console.warn('[TMDB] Could not load dynamic providers, using fallback map:', error);
             // Falls back to static map in getWatchProviders
+        }
+    }
+
+    /**
+     * ✅ NEW 2025: Dynamically load available regions from TMDB API
+     * Ensures only regions with watch provider data are shown
+     * @returns {Promise<Array>} Array of region objects with code, name, flag
+     */
+    async loadAvailableRegions() {
+        try {
+            const response = await fetch(
+                `${this.baseURL}/watch/providers/regions?api_key=${this.apiKey}`
+            );
+            const data = await response.json();
+            
+            // ✅ GROK FIX: Validate response
+            if (!data.results || !Array.isArray(data.results)) {
+                console.warn('[TMDB] Invalid regions response');
+                return [];
+            }
+
+            // ✅ GROK RECOMMENDATION: Sort alphabetically by name for better UX
+            this.availableRegions = data.results
+                .map(r => ({
+                    code: r.iso_3166_1,
+                    name: r.english_name || r.native_name,
+                    flag: this.getFlagEmoji(r.iso_3166_1)
+                }))
+                .sort((a, b) => a.name.localeCompare(b.name));
+            
+            console.log(`[TMDB] ✅ Loaded ${this.availableRegions.length} supported regions (sorted alphabetically)`);
+            return this.availableRegions;
+        } catch (error) {
+            console.error('[TMDB] Failed to load available regions:', error);
+            return [];
+        }
+    }
+
+    /**
+     * Helper: Convert ISO 3166-1 country code to flag emoji
+     * @param {string} countryCode - Two-letter country code (e.g., 'US', 'GB')
+     * @returns {string} Flag emoji
+     */
+    getFlagEmoji(countryCode) {
+        if (!countryCode || countryCode.length !== 2) return '🏳️';
+        
+        const codePoints = countryCode
+            .toUpperCase()
+            .split('')
+            .map(char => 127397 + char.charCodeAt());
+        
+        return String.fromCodePoint(...codePoints);
+    }
+
+    /**
+     * ✅ NEW: Handle region change - reload providers and clear relevant caches
+     * Call this when user changes their region setting
+     * @param {string} newRegion - ISO 3166-1 country code
+     */
+    async handleRegionChange(newRegion) {
+        console.log(`[TMDB] Region changed to: ${newRegion}`);
+        
+        try {
+            // Clear watch provider cache (region-specific data)
+            this.cache.watchProviders.clear();
+            
+            // Reload providers for new region
+            await this.loadWatchProviders(newRegion);
+            
+            console.log(`[TMDB] ✅ Region changed successfully to ${newRegion}`);
+        } catch (error) {
+            console.error('[TMDB] Failed to handle region change:', error);
         }
     }
 
