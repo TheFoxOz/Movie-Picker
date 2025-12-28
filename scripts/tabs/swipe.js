@@ -436,6 +436,10 @@ export class SwipeTab {
             if (!this.currentCard && this.movieQueue.length > 0) {
                 console.log(`[SwipeTab] Current card was filtered out, showing next card`);
                 setTimeout(() => this.showNextCard(), 100);
+            } else if (!this.currentCard && this.movieQueue.length === 0) {
+                console.log(`[SwipeTab] Queue empty after filtering, loading more movies...`);
+                // Queue is empty, trigger loading more movies
+                setTimeout(() => this.loadMoviesWithRetry(), 100);
             }
             
             // Fetch trigger warnings in background
