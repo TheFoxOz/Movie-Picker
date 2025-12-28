@@ -401,18 +401,23 @@ export class SwipeTab {
                 this.movieQueue = tmdbService.filterByUserPlatforms(this.movieQueue);
                 console.log(`[SwipeTab] Platform filter: ${beforePlatformFilter} → ${this.movieQueue.length} movies`);
                 
-                // ✅ FALLBACK: If platform filtering removed EVERYTHING, show movies anyway
-                // This happens when TMDB's region data is incomplete (common for non-US regions)
-                if (this.movieQueue.length === 0 && beforePlatformFilter > 0) {
-                    console.warn('[SwipeTab] ⚠️ Platform filter removed all movies - TMDB region data may be incomplete');
+                // ✅ UPDATED: Only use fallback if we've tried multiple pages and found NOTHING
+                // Track consecutive empty results
+                if (this.movieQueue.length === 0) {
+                    this.consecutiveEmptyResults = (this.consecutiveEmptyResults || 0) + 1;
+                } else {
+                    this.consecutiveEmptyResults = 0;
+                }
+                
+                // ✅ FALLBACK: Only after 5+ pages with zero matches
+                // This prevents showing wrong platforms while still helping users in rare edge cases
+                if (this.movieQueue.length === 0 && beforePlatformFilter > 0 && this.consecutiveEmptyResults >= 5) {
+                    console.warn('[SwipeTab] ⚠️ Platform filter removed all movies across 5+ pages - TMDB region data may be incomplete');
                     console.warn('[SwipeTab] Showing movies anyway (they have platforms, just not your selected ones)');
                     
-                    // ✅ UPDATED: Restore movies with streaming platforms ONLY (respect user's In Cinemas choice)
+                    // ✅ Restore movies with streaming platforms ONLY (respect user's In Cinemas choice)
                     this.movieQueue = moviesBeforeFilter.filter(movie => {
                         const platform = movie.platform;
-                        
-                        // ✅ CHANGED: Don't force "In Cinemas" - respect user's choice
-                        // If user disabled it, keep it filtered out
                         
                         // Keep movies with streaming platforms
                         if (movie.availableOn && movie.availableOn.length > 0) {
