@@ -408,29 +408,27 @@ export class SwipeTab {
                     console.warn('[SwipeTab] ⚠️ Platform filter removed all movies - TMDB region data may be incomplete');
                     console.warn('[SwipeTab] Showing movies anyway (they have platforms, just not your selected ones)');
                     
-                    // ✅ UPDATED: Restore movies but keep "In Cinemas" too
+                    // ✅ UPDATED: Restore movies with streaming platforms ONLY (respect user's In Cinemas choice)
                     this.movieQueue = moviesBeforeFilter.filter(movie => {
                         const platform = movie.platform;
                         
-                        // Keep "In Cinemas" movies
-                        if (platform === 'In Cinemas') {
-                            return true;
-                        }
+                        // ✅ CHANGED: Don't force "In Cinemas" - respect user's choice
+                        // If user disabled it, keep it filtered out
                         
                         // Keep movies with streaming platforms
                         if (movie.availableOn && movie.availableOn.length > 0) {
                             return true;
                         }
                         
-                        // Exclude Coming Soon/Not Available/Loading
-                        if (platform === 'Coming Soon' || platform === 'Not Available' || platform === 'Loading...') {
+                        // Exclude Coming Soon/Not Available/Loading/In Cinemas (unless user enabled it)
+                        if (platform === 'Coming Soon' || platform === 'Not Available' || platform === 'Loading...' || platform === 'In Cinemas') {
                             return false;
                         }
                         
                         return true;
                     });
                     
-                    console.log(`[SwipeTab] ✅ Fallback: Showing ${this.movieQueue.length} movies (including In Cinemas)`);
+                    console.log(`[SwipeTab] ✅ Fallback: Showing ${this.movieQueue.length} movies with streaming platforms`);
                 }
             }
 
