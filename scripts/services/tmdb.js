@@ -24,6 +24,7 @@ class TMDBService {
             watchProviders: new Map()
         };
         this.genreList = [];
+        this.dynamicProviderMap = null;  // ✅ NEW: Dynamically loaded providers
         this.isInitialized = false;
     }
 
@@ -62,6 +63,43 @@ class TMDBService {
         } catch (error) {
             console.error('[TMDB] ❌ Failed to load genres:', error);
             throw error;
+        }
+    }
+
+    /**
+     * ✅ NEW 2025: Dynamically load watch providers from TMDB API
+     * Future-proofs against service rebrands and new platforms
+     * @param {string} region - ISO 3166-1 country code (e.g., 'US', 'GB')
+     */
+    async loadWatchProviders(region = 'US') {
+        try {
+            const response = await fetch(
+                `${this.baseURL}/watch/providers/movie?api_key=${this.apiKey}&language=en-US&watch_region=${region}`
+            );
+            const data = await response.json();
+            
+            if (!data.results || data.results.length === 0) {
+                console.warn('[TMDB] No watch providers found for region:', region);
+                return;
+            }
+
+            // Build dynamic provider map
+            this.dynamicProviderMap = new Map();
+            
+            data.results.forEach(provider => {
+                // Clean up provider names for consistency
+                let name = provider.provider_name
+                    .replace('HBO Max', 'Max')
+                    .replace('Amazon Prime Video', 'Prime Video')
+                    .replace(' Plus', '+');
+                
+                this.dynamicProviderMap.set(provider.provider_id, name);
+            });
+            
+            console.log(`[TMDB] ✅ Loaded ${this.dynamicProviderMap.size} watch providers for ${region}`);
+        } catch (error) {
+            console.warn('[TMDB] Could not load dynamic providers, using fallback map:', error);
+            // Falls back to static map in getWatchProviders
         }
     }
 
@@ -117,23 +155,44 @@ class TMDBService {
                 ...(providers.buy || [])
             ];
 
-            // Map TMDB provider IDs to our platform names
+            // ✅ UPDATED 2025: Map TMDB provider IDs to platform names
+            // Major updates: HBO Max → Max, added popular free services
             const providerMap = {
+                // Major streaming platforms
                 8: 'Netflix',
                 15: 'Hulu',
-                9: 'Prime Video',
+                9: 'Prime Video',           // Primary Amazon Prime ID
+                119: 'Prime Video',         // Regional variant
                 337: 'Disney+',
-                384: 'HBO Max',
                 350: 'Apple TV+',
                 387: 'Peacock',
                 386: 'Paramount+',
+                
+                // CRITICAL 2025 FIX: Max rebrand (was HBO Max)
+                384: 'Max',                 // ✅ Updated from 'HBO Max'
+                
+                // Purchase/Rental platforms
                 2: 'Apple TV',
                 3: 'Google Play Movies',
-                10: 'Amazon Video'
+                10: 'Amazon Video',
+                68: 'Microsoft Store',
+                
+                // Popular free/ad-supported (2025)
+                283: 'Crunchyroll',         // Anime streaming
+                73: 'Pluto TV',             // Free streaming
+                97: 'Tubi',                 // Free ad-supported
+                207: 'Mubi',                // Curated film streaming
+                192: 'YouTube'              // YouTube rentals/purchases
             };
 
             const platformNames = allProviders
-                .map(p => providerMap[p.provider_id])
+                .map(p => {
+                    // ✅ Try dynamic map first (if loaded), then fall back to static
+                    if (this.dynamicProviderMap && this.dynamicProviderMap.has(p.provider_id)) {
+                        return this.dynamicProviderMap.get(p.provider_id);
+                    }
+                    return providerMap[p.provider_id];
+                })
                 .filter(Boolean);
 
             // Remove duplicates
@@ -203,11 +262,15 @@ class TMDBService {
 
         console.log('[TMDB] Filtering by user platforms:', selectedPlatforms);
 
-        // ✅ GROK'S RECOMMENDATION: Robust normalization function
+        // ✅ GROK'S RECOMMENDATION: Enhanced normalization with 2025 rebrands
         const normalize = str => (str || '')
             .toLowerCase()
-            .replace(/\+/g, 'plus')
-            .replace(/[^a-z0-9]/g, '')
+            .replace(/hbo\s*max/gi, 'max')      // HBO Max → Max (2023+ rebrand)
+            .replace(/\bmax\b/gi, 'max')         // Normalize Max
+            .replace(/amazon\s*prime\s*video/gi, 'prime video')
+            .replace(/prime\s*video/gi, 'primevideo')
+            .replace(/\+/g, 'plus')              // Disney+ → disneyplus
+            .replace(/[^a-z0-9]/g, '')           // Remove special chars
             .trim();
 
         const userNormalized = new Set(selectedPlatforms.map(normalize));
