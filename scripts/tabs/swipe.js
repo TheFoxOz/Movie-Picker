@@ -11,7 +11,6 @@
  * ✅ INFINITE LOADING: Continuously loads movies from Discover API
  * ✅ BADGE TRACKING: Tracks swipes for achievement badges
  * ✅ NEW: Platform update notification for live card updates
- * ✅ CRITICAL FIX: Added missing SwipeCard import
  */
 
 import { store } from "../state/store.js";
@@ -375,20 +374,22 @@ export class SwipeTab {
                 }
             }
             
-            // Filter out cinema-only movies
+            // ✅ FIX: Filter out cinema-only movies from the enriched batch
             const beforeFilter = this.movieQueue.length;
-            this.movieQueue = this.movieQueue.filter(movie => {
-                if (movie.availableOn && movie.availableOn.length > 0) {
-                    return true;
-                }
-                
+            
+            // Create a set of movie IDs that should be removed (Cinema/Coming Soon/Not Available)
+            const moviesToRemove = new Set();
+            movies.forEach(movie => {
                 const platform = movie.platform;
                 if (platform === 'Cinema' || platform === 'Coming Soon' || platform === 'Not Available') {
-                    return false;
+                    moviesToRemove.add(movie.id);
+                } else if (!movie.availableOn || movie.availableOn.length === 0) {
+                    moviesToRemove.add(movie.id);
                 }
-                
-                return true;
             });
+            
+            // Remove only the enriched movies that don't have streaming platforms
+            this.movieQueue = this.movieQueue.filter(movie => !moviesToRemove.has(movie.id));
             console.log(`[SwipeTab] Cinema filter: ${beforeFilter} → ${this.movieQueue.length} movies`);
             
             // Apply user platform filter
