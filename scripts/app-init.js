@@ -13,6 +13,8 @@
  * ✅ Handles onboarding flow for new users
  * ✅ Manages tab navigation and rendering
  * ✅ BADGE SYSTEM: Initializes badge tracking and notifications
+ * ✅ UPDATED: Prussian Blue bottom navigation (#151529)
+ * ✅ UPDATED: Modern arrow icons for Swipe tab
  */
 
 import { onboardingFlow } from './components/onboarding-flow.js';
@@ -489,9 +491,9 @@ class MoviEaseApp {
                     left: 0;
                     right: 0;
                     height: 5rem;
-                    background: linear-gradient(180deg, rgba(166, 192, 221, 0.95) 0%, #A6C0DD 100%);
-                    border-top: 1px solid rgba(255, 255, 255, 0.2);
-                    backdrop-filter: blur(20px);
+                    background: #151529;
+                    border-top: 1px solid rgba(176, 212, 227, 0.1);
+                    box-shadow: 0 -4px 20px rgba(21, 21, 41, 0.6);
                     z-index: 100;
                     display: none;
                 }
@@ -514,35 +516,59 @@ class MoviEaseApp {
                     align-items: center;
                     justify-content: center;
                     gap: 0.25rem;
-                    padding: 0.5rem;
-                    background: transparent;
+                    background: none;
                     border: none;
-                    color: rgba(24, 24, 58, 0.6);
-                    font-size: 0.75rem;
-                    font-weight: 600;
                     cursor: pointer;
+                    padding: 0.5rem;
+                    border-radius: 1rem;
                     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-                    border-radius: 0.75rem;
-                }
-
-                .nav-btn:hover {
-                    color: rgba(24, 24, 58, 0.9);
-                    background: rgba(255, 255, 255, 0.2);
-                }
-
-                .nav-btn.active {
-                    color: #18183A;
+                    position: relative;
                 }
 
                 .nav-icon {
-                    font-size: 1.5rem;
-                    transition: transform 0.2s;
+                    width: 28px;
+                    height: 28px;
+                    position: relative;
+                    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                }
+
+                .nav-icon svg {
+                    width: 100%;
+                    height: 100%;
+                    color: rgba(176, 212, 227, 0.5);
+                    transition: color 0.3s ease;
+                }
+
+                .nav-label {
+                    font-size: 0.75rem;
+                    font-weight: 600;
+                    color: rgba(176, 212, 227, 0.5);
+                    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                    letter-spacing: 0.02em;
                 }
 
                 .nav-btn:hover .nav-icon {
                     transform: scale(1.1);
                 }
 
+                .nav-btn:hover .nav-icon svg {
+                    color: rgba(176, 212, 227, 0.8);
+                }
+
+                .nav-btn:hover .nav-label {
+                    color: rgba(176, 212, 227, 0.8);
+                }
+
+                .nav-btn.active .nav-icon svg {
+                    color: #b0d4e3;
+                }
+
+                .nav-btn.active .nav-label {
+                    color: #b0d4e3;
+                    font-weight: 700;
+                }
+
+                /* Center Swipe Button */
                 #swipe-btn-wrapper {
                     position: absolute;
                     left: 50%;
@@ -555,7 +581,7 @@ class MoviEaseApp {
                     width: 4rem;
                     height: 4rem;
                     background: linear-gradient(135deg, #DFDFB0, #F4E8C1);
-                    border: 3px solid #18183A;
+                    border: 3px solid #151529;
                     border-radius: 50%;
                     display: flex;
                     align-items: center;
@@ -563,8 +589,7 @@ class MoviEaseApp {
                     cursor: pointer;
                     transition: all 0.3s;
                     box-shadow: 0 8px 24px rgba(223, 223, 176, 0.4);
-                    color: #18183A;
-                    font-size: 2rem;
+                    padding: 0;
                 }
 
                 #swipe-btn:hover {
@@ -578,15 +603,83 @@ class MoviEaseApp {
 
                 #swipe-btn.active {
                     background: linear-gradient(135deg, #F4E8C1, #DFDFB0);
-                    border-color: #DFDFB0;
+                    border-color: #b0d4e3;
                 }
 
+                /* Swipe Icon - Modern Arrows */
+                .swipe-arrows {
+                    display: flex;
+                    gap: 4px;
+                    align-items: center;
+                    justify-content: center;
+                }
+
+                .swipe-arrow {
+                    width: 16px;
+                    height: 16px;
+                    flex-shrink: 0;
+                }
+
+                .swipe-arrow svg {
+                    color: #18183A !important;
+                }
+
+                #swipe-btn:hover .swipe-arrow.right {
+                    animation: swipe-right 0.8s ease-in-out infinite;
+                }
+
+                #swipe-btn:hover .swipe-arrow.left {
+                    animation: swipe-left 0.8s ease-in-out infinite;
+                }
+
+                @keyframes swipe-left {
+                    0%, 100% { transform: translateX(0); }
+                    50% { transform: translateX(-3px); }
+                }
+
+                @keyframes swipe-right {
+                    0%, 100% { transform: translateX(0); }
+                    50% { transform: translateX(3px); }
+                }
+
+                /* Space for center button */
                 .nav-btn:nth-child(2) {
                     margin-right: 3rem;
                 }
 
                 .nav-btn:nth-child(3) {
                     margin-left: 3rem;
+                }
+
+                /* Other icon animations */
+                .nav-btn:hover .library-icon {
+                    animation: book-open 0.5s ease-in-out;
+                }
+
+                @keyframes book-open {
+                    0%, 100% { transform: rotateY(0deg); }
+                    50% { transform: rotateY(15deg); }
+                }
+
+                .nav-btn:hover .matches-icon {
+                    animation: heart-beat 0.5s ease-in-out;
+                }
+
+                @keyframes heart-beat {
+                    0%, 100% { transform: scale(1); }
+                    25% { transform: scale(1.1); }
+                    50% { transform: scale(1); }
+                    75% { transform: scale(1.1); }
+                }
+
+                .nav-btn:hover .profile-icon {
+                    animation: sparkle 0.5s ease-in-out;
+                }
+
+                @keyframes sparkle {
+                    0%, 100% { transform: rotate(0deg); }
+                    25% { transform: rotate(-10deg); }
+                    75% { transform: rotate(10deg); }
                 }
 
                 @media (max-width: 480px) {
@@ -596,41 +689,78 @@ class MoviEaseApp {
                     }
                     
                     .nav-icon {
-                        font-size: 1.25rem;
+                        width: 24px;
+                        height: 24px;
                     }
                     
+                    .nav-label {
+                        font-size: 0.7rem;
+                    }
+
                     #swipe-btn {
                         width: 3.5rem;
                         height: 3.5rem;
-                        font-size: 1.75rem;
+                    }
+
+                    .swipe-arrow {
+                        width: 14px;
+                        height: 14px;
                     }
                 }
             </style>
             <div class="nav-container">
+                <!-- Home Button -->
                 <button class="nav-btn" data-tab="home">
-                    <span class="nav-icon">🏠</span>
-                    <span>Home</span>
+                    <div class="nav-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
+                        </svg>
+                    </div>
+                    <span class="nav-label">Home</span>
                 </button>
-                
+
+                <!-- Library Button -->
                 <button class="nav-btn" data-tab="library">
-                    <span class="nav-icon">📚</span>
-                    <span>Library</span>
+                    <div class="nav-icon library-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+                        </svg>
+                    </div>
+                    <span class="nav-label">Library</span>
                 </button>
-                
+
+                <!-- Center Swipe Button - Modern Arrows -->
                 <div id="swipe-btn-wrapper">
                     <button id="swipe-btn" data-tab="swipe">
-                        <span>👆</span>
+                        <div class="swipe-arrows">
+                            <svg class="swipe-arrow right" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M5 12h14M12 5l7 7-7 7"/>
+                            </svg>
+                            <svg class="swipe-arrow left" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M19 12H5M12 19l-7-7 7-7"/>
+                            </svg>
+                        </div>
                     </button>
                 </div>
-                
+
+                <!-- Matches Button -->
                 <button class="nav-btn" data-tab="matches">
-                    <span class="nav-icon">🤝</span>
-                    <span>Matches</span>
+                    <div class="nav-icon matches-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" />
+                        </svg>
+                    </div>
+                    <span class="nav-label">Matches</span>
                 </button>
-                
+
+                <!-- Profile Button -->
                 <button class="nav-btn" data-tab="profile">
-                    <span class="nav-icon">👤</span>
-                    <span>Profile</span>
+                    <div class="nav-icon profile-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M17.982 18.725A7.488 7.488 0 0012 15.75a7.488 7.488 0 00-5.982 2.975m11.963 0a9 9 0 10-11.963 0m11.963 0A8.966 8.966 0 0112 21a8.966 8.966 0 01-5.982-2.275M15 9.75a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                    </div>
+                    <span class="nav-label">Profile</span>
                 </button>
             </div>
         `;
