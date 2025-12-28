@@ -283,15 +283,14 @@ export class SwipeTab {
 
             this.movieQueue.push(...newMovies);
 
-            // Show first card if none shown yet
-            if (this.currentPage === 2 && !this.currentCard) {
+            // ✅ UPDATED: Enrich FIRST, then show card
+            // Enrich platform data before showing cards
+            await this.enrichAndFilterMovies(newMovies);
+
+            // Show first card if none shown yet (AFTER enrichment)
+            if (this.currentPage === 2 && !this.currentCard && this.movieQueue.length > 0) {
                 this.showNextCard();
             }
-
-            // ✅ Enrich platform data in background
-            setTimeout(async () => {
-                await this.enrichAndFilterMovies(newMovies);
-            }, 500);
 
             console.log(`[SwipeTab] ✅ Queue now has ${this.movieQueue.length} movies`);
 
