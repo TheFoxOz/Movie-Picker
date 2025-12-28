@@ -26,6 +26,7 @@ class TMDBService {
         this.genreList = [];
         this.dynamicProviderMap = null;  // ✅ NEW: Dynamically loaded providers
         this.availableRegions = [];       // ✅ NEW: Dynamically loaded regions
+        this.cacheTTL = 24 * 60 * 60 * 1000;  // ✅ GROK MICRO-POLISH: 24h cache TTL
         this.isInitialized = false;
     }
 
@@ -82,6 +83,15 @@ class TMDBService {
      * @param {string} region - ISO 3166-1 country code (e.g., 'US', 'GB')
      */
     async loadWatchProviders(region = 'US') {
+        // ✅ GROK MICRO-POLISH: Check cache first (24h TTL)
+        const cacheKey = `providers_${region}`;
+        const cached = this.getCachedData(cacheKey);
+        if (cached && cached instanceof Map) {
+            this.dynamicProviderMap = new Map(cached);
+            console.log(`[TMDB] ✅ Using cached providers for ${region} (${this.dynamicProviderMap.size} providers)`);
+            return;
+        }
+
         try {
             const response = await fetch(
                 `${this.baseURL}/watch/providers/movie?api_key=${this.apiKey}&language=en-US&region=${region}`
@@ -106,6 +116,9 @@ class TMDBService {
                 this.dynamicProviderMap.set(provider.provider_id, name);
             });
             
+            // ✅ GROK MICRO-POLISH: Cache for 24h
+            this.setCachedData(cacheKey, Array.from(this.dynamicProviderMap.entries()));
+            
             console.log(`[TMDB] ✅ Loaded ${this.dynamicProviderMap.size} watch providers for ${region}`);
         } catch (error) {
             console.warn('[TMDB] Could not load dynamic providers, using fallback map:', error);
@@ -119,6 +132,14 @@ class TMDBService {
      * @returns {Promise<Array>} Array of region objects with code, name, flag
      */
     async loadAvailableRegions() {
+        // ✅ GROK MICRO-POLISH: Check cache first (24h TTL)
+        const cached = this.getCachedData('regions');
+        if (cached && Array.isArray(cached)) {
+            this.availableRegions = cached;
+            console.log(`[TMDB] ✅ Using cached regions (${cached.length} regions)`);
+            return this.availableRegions;
+        }
+
         try {
             const response = await fetch(
                 `${this.baseURL}/watch/providers/regions?api_key=${this.apiKey}`
@@ -128,7 +149,7 @@ class TMDBService {
             // ✅ GROK FIX: Validate response
             if (!data.results || !Array.isArray(data.results)) {
                 console.warn('[TMDB] Invalid regions response');
-                return [];
+                return this.getFallbackRegions();
             }
 
             // ✅ GROK RECOMMENDATION: Sort alphabetically by name for better UX
@@ -140,12 +161,41 @@ class TMDBService {
                 }))
                 .sort((a, b) => a.name.localeCompare(b.name));
             
-            console.log(`[TMDB] ✅ Loaded ${this.availableRegions.length} supported regions (sorted alphabetically)`);
+            // ✅ GROK MICRO-POLISH: Cache for 24h
+            this.setCachedData('regions', this.availableRegions);
+            
+            // ✅ GROK MICRO-POLISH: Indicate if using fallback or dynamic data
+            const isFallback = this.availableRegions.length < 20;
+            console.log(`[TMDB] ✅ Loaded ${this.availableRegions.length} supported regions (sorted alphabetically)${isFallback ? ' (using fallback)' : ''}`);
             return this.availableRegions;
         } catch (error) {
             console.error('[TMDB] Failed to load available regions:', error);
-            return [];
+            return this.getFallbackRegions();
         }
+    }
+
+    /**
+     * ✅ GROK POLISH: Fallback region list when API fails
+     * Returns minimal set of most important regions
+     * @returns {Array} Array of fallback region objects
+     */
+    getFallbackRegions() {
+        console.log('[TMDB] Using fallback region list');
+        this.availableRegions = [
+            { code: 'US', name: 'United States', flag: '🇺🇸' },
+            { code: 'GB', name: 'United Kingdom', flag: '🇬🇧' },
+            { code: 'CA', name: 'Canada', flag: '🇨🇦' },
+            { code: 'AU', name: 'Australia', flag: '🇦🇺' },
+            { code: 'DE', name: 'Germany', flag: '🇩🇪' },
+            { code: 'FR', name: 'France', flag: '🇫🇷' },
+            { code: 'ES', name: 'Spain', flag: '🇪🇸' },
+            { code: 'IT', name: 'Italy', flag: '🇮🇹' },
+            { code: 'JP', name: 'Japan', flag: '🇯🇵' },
+            { code: 'BR', name: 'Brazil', flag: '🇧🇷' },
+            { code: 'IN', name: 'India', flag: '🇮🇳' },
+            { code: 'MX', name: 'Mexico', flag: '🇲🇽' }
+        ];
+        return this.availableRegions;
     }
 
     /**
@@ -180,6 +230,11 @@ class TMDBService {
             await this.loadWatchProviders(newRegion);
             
             console.log(`[TMDB] ✅ Region changed successfully to ${newRegion}`);
+            
+            // ✅ GROK POLISH: Dispatch event for UI components to react
+            document.dispatchEvent(new CustomEvent('tmdb:region-changed', { 
+                detail: { region: newRegion } 
+            }));
         } catch (error) {
             console.error('[TMDB] Failed to handle region change:', error);
         }
@@ -237,6 +292,13 @@ class TMDBService {
                 ...(providers.buy || [])
             ];
 
+            // ✅ GROK POLISH: Sort by display_priority (lower = higher priority)
+            // This shows most promoted services first (usually Netflix, etc.)
+            // Using nullish coalescing (??) for stricter null/undefined handling
+            const sortedProviders = allProviders.sort((a, b) => 
+                (a.display_priority ?? 999) - (b.display_priority ?? 999)
+            );
+
             // ✅ UPDATED 2025: Map TMDB provider IDs to platform names
             // Major updates: HBO Max → Max, added popular free services
             const providerMap = {
@@ -267,7 +329,7 @@ class TMDBService {
                 192: 'YouTube'              // YouTube rentals/purchases
             };
 
-            const platformNames = allProviders
+            const platformNames = sortedProviders
                 .map(p => {
                     // ✅ Try dynamic map first (if loaded), then fall back to static
                     if (this.dynamicProviderMap && this.dynamicProviderMap.has(p.provider_id)) {
@@ -742,6 +804,56 @@ class TMDBService {
         this.cache.triggerWarnings.clear();
         this.cache.watchProviders.clear();
         console.log('[TMDB] Cache cleared');
+    }
+
+    /**
+     * ✅ GROK MICRO-POLISH: Get cached data from localStorage with TTL check
+     * @param {string} key - Cache key
+     * @returns {any|null} Cached data or null if expired/missing
+     */
+    getCachedData(key) {
+        try {
+            const cached = localStorage.getItem(`tmdb_${key}`);
+            if (!cached) return null;
+            
+            const parsed = JSON.parse(cached);
+            
+            // ✅ GROK FINAL POLISH: Validate cache structure (prevent corrupted entries)
+            if (!parsed || !parsed.timestamp || !parsed.data) {
+                console.warn(`[TMDB] Corrupted cache entry for ${key}, removing`);
+                localStorage.removeItem(`tmdb_${key}`);
+                return null;
+            }
+            
+            const age = Date.now() - parsed.timestamp;
+            
+            if (age > this.cacheTTL) {
+                localStorage.removeItem(`tmdb_${key}`);
+                return null;
+            }
+            
+            return parsed.data;
+        } catch (e) {
+            console.warn(`[TMDB] Failed to parse cache entry for ${key}:`, e);
+            localStorage.removeItem(`tmdb_${key}`);
+            return null;
+        }
+    }
+
+    /**
+     * ✅ GROK MICRO-POLISH: Save data to localStorage with timestamp
+     * @param {string} key - Cache key
+     * @param {any} data - Data to cache
+     */
+    setCachedData(key, data) {
+        try {
+            localStorage.setItem(`tmdb_${key}`, JSON.stringify({
+                data,
+                timestamp: Date.now()
+            }));
+        } catch (error) {
+            console.warn('[TMDB] Failed to cache data:', error);
+        }
     }
 }
 
