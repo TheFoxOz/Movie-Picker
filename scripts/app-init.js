@@ -774,8 +774,8 @@ class MoviEaseApp {
                 }
 
                 .swipe-arrow {
-                    width: 20px;
-                    height: 10px;
+                    width: 50px;
+                    height: 25px;
                     flex-shrink: 0;
                 }
 
