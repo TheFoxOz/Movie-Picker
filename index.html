@@ -6,6 +6,27 @@
     <title>MoviEase - Discover Your Next Favorite Film</title>
     <meta name="description" content="Discover your next favorite film with ease. Swipe through personalized movie recommendations with streaming platform filters and content safety.">
     
+    <!-- ✅ MoviEase Favicons -->
+    <link rel="icon" type="image/png" sizes="32x32" href="https://moviease.app/favicons/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="https://moviease.app/favicons/favicon-16x16.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="https://moviease.app/favicons/apple-touch-icon.png">
+    <link rel="icon" type="image/svg+xml" href="https://moviease.app/favicons/logo.svg">
+    <link rel="manifest" href="https://moviease.app/site.webmanifest">
+    <meta name="theme-color" content="#1a1f35">
+    
+    <!-- Open Graph / Social Media -->
+    <meta property="og:title" content="MoviEase - Discover Your Next Favorite Film">
+    <meta property="og:description" content="Swipe through movies and discover your perfect match">
+    <meta property="og:image" content="https://moviease.app/favicons/android-chrome-512x512.png">
+    <meta property="og:url" content="https://moviease.app">
+    <meta property="og:type" content="website">
+    
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="MoviEase - Discover Your Next Favorite Film">
+    <meta name="twitter:description" content="Swipe through movies and discover your perfect match">
+    <meta name="twitter:image" content="https://moviease.app/favicons/android-chrome-512x512.png">
+    
     <!-- ✅ Trigger Warning Styles -->
     <link rel="stylesheet" href="styles/trigger-warnings.css">
     
@@ -72,6 +93,26 @@
         .logo {
             text-align: center;
             margin-bottom: 2rem;
+        }
+
+        /* ✅ NEW: MoviEase Logo on Login Page */
+        .login-logo {
+            width: 120px;
+            height: 120px;
+            margin: 0 auto 1rem;
+            display: block;
+            animation: fadeInScale 0.8s ease-out;
+        }
+
+        @keyframes fadeInScale {
+            from {
+                opacity: 0;
+                transform: scale(0.8);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
         }
 
         .logo-icon {
@@ -296,6 +337,11 @@
             .logo h1 {
                 font-size: 1.75rem;
             }
+
+            .login-logo {
+                width: 100px;
+                height: 100px;
+            }
         }
     </style>
 </head>
@@ -304,7 +350,9 @@
     <div class="login-container" id="login-container">
         <div class="login-card">
             <div class="logo">
-                <div class="logo-icon">🎬</div>
+                <!-- ✅ NEW: MoviEase Logo -->
+                <img src="https://moviease.app/favicons/logo.svg" alt="MoviEase" class="login-logo">
+                
                 <h1>MoviEase</h1>
                 <p>Discover your next favorite film with ease</p>
             </div>
