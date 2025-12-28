@@ -585,3 +585,4 @@ class TMDBService {
 const tmdbService = new TMDBService();
 
 export { tmdbService, TMDBService };
+
