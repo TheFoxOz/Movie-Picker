@@ -43,6 +43,151 @@ class MoviEaseApp {
         this.handlersSetup = false;
     }
 
+    /**
+     * Create consistent tab header for all tabs
+     * Layout: [Logo] [App Name] .............. [Tab Title + Subtitle]
+     */
+    createTabHeader(tabName) {
+        const headers = {
+            home: {
+                title: 'Home',
+                subtitle: 'Discover your next favorite film'
+            },
+            swipe: {
+                title: 'Swipe',
+                subtitle: 'Find movies you\'ll love'
+            },
+            library: {
+                title: 'Library',
+                subtitle: 'Your collected movies'
+            },
+            matches: {
+                title: 'Matches',
+                subtitle: 'Movies you both want to watch'
+            },
+            profile: {
+                title: 'Profile',
+                subtitle: 'Manage your preferences'
+            }
+        };
+
+        const headerData = headers[tabName.toLowerCase()] || headers.home;
+
+        return `
+            <style>
+                .tab-header {
+                    position: sticky;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    background: #18183A;
+                    border-bottom: 1px solid rgba(176, 212, 227, 0.1);
+                    padding: 1rem 1.5rem;
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    z-index: 50;
+                    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+                }
+
+                .tab-header-left {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.75rem;
+                }
+
+                .tab-header-logo {
+                    width: 40px;
+                    height: 40px;
+                    background: linear-gradient(135deg, #1e3a5f, #2d5a8f);
+                    border-radius: 0.75rem;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 1.5rem;
+                    box-shadow: 0 4px 12px rgba(176, 212, 227, 0.2);
+                }
+
+                .tab-header-app-name {
+                    font-size: 1.25rem;
+                    font-weight: 800;
+                    background: linear-gradient(135deg, #b0d4e3, #f4e8c1);
+                    -webkit-background-clip: text;
+                    -webkit-text-fill-color: transparent;
+                    background-clip: text;
+                    letter-spacing: -0.02em;
+                }
+
+                .tab-header-center {
+                    text-align: center;
+                    flex: 1;
+                    max-width: 400px;
+                    margin: 0 auto;
+                }
+
+                .tab-header-title {
+                    font-size: 1.5rem;
+                    font-weight: 700;
+                    color: #b0d4e3;
+                    margin: 0 0 0.25rem 0;
+                    letter-spacing: -0.01em;
+                }
+
+                .tab-header-subtitle {
+                    font-size: 0.875rem;
+                    color: rgba(176, 212, 227, 0.6);
+                    margin: 0;
+                    font-weight: 400;
+                }
+
+                @media (max-width: 640px) {
+                    .tab-header {
+                        padding: 0.75rem 1rem;
+                    }
+
+                    .tab-header-logo {
+                        width: 32px;
+                        height: 32px;
+                        font-size: 1.25rem;
+                    }
+
+                    .tab-header-app-name {
+                        font-size: 1rem;
+                    }
+
+                    .tab-header-title {
+                        font-size: 1.25rem;
+                    }
+
+                    .tab-header-subtitle {
+                        font-size: 0.75rem;
+                    }
+                }
+
+                @media (max-width: 480px) {
+                    .tab-header-app-name {
+                        display: none;
+                    }
+                }
+            </style>
+
+            <div class="tab-header">
+                <div class="tab-header-left">
+                    <div class="tab-header-logo">🎬</div>
+                    <h1 class="tab-header-app-name">MoviEase</h1>
+                </div>
+                
+                <div class="tab-header-center">
+                    <h2 class="tab-header-title">${headerData.title}</h2>
+                    <p class="tab-header-subtitle">${headerData.subtitle}</p>
+                </div>
+
+                <!-- Right side spacer to balance layout -->
+                <div style="width: 40px;"></div>
+            </div>
+        `;
+    }
+
     async init() {
         console.log('[MoviEase] Initializing app...');
         
@@ -846,17 +991,29 @@ class MoviEaseApp {
             return;
         }
         
-        this.container.innerHTML = '';
+        // ✅ Clear container and add header first
+        this.container.innerHTML = this.createTabHeader(this.currentTab);
+        
+        // ✅ Create content wrapper for tab content
+        const contentWrapper = document.createElement('div');
+        contentWrapper.className = 'tab-content-wrapper';
+        contentWrapper.style.cssText = `
+            padding: 1.5rem;
+            overflow-y: auto;
+            height: calc(100vh - 10rem);
+        `;
+        this.container.appendChild(contentWrapper);
+        
         this.container.style.display = 'block';
         
         if (this.currentTab === 'matches') {
             try {
                 console.log(`[MoviEase] Initializing Matches tab`);
-                await tab.init(this.container);
+                await tab.init(contentWrapper);
                 console.log(`[MoviEase] ✅ Matches tab initialized`);
             } catch (error) {
                 console.error(`[MoviEase] Error initializing Matches tab:`, error);
-                this.container.innerHTML = `
+                contentWrapper.innerHTML = `
                     <div style="padding: 2rem; text-align: center;">
                         <div style="font-size: 3rem; margin-bottom: 1rem;">⚠️</div>
                         <h3 style="color: #DFDFB0; margin-bottom: 1rem;">Oops! Something went wrong</h3>
@@ -871,11 +1028,11 @@ class MoviEaseApp {
         } else if (typeof tab.render === 'function') {
             try {
                 console.log(`[MoviEase] Rendering tab: ${this.currentTab}`);
-                await tab.render(this.container);
+                await tab.render(contentWrapper);
                 console.log(`[MoviEase] ✅ Tab rendered: ${this.currentTab}`);
             } catch (error) {
                 console.error(`[MoviEase] Error rendering ${this.currentTab}:`, error);
-                this.container.innerHTML = `
+                contentWrapper.innerHTML = `
                     <div style="padding: 2rem; text-align: center;">
                         <div style="font-size: 3rem; margin-bottom: 1rem;">⚠️</div>
                         <h3 style="color: #DFDFB0; margin-bottom: 1rem;">Oops! Something went wrong</h3>
@@ -890,11 +1047,11 @@ class MoviEaseApp {
         } else if (typeof tab.init === 'function') {
             try {
                 console.log(`[MoviEase] Initializing tab: ${this.currentTab}`);
-                await tab.init(this.container);
+                await tab.init(contentWrapper);
                 console.log(`[MoviEase] ✅ Tab initialized: ${this.currentTab}`);
             } catch (error) {
                 console.error(`[MoviEase] Error initializing ${this.currentTab}:`, error);
-                this.container.innerHTML = `
+                contentWrapper.innerHTML = `
                     <div style="padding: 2rem; text-align: center;">
                         <div style="font-size: 3rem; margin-bottom: 1rem;">⚠️</div>
                         <h3 style="color: #DFDFB0; margin-bottom: 1rem;">Oops! Something went wrong</h3>
