@@ -433,9 +433,9 @@ class TMDBService {
             // ✅ DEBUG: Log first 3 movies to see what's happening
             if (debugCount < 3 && platformsToCheck.length > 0) {
                 console.log(`[TMDB] 🔍 DEBUG Movie "${movie.title}":`);
-                console.log(`[TMDB] 🔍   Raw platforms:`, platformsToCheck);
-                console.log(`[TMDB] 🔍   Normalized:`, platformsToCheck.map(normalize));
-                console.log(`[TMDB] 🔍   User wants:`, Array.from(userNormalized));
+                console.log(`[TMDB] 🔍   Raw platforms:`, platformsToCheck.join(', '));
+                console.log(`[TMDB] 🔍   Normalized:`, platformsToCheck.map(normalize).join(', '));
+                console.log(`[TMDB] 🔍   User wants:`, Array.from(userNormalized).join(', '));
                 debugCount++;
             }
 
