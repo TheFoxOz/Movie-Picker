@@ -97,9 +97,6 @@ export class ProfileTab {
                 -webkit-overflow-scrolling: touch;
             ">
                 <div class="profile-container" style="padding: 1.5rem 1rem 6rem; max-width: 600px; margin: 0 auto;">
-                    <!-- Badges Section -->
-                    <div id="badges-container"></div>
-                    
                     <!-- Avatar Upload Section -->
                     <div style="
                         background: linear-gradient(135deg, rgba(166, 192, 221, 0.2), rgba(139, 163, 184, 0.2));
@@ -175,13 +172,16 @@ export class ProfileTab {
                             </div>
                         </div>
                         
-                        <p style="color: #A6C0DD; font-size: 0.875rem; margin: 0;">
+                        <p style="color: #FDFAB0; font-size: 1rem; font-weight: 600; margin: 0;">
                             ${user.displayName || 'MoviEase User'}
                         </p>
                         <p style="color: #A6C0DD; font-size: 0.75rem; margin: 0.25rem 0 0 0; opacity: 0.7;">
                             ${user.email || ''}
                         </p>
                     </div>
+
+                    <!-- Badges Section -->
+                    <div id="badges-container"></div>
                     
                     ${this.renderAddFriendSection(user)}
                     ${this.renderRegionSection(profile)}
