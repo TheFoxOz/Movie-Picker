@@ -429,6 +429,14 @@ class TMDBService {
                 movie.platform
             ].filter(Boolean);
 
+            // ✅ DEBUG: Log first 3 movies to see what's happening
+            if (filtered.length < 3 && platformsToCheck.length > 0) {
+                console.log(`[TMDB] 🔍 DEBUG Movie "${movie.title}":`);
+                console.log(`[TMDB] 🔍   Raw platforms:`, platformsToCheck);
+                console.log(`[TMDB] 🔍   Normalized:`, platformsToCheck.map(normalize));
+                console.log(`[TMDB] 🔍   User wants:`, Array.from(userNormalized));
+            }
+
             const hasMatch = platformsToCheck.some(p => {
                 const normalized = normalize(p);
                 const matches = userNormalized.has(normalized);
