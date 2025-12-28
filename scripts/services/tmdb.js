@@ -252,15 +252,16 @@ class TMDBService {
         return `${this.imageBaseURL}/${size}${path}`;
     }
 
-    async getWatchProviders(movieId) {
+    async getWatchProviders(movieId, streamingOnly = true) {
         if (!movieId) {
             console.warn('[TMDB] No movie ID provided for watch providers');
             return [];
         }
 
-        // Check cache first
-        if (this.cache.watchProviders.has(movieId)) {
-            return this.cache.watchProviders.get(movieId);
+        // Check cache first (different cache keys for streaming vs all)
+        const cacheKey = streamingOnly ? `${movieId}_streaming` : movieId;
+        if (this.cache.watchProviders.has(cacheKey)) {
+            return this.cache.watchProviders.get(cacheKey);
         }
 
         try {
@@ -273,7 +274,7 @@ class TMDBService {
             
             if (!response.ok) {
                 console.warn(`[TMDB] Watch providers API error: ${response.status}`);
-                this.cache.watchProviders.set(movieId, []);
+                this.cache.watchProviders.set(cacheKey, []);
                 return [];
             }
 
@@ -281,16 +282,18 @@ class TMDBService {
             const providers = data.results?.[region];
             
             if (!providers) {
-                this.cache.watchProviders.set(movieId, []);
+                this.cache.watchProviders.set(cacheKey, []);
                 return [];
             }
 
-            // Combine all provider types (streaming, rent, buy)
-            const allProviders = [
-                ...(providers.flatrate || []),
-                ...(providers.rent || []),
-                ...(providers.buy || [])
-            ];
+            // ✅ NEW: Only include streaming platforms if streamingOnly is true
+            const allProviders = streamingOnly 
+                ? [...(providers.flatrate || [])]  // Only streaming (flatrate)
+                : [  // All platforms (streaming, rent, buy)
+                    ...(providers.flatrate || []),
+                    ...(providers.rent || []),
+                    ...(providers.buy || [])
+                  ];
 
             // ✅ GROK POLISH: Sort by display_priority (lower = higher priority)
             // This shows most promoted services first (usually Netflix, etc.)
@@ -343,17 +346,18 @@ class TMDBService {
             const uniquePlatforms = [...new Set(platformNames)];
             
             if (uniquePlatforms.length > 0) {
-                console.log(`[TMDB] ✅ Found ${uniquePlatforms.length} platforms for movie ${movieId}`);
+                console.log(`[TMDB] ✅ Found ${uniquePlatforms.length} ${streamingOnly ? 'streaming' : 'total'} platforms for movie ${movieId}`);
             }
             
             // Cache the result
-            this.cache.watchProviders.set(movieId, uniquePlatforms);
+            this.cache.watchProviders.set(cacheKey, uniquePlatforms);
             
             return uniquePlatforms;
 
         } catch (error) {
             console.error('[TMDB] ❌ Failed to fetch watch providers:', error);
-            this.cache.watchProviders.set(movieId, []);
+            const cacheKey = streamingOnly ? `${movieId}_streaming` : movieId;
+            this.cache.watchProviders.set(cacheKey, []);
             return [];
         }
     }
