@@ -187,7 +187,10 @@ class MoviEaseApp {
                 <div class="moviease-header-content">
                     <div class="moviease-header-left">
                         <div class="moviease-header-logo">
-                            <img src="/favicons/logo.svg" alt="MoviEase" style="width: 40px; height: 40px;">
+                            <img src="/favicons/logo.svg" 
+                                 alt="MoviEase" 
+                                 style="width: 40px; height: 40px;"
+                                 onerror="this.onerror=null; this.src='/favicons/android-chrome-192x192.png'; this.style.width='40px'; this.style.height='40px';">
                         </div>
                     </div>
                     
@@ -1150,4 +1153,3 @@ class MoviEaseApp {
 }
 
 export { MoviEaseApp };
-
