@@ -45,7 +45,7 @@ class MoviEaseApp {
 
     /**
      * Create consistent tab header for all tabs
-     * Layout: [Logo] [App Name] .............. [Tab Title + Subtitle]
+     * Layout: [Logo] [App Name] on left, [Tab Title + Subtitle] centered
      */
     createTabHeader(tabName) {
         const headers = {
@@ -75,7 +75,7 @@ class MoviEaseApp {
 
         return `
             <style>
-                .tab-header {
+                .moviease-tab-header {
                     position: sticky;
                     top: 0;
                     left: 0;
@@ -83,20 +83,26 @@ class MoviEaseApp {
                     background: #18183A;
                     border-bottom: 1px solid rgba(176, 212, 227, 0.1);
                     padding: 1rem 1.5rem;
-                    display: flex;
-                    align-items: center;
-                    justify-content: space-between;
                     z-index: 50;
                     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
                 }
 
-                .tab-header-left {
+                .moviease-header-content {
+                    max-width: 1200px;
+                    margin: 0 auto;
+                    display: grid;
+                    grid-template-columns: 1fr auto 1fr;
+                    align-items: center;
+                }
+
+                .moviease-header-left {
                     display: flex;
                     align-items: center;
                     gap: 0.75rem;
+                    justify-self: start;
                 }
 
-                .tab-header-logo {
+                .moviease-header-logo {
                     width: 40px;
                     height: 40px;
                     background: linear-gradient(135deg, #1e3a5f, #2d5a8f);
@@ -108,82 +114,89 @@ class MoviEaseApp {
                     box-shadow: 0 4px 12px rgba(176, 212, 227, 0.2);
                 }
 
-                .tab-header-app-name {
+                .moviease-header-app-name {
                     font-size: 1.25rem;
                     font-weight: 800;
-                    background: linear-gradient(135deg, #b0d4e3, #f4e8c1);
-                    -webkit-background-clip: text;
-                    -webkit-text-fill-color: transparent;
-                    background-clip: text;
+                    color: #ffffff;
                     letter-spacing: -0.02em;
+                    margin: 0;
                 }
 
-                .tab-header-center {
+                .moviease-header-center {
                     text-align: center;
-                    flex: 1;
-                    max-width: 400px;
-                    margin: 0 auto;
+                    justify-self: center;
                 }
 
-                .tab-header-title {
+                .moviease-header-title {
                     font-size: 1.5rem;
                     font-weight: 700;
-                    color: #b0d4e3;
+                    color: #ffffff;
                     margin: 0 0 0.25rem 0;
                     letter-spacing: -0.01em;
                 }
 
-                .tab-header-subtitle {
+                .moviease-header-subtitle {
                     font-size: 0.875rem;
-                    color: rgba(176, 212, 227, 0.6);
+                    color: rgba(176, 212, 227, 0.7);
                     margin: 0;
                     font-weight: 400;
                 }
 
-                @media (max-width: 640px) {
-                    .tab-header {
+                @media (max-width: 768px) {
+                    .moviease-tab-header {
                         padding: 0.75rem 1rem;
                     }
 
-                    .tab-header-logo {
+                    .moviease-header-content {
+                        grid-template-columns: auto 1fr;
+                        gap: 1rem;
+                    }
+
+                    .moviease-header-center {
+                        justify-self: end;
+                        text-align: right;
+                    }
+
+                    .moviease-header-logo {
                         width: 32px;
                         height: 32px;
                         font-size: 1.25rem;
                     }
 
-                    .tab-header-app-name {
+                    .moviease-header-app-name {
                         font-size: 1rem;
                     }
 
-                    .tab-header-title {
+                    .moviease-header-title {
                         font-size: 1.25rem;
                     }
 
-                    .tab-header-subtitle {
+                    .moviease-header-subtitle {
                         font-size: 0.75rem;
                     }
                 }
 
                 @media (max-width: 480px) {
-                    .tab-header-app-name {
+                    .moviease-header-app-name {
                         display: none;
                     }
                 }
             </style>
 
-            <div class="tab-header">
-                <div class="tab-header-left">
-                    <div class="tab-header-logo">🎬</div>
-                    <h1 class="tab-header-app-name">MoviEase</h1>
-                </div>
-                
-                <div class="tab-header-center">
-                    <h2 class="tab-header-title">${headerData.title}</h2>
-                    <p class="tab-header-subtitle">${headerData.subtitle}</p>
-                </div>
+            <div class="moviease-tab-header">
+                <div class="moviease-header-content">
+                    <div class="moviease-header-left">
+                        <div class="moviease-header-logo">🎬</div>
+                        <h1 class="moviease-header-app-name">MoviEase</h1>
+                    </div>
+                    
+                    <div class="moviease-header-center">
+                        <h2 class="moviease-header-title">${headerData.title}</h2>
+                        <p class="moviease-header-subtitle">${headerData.subtitle}</p>
+                    </div>
 
-                <!-- Right side spacer to balance layout -->
-                <div style="width: 40px;"></div>
+                    <div></div>
+                </div>
             </div>
         `;
     }
@@ -994,13 +1007,14 @@ class MoviEaseApp {
         // ✅ Clear container and add header first
         this.container.innerHTML = this.createTabHeader(this.currentTab);
         
-        // ✅ Create content wrapper for tab content
+        // ✅ Create content wrapper for tab content (no padding - let tabs control their own spacing)
         const contentWrapper = document.createElement('div');
         contentWrapper.className = 'tab-content-wrapper';
         contentWrapper.style.cssText = `
-            padding: 1.5rem;
             overflow-y: auto;
+            overflow-x: hidden;
             height: calc(100vh - 10rem);
+            background: #18183A;
         `;
         this.container.appendChild(contentWrapper);
         
