@@ -40,16 +40,6 @@ export class SwipeTab {
         container.innerHTML = `
             <div style="width: 100%; padding: 0; position: relative; min-height: calc(100vh - 5rem);">
                 
-                <!-- Header -->
-                <div style="padding: 1.5rem 1rem; text-align: center;">
-                    <h1 style="font-size: 1.5rem; font-weight: 800; background: linear-gradient(135deg, #b0d4e3, #f4e8c1); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin: 0 0 0.5rem 0;">
-                        Discover Movies
-                    </h1>
-                    <p style="font-size: 0.875rem; color: rgba(176, 212, 227, 0.6); margin: 0;">
-                        Swipe to find your next favorite film
-                    </p>
-                </div>
-                
                 <!-- Card Container -->
                 <div id="swipe-container" style="flex: 1; position: relative; display: flex; align-items: center; justify-content: center; padding: 0 1rem; min-height: 400px;">
                     <div style="color: rgba(176, 212, 227, 0.6); text-align: center;">
