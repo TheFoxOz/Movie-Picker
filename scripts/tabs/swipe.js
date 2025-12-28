@@ -41,7 +41,18 @@ export class SwipeTab {
             <div style="width: 100%; padding: 0; position: relative; min-height: calc(100vh - 5rem);">
                 
                 <!-- Card Container -->
-                <div id="swipe-container" style="flex: 1; position: relative; display: flex; align-items: center; justify-content: center; padding: 0 1rem; min-height: 400px;">
+                <div id="swipe-container" style="
+                    flex: 1; 
+                    position: relative; 
+                    display: flex; 
+                    align-items: center; 
+                    justify-content: center; 
+                    padding: 1rem; 
+                    min-height: 500px;
+                    max-width: 420px;
+                    margin: 0 auto;
+                    width: 100%;
+                ">
                     <div style="color: rgba(176, 212, 227, 0.6); text-align: center;">
                         <div style="font-size: 3rem; margin-bottom: 1rem;">🎬</div>
                         <p>Loading your movies...</p>
@@ -335,11 +346,12 @@ export class SwipeTab {
                 if (enrichedMovie && enrichedMovie.platform !== 'Loading...') {
                     this.currentCard.updatePlatform(enrichedMovie.platform, enrichedMovie.availableOn);
                     
-                    // ✅ CRITICAL: Check if current card should be filtered after platform update
-                    const shouldFilterCurrent = !enrichedMovie.availableOn || enrichedMovie.availableOn.length === 0;
+                    // ✅ UPDATED: Check if current card should be filtered (but keep "In Cinemas")
+                    const platform = enrichedMovie.platform;
+                    const shouldFilterCurrent = (platform === 'Coming Soon' || platform === 'Not Available');
                     
                     if (shouldFilterCurrent) {
-                        console.log(`[SwipeTab] ⚠️ Current card "${enrichedMovie.title}" has no streaming platforms, will be filtered`);
+                        console.log(`[SwipeTab] ⚠️ Current card "${enrichedMovie.title}" is ${platform}, will be filtered`);
                         // Just destroy the card - filtering will handle removal from queue
                         if (this.currentCard) {
                             this.currentCard.destroy();
@@ -364,23 +376,23 @@ export class SwipeTab {
                 }
             }
             
-            // ✅ FIX: Filter out cinema-only movies from the enriched batch
+            // ✅ UPDATED: Allow "In Cinemas" movies - only filter Coming Soon/Not Available
             const beforeFilter = this.movieQueue.length;
             
-            // Create a set of movie IDs that should be removed (Cinema/Coming Soon/Not Available)
+            // Create a set of movie IDs that should be removed (Coming Soon/Not Available ONLY)
             const moviesToRemove = new Set();
             movies.forEach(movie => {
                 const platform = movie.platform;
-                if (platform === 'Cinema' || platform === 'Coming Soon' || platform === 'Not Available') {
+                // ✅ CHANGED: Keep "In Cinemas", only remove "Coming Soon" and "Not Available"
+                if (platform === 'Coming Soon' || platform === 'Not Available') {
                     moviesToRemove.add(movie.id);
-                } else if (!movie.availableOn || movie.availableOn.length === 0) {
-                    moviesToRemove.add(movie.id);
+                    console.log(`[SwipeTab] Filtering out: "${movie.title}" (${platform})`);
                 }
             });
             
-            // Remove only the enriched movies that don't have streaming platforms
+            // Remove only the movies that are Coming Soon or Not Available
             this.movieQueue = this.movieQueue.filter(movie => !moviesToRemove.has(movie.id));
-            console.log(`[SwipeTab] Cinema filter: ${beforeFilter} → ${this.movieQueue.length} movies`);
+            console.log(`[SwipeTab] Cinema filter: ${beforeFilter} → ${this.movieQueue.length} movies (kept "In Cinemas")`);
             
             // Apply user platform filter
             if (tmdbService.filterByUserPlatforms) {
@@ -395,23 +407,29 @@ export class SwipeTab {
                     console.warn('[SwipeTab] ⚠️ Platform filter removed all movies - TMDB region data may be incomplete');
                     console.warn('[SwipeTab] Showing movies anyway (they have platforms, just not your selected ones)');
                     
-                    // ✅ FIX: Restore from the correct source
+                    // ✅ UPDATED: Restore movies but keep "In Cinemas" too
                     this.movieQueue = moviesBeforeFilter.filter(movie => {
+                        const platform = movie.platform;
+                        
+                        // Keep "In Cinemas" movies
+                        if (platform === 'In Cinemas') {
+                            return true;
+                        }
+                        
                         // Keep movies with streaming platforms
                         if (movie.availableOn && movie.availableOn.length > 0) {
                             return true;
                         }
                         
-                        // Exclude Cinema/Coming Soon/Not Available
-                        const platform = movie.platform;
-                        if (platform === 'Cinema' || platform === 'Coming Soon' || platform === 'Not Available' || platform === 'Loading...') {
+                        // Exclude Coming Soon/Not Available/Loading
+                        if (platform === 'Coming Soon' || platform === 'Not Available' || platform === 'Loading...') {
                             return false;
                         }
                         
                         return true;
                     });
                     
-                    console.log(`[SwipeTab] ✅ Fallback: Showing ${this.movieQueue.length} movies with any streaming platform`);
+                    console.log(`[SwipeTab] ✅ Fallback: Showing ${this.movieQueue.length} movies (including In Cinemas)`);
                 }
             }
 
@@ -468,7 +486,7 @@ export class SwipeTab {
                             if (year && parseInt(year) > currentYear) {
                                 movie.platform = 'Coming Soon';
                             } else {
-                                movie.platform = 'Cinema';
+                                movie.platform = 'In Cinemas';
                             }
                         }
                     } else {
