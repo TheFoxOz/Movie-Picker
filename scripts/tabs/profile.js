@@ -856,7 +856,7 @@ export class ProfileTab {
                     📺 Streaming Platforms
                 </h2>
                 <p style="color: #A6C0DD; font-size: 0.875rem; margin-bottom: 1rem;">
-                    Available in ${this.getRegionName(userRegion)} (${profile.selectedPlatforms.length} selected)
+                    Available in ${this.getRegionName(userRegion)} • ${availablePlatforms.length} platforms • ${profile.selectedPlatforms.length} selected
                 </p>
                 <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem;">
                     ${platformsHTML}
@@ -1241,21 +1241,36 @@ export class ProfileTab {
                 }
                 
                 const selectedRegion = TMDB_REGIONS.find(r => r.code === e.target.value);
-                this.showToast(`Region updated to ${selectedRegion?.name || e.target.value} ${selectedRegion?.flag || ''}`);
+                this.showToast(`Region updated to ${selectedRegion?.name || e.target.value} ${selectedRegion?.flag || ''} - Platform list refreshed!`);
                 
-                // ✅ NEW: Re-render platforms section to show region-specific platforms
+                // ✅ IMPROVED: Re-render platforms section with better DOM targeting
                 const profile = userProfileService.getProfile();
-                const platformsSection = this.container.querySelector('.settings-section');
-                if (platformsSection && platformsSection.querySelector('#region-select')) {
-                    // Find the platforms section (it's the one after region section)
-                    const allSections = this.container.querySelectorAll('.settings-section');
-                    allSections.forEach((section, index) => {
-                        if (section.textContent.includes('Streaming Platforms')) {
-                            section.outerHTML = this.renderPlatformsSection(profile);
-                            // Re-attach event listeners for new platform checkboxes
-                            setTimeout(() => this.attachPlatformListeners(), 100);
-                        }
-                    });
+                
+                // Find the platforms section more reliably
+                const allSections = this.container.querySelectorAll('.settings-section');
+                let platformsSectionIndex = -1;
+                
+                allSections.forEach((section, index) => {
+                    const header = section.querySelector('h2');
+                    if (header && header.textContent.includes('Streaming Platforms')) {
+                        platformsSectionIndex = index;
+                    }
+                });
+                
+                if (platformsSectionIndex !== -1) {
+                    const platformsSection = allSections[platformsSectionIndex];
+                    const newPlatformsHTML = this.renderPlatformsSection(profile);
+                    
+                    // Replace the entire section
+                    platformsSection.outerHTML = newPlatformsHTML;
+                    
+                    console.log('[ProfileTab] ✅ Platforms section refreshed for region:', region);
+                    
+                    // Re-attach event listeners for new platform checkboxes
+                    setTimeout(() => {
+                        this.attachPlatformListeners();
+                        console.log('[ProfileTab] ✅ Platform listeners re-attached');
+                    }, 100);
                 }
             });
         }
