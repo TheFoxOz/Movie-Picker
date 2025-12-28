@@ -2,8 +2,18 @@
  * Streaming Platforms Configuration
  * Defines available streaming services
  * ✅ UPDATED: Added UK platforms (Sky Go, Now TV) and more international services
+ * ✅ NEW: Added "In Cinemas" as toggleable option
  */
 export const STREAMING_PLATFORMS = [
+    // ✅ NEW: Theatrical Releases
+    {
+        id: 'In Cinemas',
+        name: 'In Cinemas',
+        color: '#D97706',
+        icon: '🎬',
+        available: true
+    },
+    
     // Major Global Platforms
     {
         id: 'Netflix',
@@ -189,13 +199,13 @@ export function isPlatformAvailable(platformName) {
  */
 export function getPlatformsByRegion(region) {
     const regionPlatforms = {
-        'US': ['Netflix', 'Hulu', 'Prime Video', 'Disney+', 'HBO Max', 'Apple TV+', 'Paramount+', 'Peacock', 'Max', 'Showtime'],
-        'GB': ['Netflix', 'Prime Video', 'Disney+', 'Apple TV+', 'Sky Go', 'Now', 'BBC iPlayer', 'Channel 4', 'ITV Hub'],
-        'CA': ['Netflix', 'Prime Video', 'Disney+', 'Apple TV+', 'Crave', 'Paramount+'],
-        'AU': ['Netflix', 'Prime Video', 'Disney+', 'Apple TV+', 'Stan'],
-        'IN': ['Netflix', 'Prime Video', 'Disney+', 'Apple TV+', 'Hotstar']
+        'US': ['In Cinemas', 'Netflix', 'Hulu', 'Prime Video', 'Disney+', 'HBO Max', 'Apple TV+', 'Paramount+', 'Peacock', 'Max', 'Showtime'],
+        'GB': ['In Cinemas', 'Netflix', 'Prime Video', 'Disney+', 'Apple TV+', 'Sky Go', 'Now', 'BBC iPlayer', 'Channel 4', 'ITV Hub'],
+        'CA': ['In Cinemas', 'Netflix', 'Prime Video', 'Disney+', 'Apple TV+', 'Crave', 'Paramount+'],
+        'AU': ['In Cinemas', 'Netflix', 'Prime Video', 'Disney+', 'Apple TV+', 'Stan'],
+        'IN': ['In Cinemas', 'Netflix', 'Prime Video', 'Disney+', 'Apple TV+', 'Hotstar']
     };
     
-    const platformIds = regionPlatforms[region] || regionPlatforms['US'];
+    const platformIds = regionPlatforms[region] || ['In Cinemas', 'Netflix', 'Prime Video', 'Disney+', 'Apple TV+'];
     return STREAMING_PLATFORMS.filter(p => platformIds.includes(p.id));
 }
