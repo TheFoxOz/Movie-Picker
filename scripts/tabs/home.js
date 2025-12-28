@@ -1,565 +1,186 @@
 /**
- * TMDB Service - Movie Database API Integration
- * ✅ FIXED: Removed duplicate platform logic
- * ✅ FIXED: Proper platform detection from multiple sources
- * ✅ FIXED: Updated color references to new palette
- * ✅ FIXED: Syntax error in filterByUserPlatforms
- * ✅ NEW: Platform name normalization for fuzzy matching
+ * MoviEase - Home Tab
+ * Netflix-style personalized movie feed with horizontal scrolling rows
+ * ✅ FIXED: Proper genre filtering with cinema exclusion
+ * ✅ FIXED: 20 movies per row
+ * ✅ FIXED: No duplicate movies across sections
+ * ✅ FIXED: Null check for movie.genres to prevent crashes
+ * ✅ NEW: Platform filtering by user's selected platforms
  */
 
-import { doesTheDogDieService } from './does-the-dog-die.js';
-import { userProfileService } from './user-profile-revised.js';
+import { tmdbService } from '../services/tmdb.js';
 import { store } from '../state/store.js';
+import { movieModal } from '../components/movie-modal.js';
+import { renderTriggerBadge } from '../utils/trigger-warnings.js';
 
-class TMDBService {
+const GENRE_IDS = {
+    ACTION: 28,
+    COMEDY: 35,
+    DRAMA: 18,
+    HORROR: 27,
+    SCIFI: 878,
+    THRILLER: 53,
+    ROMANCE: 10749,
+    ANIMATION: 16,
+    DOCUMENTARY: 99,
+    FANTASY: 14
+};
+
+export class HomeTab {
     constructor() {
-        this.apiKey = null;
-        this.baseURL = 'https://api.themoviedb.org/3';
-        this.imageBaseURL = 'https://image.tmdb.org/t/p';
-        this.cache = {
-            movies: new Map(),
-            genres: new Map(),
-            triggerWarnings: new Map(),
-            watchProviders: new Map()
-        };
-        this.genreList = [];
-        this.isInitialized = false;
+        this.container = null;
+        this.allMovies = [];
     }
 
-    async initialize(apiKey) {
-        if (!apiKey) {
-            console.error('[TMDB] ❌ No API key provided');
-            return false;
-        }
+    async render(container) {
+        console.log('[Home] Rendering Netflix-style home tab...');
+        this.container = container;
 
-        this.apiKey = apiKey;
-        
-        try {
-            await this.loadGenres();
-            this.isInitialized = true;
-            console.log('[TMDB] ✅ Service initialized');
-            return true;
-        } catch (error) {
-            console.error('[TMDB] ❌ Initialization failed:', error);
-            return false;
-        }
-    }
+        // Show loading state
+        this.container.innerHTML = `
+            <div style="
+                width: 100%;
+                padding: 1.5rem 0 6rem;
+            ">
+                <div style="display: flex; align-items: center; justify-content: center; height: calc(100vh - 10rem); flex-direction: column; gap: 1rem;">
+                    <div style="width: 48px; height: 48px; border: 4px solid rgba(176, 212, 227, 0.2); border-top-color: #b0d4e3; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                    <p style="color: rgba(176, 212, 227, 0.7); font-size: 0.875rem;">Loading your personalized feed...</p>
+                </div>
+                <style>@keyframes spin { to { transform: rotate(360deg); }}</style>
+            </div>
+        `;
 
-    async loadGenres() {
         try {
-            const response = await fetch(
-                `${this.baseURL}/genre/movie/list?api_key=${this.apiKey}`
-            );
-            const data = await response.json();
-            
-            this.genreList = data.genres || [];
-            this.genreList.forEach(genre => {
-                this.cache.genres.set(genre.id, genre.name);
+            // ✅ Load multiple pages for each category to get more variety
+            console.log('[Home] Loading movie data from multiple pages...');
+            const [
+                trending1, trending2,
+                popular1, popular2,
+                topRated1, topRated2,
+                action1, action2,
+                comedy1, comedy2,
+                scifi1, scifi2,
+                horror1, horror2,
+                animation1
+            ] = await Promise.all([
+                tmdbService.getTrendingMovies('week'),
+                tmdbService.getPopularMovies(2),
+                tmdbService.getPopularMovies(1),
+                tmdbService.getPopularMovies(3),
+                tmdbService.discoverMovies({ sortBy: 'vote_average.desc', minVotes: 1000, page: 1 }).then(r => r.movies || r),
+                tmdbService.discoverMovies({ sortBy: 'vote_average.desc', minVotes: 1000, page: 2 }).then(r => r.movies || r),
+                tmdbService.discoverMovies({ genres: [GENRE_IDS.ACTION], page: 1 }).then(r => r.movies || r),
+                tmdbService.discoverMovies({ genres: [GENRE_IDS.ACTION], page: 2 }).then(r => r.movies || r),
+                tmdbService.discoverMovies({ genres: [GENRE_IDS.COMEDY], page: 1 }).then(r => r.movies || r),
+                tmdbService.discoverMovies({ genres: [GENRE_IDS.COMEDY], page: 2 }).then(r => r.movies || r),
+                tmdbService.discoverMovies({ genres: [GENRE_IDS.SCIFI], page: 1 }).then(r => r.movies || r),
+                tmdbService.discoverMovies({ genres: [GENRE_IDS.SCIFI], page: 2 }).then(r => r.movies || r),
+                tmdbService.discoverMovies({ genres: [GENRE_IDS.HORROR], page: 1 }).then(r => r.movies || r),
+                tmdbService.discoverMovies({ genres: [GENRE_IDS.HORROR], page: 2 }).then(r => r.movies || r),
+                tmdbService.discoverMovies({ genres: [GENRE_IDS.ANIMATION], page: 1 }).then(r => r.movies || r)
+            ]);
+
+            // ✅ Merge and deduplicate all movies
+            console.log('[Home] Merging and deduplicating movies...');
+            const allMoviesMap = new Map();
+            [
+                ...trending1, ...trending2,
+                ...popular1, ...popular2,
+                ...topRated1, ...topRated2,
+                ...action1, ...action2,
+                ...comedy1, ...comedy2,
+                ...scifi1, ...scifi2,
+                ...horror1, ...horror2,
+                ...animation1
+            ].forEach(m => {
+                if (m && m.id) allMoviesMap.set(m.id, m);
             });
             
-            console.log('[TMDB] ✅ Loaded genres:', this.genreList.length);
-        } catch (error) {
-            console.error('[TMDB] ❌ Failed to load genres:', error);
-            throw error;
-        }
-    }
-
-    getGenreNames(genreIds) {
-        if (!genreIds || !Array.isArray(genreIds)) return [];
-        return genreIds
-            .map(id => this.cache.genres.get(id))
-            .filter(Boolean);
-    }
-
-    getImageURL(path, size = 'w500') {
-        if (!path) return null;
-        return `${this.imageBaseURL}/${size}${path}`;
-    }
-
-    async getWatchProviders(movieId) {
-        if (!movieId) {
-            console.warn('[TMDB] No movie ID provided for watch providers');
-            return [];
-        }
-
-        // Check cache first
-        if (this.cache.watchProviders.has(movieId)) {
-            return this.cache.watchProviders.get(movieId);
-        }
-
-        try {
-            const userProfile = userProfileService?.getProfile();
-            const region = userProfile?.region || 'US';
-
-            const response = await fetch(
-                `${this.baseURL}/movie/${movieId}/watch/providers?api_key=${this.apiKey}`
-            );
+            this.allMovies = Array.from(allMoviesMap.values());
             
-            if (!response.ok) {
-                console.warn(`[TMDB] Watch providers API error: ${response.status}`);
-                this.cache.watchProviders.set(movieId, []);
-                return [];
-            }
+            // ✅ Enrich with platform data
+            console.log(`[Home] Enriching ${this.allMovies.length} movies with platform data...`);
+            await this.enrichWithPlatformData(this.allMovies);
+            console.log('[Home] ✅ Platform data loaded');
 
-            const data = await response.json();
-            const providers = data.results?.[region];
-            
-            if (!providers) {
-                this.cache.watchProviders.set(movieId, []);
-                return [];
-            }
+            // ✅ CRITICAL: Filter by user's selected platforms
+            const beforePlatformFilter = this.allMovies.length;
+            this.allMovies = tmdbService.filterByUserPlatforms(this.allMovies);
+            console.log(`[Home] Platform filter: ${beforePlatformFilter} → ${this.allMovies.length} movies`);
 
-            // Combine all provider types (streaming, rent, buy)
-            const allProviders = [
-                ...(providers.flatrate || []),
-                ...(providers.rent || []),
-                ...(providers.buy || [])
-            ];
+            // ✅ Separate movies by cinema status FIRST
+            const cinemaMovies = this.filterCinemaMovies(this.allMovies);
+            const streamingMovies = this.filterStreamingMovies(this.allMovies);
 
-            // Map TMDB provider IDs to our platform names
-            const providerMap = {
-                8: 'Netflix',
-                15: 'Hulu',
-                9: 'Prime Video',
-                337: 'Disney+',
-                384: 'HBO Max',
-                350: 'Apple TV+',
-                387: 'Peacock',
-                386: 'Paramount+',
-                2: 'Apple TV',
-                3: 'Google Play Movies',
-                10: 'Amazon Video'
+            console.log(`[Home] Cinema: ${cinemaMovies.length}, Streaming: ${streamingMovies.length}`);
+
+            // Get user preferences for recommendations
+            const state = store.getState();
+            const swipeHistory = state.swipeHistory || [];
+
+            // ✅ FIXED: Filter each category properly by genre
+            const sections = {
+                cinema: cinemaMovies.slice(0, 20),
+                trending: this.filterStreamingByIds(streamingMovies, [...trending1, ...trending2]).slice(0, 20),
+                recommended: this.getRecommendedMovies(streamingMovies, swipeHistory).slice(0, 20),
+                topRated: this.filterStreamingByIds(streamingMovies, [...topRated1, ...topRated2]).slice(0, 20),
+                action: this.filterByGenre(streamingMovies, GENRE_IDS.ACTION).slice(0, 20),
+                comedy: this.filterByGenre(streamingMovies, GENRE_IDS.COMEDY).slice(0, 20),
+                scifi: this.filterByGenre(streamingMovies, GENRE_IDS.SCIFI).slice(0, 20),
+                horror: this.filterByGenre(streamingMovies, GENRE_IDS.HORROR).slice(0, 20),
+                blockbusters: this.getBlockbusters(streamingMovies).slice(0, 20)
             };
 
-            const platformNames = allProviders
-                .map(p => providerMap[p.provider_id])
-                .filter(Boolean);
+            console.log('[Home] Section counts:', Object.entries(sections).map(([key, movies]) => `${key}: ${movies.length}`).join(', '));
 
-            // Remove duplicates
-            const uniquePlatforms = [...new Set(platformNames)];
-            
-            if (uniquePlatforms.length > 0) {
-                console.log(`[TMDB] ✅ Found ${uniquePlatforms.length} platforms for movie ${movieId}`);
-            }
-            
-            // Cache the result
-            this.cache.watchProviders.set(movieId, uniquePlatforms);
-            
-            return uniquePlatforms;
+            // Render the Netflix-style feed
+            this.renderFeed(sections);
 
         } catch (error) {
-            console.error('[TMDB] ❌ Failed to fetch watch providers:', error);
-            this.cache.watchProviders.set(movieId, []);
-            return [];
+            console.error('[Home] Failed to load content:', error);
+            this.container.innerHTML = `
+                <div style="width: 100%; padding: 1.5rem 0 6rem;">
+                    <div style="display: flex; align-items: center; justify-content: center; height: calc(100vh - 10rem); flex-direction: column; gap: 1rem; padding: 2rem; text-align: center;">
+                        <div style="font-size: 3rem;">⚠️</div>
+                        <h3 style="color: white; font-size: 1.25rem; font-weight: 700;">Failed to Load Content</h3>
+                        <p style="color: rgba(176, 212, 227, 0.6); font-size: 0.875rem;">Please try refreshing the page</p>
+                        <button onclick="location.reload()" style="padding: 0.75rem 1.5rem; background: linear-gradient(135deg, #b0d4e3, #f4e8c1); border: none; border-radius: 0.75rem; color: #1a1f2e; font-weight: 600; cursor: pointer; margin-top: 1rem;">
+                            Refresh
+                        </button>
+                    </div>
+                </div>
+            `;
         }
     }
 
-    filterByUserPlatforms(movies) {
-        if (!movies?.length) return [];
+    /**
+     * Enrich movies with platform data
+     */
+    async enrichWithPlatformData(movies, options = { maxConcurrent: 10, delay: 30 }) {
+        if (!movies || movies.length === 0) return movies;
 
-        // 1. Try to read preferences from multiple possible locations
-        let selectedPlatforms = [];
-
-        // Most recent location (onboarding + profile)
-        const profile = userProfileService?.getProfile?.();
-        if (profile?.selectedPlatforms?.length) {
-            selectedPlatforms = profile.selectedPlatforms;
-        }
-        // Fallback 1 - store
-        else if (store.getState().preferences?.platforms?.length) {
-            selectedPlatforms = store.getState().preferences.platforms;
-        }
-        // Fallback 2 - localStorage (last resort)
-        else {
-            try {
-                const prefs = JSON.parse(localStorage.getItem('moviePickerPreferences') || '{}');
-                selectedPlatforms = Array.isArray(prefs.platforms) ? prefs.platforms : [];
-            } catch {}
-        }
-
-        // If user has no platforms selected → show everything (don't filter)
-        if (!selectedPlatforms.length) {
-            console.warn('[TMDB] No platforms selected → showing all movies (no filtering)');
-            return movies;
-        }
-
-        console.log('[TMDB] Filtering by user platforms:', selectedPlatforms);
-
-        // ✅ GROK'S RECOMMENDATION: Robust normalization function
-        const normalize = str => (str || '')
-            .toLowerCase()
-            .replace(/\+/g, 'plus')
-            .replace(/[^a-z0-9]/g, '')
-            .trim();
-
-        const userNormalized = new Set(selectedPlatforms.map(normalize));
-        console.log('[TMDB] Normalized user platforms:', Array.from(userNormalized));
-
-        const filtered = movies.filter(movie => {
-            // No platform data yet? → keep it (will be filtered later when enriched)
-            if (!movie.availableOn?.length && !movie.platform) return true;
-
-            const platformsToCheck = [
-                ...(movie.availableOn || []),
-                movie.platform
-            ].filter(Boolean);
-
-            const hasMatch = platformsToCheck.some(p => {
-                const normalized = normalize(p);
-                const matches = userNormalized.has(normalized);
-                
-                if (matches) {
-                    console.log(`[TMDB] ✅ "${movie.title}" matches: "${p}" (normalized: "${normalized}")`);
-                }
-                
-                return matches;
-            });
-
-            return hasMatch;
-        });
-
-        console.log(`[TMDB] Platform filtering: ${movies.length} → ${filtered.length} movies`);
-        return filtered;
-    }
-
-    isMovieBlocked(movie) {
-        if (!movie || !movie.triggerWarnings) {
-            return false;
-        }
-
-        const userProfile = userProfileService?.getProfile();
-        const enabledCategories = userProfile?.triggerWarnings?.enabledCategories || [];
-        
-        if (enabledCategories.length === 0) {
-            return false;
-        }
-
-        const hasBlockedWarning = movie.triggerWarnings.some(warning => {
-            const category = typeof warning === 'string' ? warning : warning.category;
-            return enabledCategories.includes(category);
-        });
-
-        if (hasBlockedWarning) {
-            console.log(`[TMDB] ⚠️ Movie "${movie.title}" blocked due to trigger warnings`);
-        }
-
-        return hasBlockedWarning;
-    }
-
-    filterBlockedMovies(movies) {
-        if (!movies || movies.length === 0) {
-            return [];
-        }
-
-        const filtered = movies.filter(movie => !this.isMovieBlocked(movie));
-        
-        if (filtered.length < movies.length) {
-            console.log(`[TMDB] Trigger filtering: ${movies.length} → ${filtered.length} movies`);
-        }
-        
-        return filtered;
-    }
-
-    applyUserFilters(movies) {
-        if (!movies || movies.length === 0) {
-            return [];
-        }
-
-        console.log(`[TMDB] Applying filters to ${movies.length} movies...`);
-        
-        let filtered = this.filterByUserPlatforms(movies);
-        filtered = this.filterBlockedMovies(filtered);
-        
-        console.log(`[TMDB] ✅ After filtering: ${filtered.length} movies remain`);
-        
-        return filtered;
-    }
-
-    async fetchTriggerWarnings(movie) {
-        if (!movie || !movie.id || movie.warningsLoaded) return;
-
-        try {
-            const warnings = await doesTheDogDieService.getWarningsForMovie(
-                movie.title,
-                movie.imdb_id || null
-            );
-
-            movie.triggerWarnings = warnings || [];
-            movie.warningsLoaded = true;
-            movie.hasTriggerWarnings = warnings.length > 0;
-
-            if (warnings.length > 0) {
-                console.log(`[TMDB] ✅ ${warnings.length} warnings loaded for: ${movie.title}`);
-                
-                document.dispatchEvent(new CustomEvent('trigger-warnings-loaded', {
-                    detail: { movieId: movie.id, warnings }
-                }));
-            }
-            
-        } catch (error) {
-            console.error('[TMDB] Trigger warning fetch failed:', error);
-            movie.triggerWarnings = [];
-            movie.warningsLoaded = true;
-        }
-    }
-
-    async discoverMovies(options = {}) {
-        const userProfile = userProfileService?.getProfile();
-        
-        const params = new URLSearchParams({
-            api_key: this.apiKey,
-            language: 'en-US',
-            sort_by: options.sortBy || 'popularity.desc',
-            page: options.page || 1,
-            include_adult: false,
-            include_video: false,
-            region: userProfile?.region || 'US',
-            watch_region: userProfile?.region || 'US'
-        });
-
-        if (options.withGenres) {
-            params.append('with_genres', options.withGenres);
-        }
-        if (options.year) {
-            params.append('primary_release_year', options.year);
-        }
-        if (options.minRating) {
-            params.append('vote_average.gte', options.minRating);
-        }
-        if (options.minVotes) {
-            params.append('vote_count.gte', options.minVotes || 100);
-        }
-
-        try {
-            const response = await fetch(
-                `${this.baseURL}/discover/movie?${params.toString()}`
-            );
-            const data = await response.json();
-            
-            console.log(`[TMDB] ✅ Discovered ${data.results?.length || 0} movies (page ${options.page})`);
-            
-            return {
-                movies: this.processMovies(data.results || []),
-                totalPages: data.total_pages,
-                totalResults: data.total_results,
-                page: data.page
-            };
-        } catch (error) {
-            console.error('[TMDB] ❌ Discovery failed:', error);
-            return { movies: [], totalPages: 0, totalResults: 0, page: 1 };
-        }
-    }
-
-    async getPopularMovies(page = 1) {
-        const userProfile = userProfileService?.getProfile();
-        
-        const params = new URLSearchParams({
-            api_key: this.apiKey,
-            language: 'en-US',
-            page: page,
-            region: userProfile?.region || 'US'
-        });
-
-        try {
-            const response = await fetch(
-                `${this.baseURL}/movie/popular?${params.toString()}`
-            );
-            const data = await response.json();
-            
-            console.log(`[TMDB] Loaded popular page ${page}, ${data.results?.length || 0} movies`);
-            
-            return this.processMovies(data.results || []);
-        } catch (error) {
-            console.error('[TMDB] ❌ Failed to load popular movies:', error);
-            return [];
-        }
-    }
-
-    async getTrendingMovies(timeWindow = 'week', page = 1) {
-        const userProfile = userProfileService?.getProfile();
-        
-        const params = new URLSearchParams({
-            api_key: this.apiKey,
-            language: 'en-US',
-            page: page,
-            region: userProfile?.region || 'US'
-        });
-
-        try {
-            const response = await fetch(
-                `${this.baseURL}/trending/movie/${timeWindow}?${params.toString()}`
-            );
-            const data = await response.json();
-            
-            console.log(`[TMDB] ✅ Loaded ${data.results?.length || 0} trending movies`);
-            
-            return this.processMovies(data.results || []);
-        } catch (error) {
-            console.error('[TMDB] ❌ Failed to load trending movies:', error);
-            return [];
-        }
-    }
-
-    async getMovieDetails(movieId) {
-        if (this.cache.movies.has(movieId)) {
-            return this.cache.movies.get(movieId);
-        }
-
-        const params = new URLSearchParams({
-            api_key: this.apiKey,
-            language: 'en-US',
-            append_to_response: 'credits,videos,similar,recommendations,release_dates'
-        });
-
-        try {
-            const response = await fetch(
-                `${this.baseURL}/movie/${movieId}?${params.toString()}`
-            );
-            const movie = await response.json();
-            
-            const processed = this.processMovie(movie);
-            this.cache.movies.set(movieId, processed);
-            
-            return processed;
-        } catch (error) {
-            console.error('[TMDB] ❌ Failed to get movie details:', error);
-            return null;
-        }
-    }
-
-    async searchMovies(query, page = 1) {
-        const userProfile = userProfileService?.getProfile();
-        
-        const params = new URLSearchParams({
-            api_key: this.apiKey,
-            language: 'en-US',
-            query: query,
-            page: page,
-            include_adult: false,
-            region: userProfile?.region || 'US'
-        });
-
-        try {
-            const response = await fetch(
-                `${this.baseURL}/search/movie?${params.toString()}`
-            );
-            const data = await response.json();
-            
-            return {
-                movies: this.processMovies(data.results || []),
-                totalPages: data.total_pages,
-                totalResults: data.total_results
-            };
-        } catch (error) {
-            console.error('[TMDB] ❌ Search failed:', error);
-            return { movies: [], totalPages: 0, totalResults: 0 };
-        }
-    }
-
-    processMovies(movies) {
-        return movies.map(movie => this.processMovie(movie));
-    }
-
-    processMovie(movie) {
-        // Extract certification if available
-        let certification = null;
-        if (movie.release_dates?.results) {
-            const usRelease = movie.release_dates.results.find(r => r.iso_3166_1 === 'US');
-            if (usRelease && usRelease.release_dates && usRelease.release_dates.length > 0) {
-                certification = usRelease.release_dates[0].certification || null;
-            }
-        }
-
-        return {
-            id: movie.id,
-            title: movie.title,
-            originalTitle: movie.original_title,
-            overview: movie.overview,
-            releaseDate: movie.release_date,
-            rating: movie.vote_average,
-            voteCount: movie.vote_count,
-            popularity: movie.popularity,
-            genres: this.getGenreNames(movie.genre_ids || movie.genres?.map(g => g.id)),
-            genreIds: movie.genre_ids || movie.genres?.map(g => g.id) || [],
-            posterPath: movie.poster_path,
-            backdropPath: movie.backdrop_path,
-            posterURL: this.getImageURL(movie.poster_path),
-            backdropURL: this.getImageURL(movie.backdrop_path, 'w780'),
-            adult: movie.adult,
-            originalLanguage: movie.original_language,
-            runtime: movie.runtime,
-            budget: movie.budget,
-            revenue: movie.revenue,
-            status: movie.status,
-            tagline: movie.tagline,
-            homepage: movie.homepage,
-            certification: certification,
-            cast: movie.credits?.cast?.slice(0, 10),
-            crew: movie.credits?.crew,
-            director: movie.credits?.crew?.find(p => p.job === 'Director'),
-            trailer: movie.videos?.results?.find(v => 
-                v.type === 'Trailer' && v.site === 'YouTube'
-            ),
-            similar: movie.similar?.results,
-            recommendations: movie.recommendations?.results,
-            availableOn: [],
-            platform: null,
-            triggerWarnings: [],
-            hasTriggerWarnings: false,
-            triggerWarningCount: 0,
-            warningsLoaded: false
-        };
-    }
-
-    async loadTriggerWarningsForMovies(movies, options = {}) {
-        const { maxConcurrent = 3, delay = 100 } = options;
-        
-        console.log(`[TMDB] Loading trigger warnings for ${movies.length} movies...`);
-        
-        const results = [];
-        
-        for (let i = 0; i < movies.length; i += maxConcurrent) {
-            const batch = movies.slice(i, i + maxConcurrent);
-            const promises = batch.map(movie => this.fetchTriggerWarnings(movie));
-            
-            await Promise.all(promises);
-            results.push(...batch);
-            
-            if (i + maxConcurrent < movies.length) {
-                await new Promise(resolve => setTimeout(resolve, delay));
-            }
-        }
-        
-        const foundWarnings = results.filter(m => m.hasTriggerWarnings).length;
-        if (foundWarnings > 0) {
-            console.log(`[TMDB] ✅ Found warnings for ${foundWarnings}/${results.length} movies`);
-        }
-        
-        return results;
-    }
-
-    async loadWatchProvidersForMovies(movies, options = {}) {
-        const { maxConcurrent = 5, delay = 50 } = options;
-        
-        console.log(`[TMDB] Loading watch providers for ${movies.length} movies...`);
+        const { maxConcurrent, delay } = options;
         
         for (let i = 0; i < movies.length; i += maxConcurrent) {
             const batch = movies.slice(i, i + maxConcurrent);
             
             await Promise.all(
                 batch.map(async (movie) => {
-                    movie.availableOn = await this.getWatchProviders(movie.id);
-                    
-                    if (movie.availableOn && movie.availableOn.length > 0) {
-                        movie.platform = movie.availableOn[0];
-                    } else {
-                        const year = movie.releaseDate?.split('-')[0] || movie.year;
-                        const currentYear = new Date().getFullYear();
+                    if (tmdbService.getWatchProviders) {
+                        movie.availableOn = await tmdbService.getWatchProviders(movie.id);
                         
-                        if (year && parseInt(year) > currentYear) {
-                            movie.platform = 'Coming Soon';
+                        if (!movie.availableOn || movie.availableOn.length === 0) {
+                            const releaseDate = new Date(movie.releaseDate || movie.release_date);
+                            const sixMonthsAgo = new Date();
+                            sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+                            
+                            if (releaseDate > sixMonthsAgo) {
+                                movie.platform = 'In Cinemas';
+                            } else {
+                                movie.platform = 'Not Available';
+                            }
                         } else {
-                            movie.platform = 'Not Available';
+                            movie.platform = movie.availableOn[0];
                         }
                     }
                 })
@@ -570,19 +191,370 @@ class TMDBService {
             }
         }
         
-        console.log(`[TMDB] ✅ Loaded watch providers for ${movies.length} movies`);
         return movies;
     }
 
-    clearCache() {
-        this.cache.movies.clear();
-        this.cache.triggerWarnings.clear();
-        this.cache.watchProviders.clear();
-        console.log('[TMDB] Cache cleared');
+    /**
+     * Filter movies that are in cinemas
+     */
+    filterCinemaMovies(movies) {
+        return movies
+            .filter(m => m.platform === 'In Cinemas')
+            .sort((a, b) => {
+                const dateA = new Date(a.releaseDate || a.release_date);
+                const dateB = new Date(b.releaseDate || b.release_date);
+                return dateB - dateA;
+            });
+    }
+
+    /**
+     * Filter movies that are on streaming (exclude cinema and not available)
+     */
+    filterStreamingMovies(movies) {
+        return movies.filter(m => 
+            m.platform !== 'In Cinemas' && 
+            m.platform !== 'Not Available'
+        );
+    }
+
+    /**
+     * Filter streaming movies by matching IDs from source list
+     */
+    filterStreamingByIds(streamingMovies, sourceList) {
+        const streamingIds = new Set(streamingMovies.map(m => m.id));
+        return sourceList.filter(m => streamingIds.has(m.id));
+    }
+
+    /**
+     * Filter movies by specific genre ID
+     */
+    filterByGenre(streamingMovies, genreId) {
+        return streamingMovies
+            .filter(m => {
+                const genres = m.genre_ids || m.genreIds || [];
+                return genres.includes(genreId);
+            })
+            .sort((a, b) => {
+                const ratingA = parseFloat(a.rating || a.vote_average || 0);
+                const ratingB = parseFloat(b.rating || b.vote_average || 0);
+                return ratingB - ratingA;
+            });
+    }
+
+    /**
+     * Get blockbuster movies (high popularity + rating)
+     */
+    getBlockbusters(streamingMovies) {
+        return streamingMovies
+            .filter(m => {
+                const rating = parseFloat(m.rating || m.vote_average || 0);
+                const popularity = parseFloat(m.popularity || 0);
+                return rating >= 6.5 && popularity >= 100;
+            })
+            .sort((a, b) => {
+                const popA = parseFloat(a.popularity || 0);
+                const popB = parseFloat(b.popularity || 0);
+                return popB - popA;
+            });
+    }
+
+    /**
+     * Get recommended movies based on user's likes/loves
+     * ✅ FIXED: Added null checks for movie.genres
+     */
+    getRecommendedMovies(streamingMovies, swipeHistory) {
+        const likedMovies = swipeHistory
+            .filter(s => s.action === 'like' || s.action === 'love')
+            .map(s => s.movie)
+            .filter(m => m && m.id); // ✅ CRITICAL FIX: Filter out null/undefined movies
+
+        if (likedMovies.length === 0) {
+            return streamingMovies
+                .filter(m => parseFloat(m.rating || m.vote_average || 0) >= 7)
+                .sort((a, b) => parseFloat(b.rating || b.vote_average || 0) - parseFloat(a.rating || a.vote_average || 0));
+        }
+
+        // Extract favorite genres
+        const genreCounts = {};
+        likedMovies.forEach(movie => {
+            // ✅ CRITICAL FIX: Check if genres exists and is an array before accessing
+            const genres = movie.genres || movie.genre_ids || [];
+            if (Array.isArray(genres)) {
+                genres.forEach(genre => {
+                    const genreId = typeof genre === 'object' ? genre.id : genre;
+                    if (genreId) { // ✅ Extra safety check
+                        genreCounts[genreId] = (genreCounts[genreId] || 0) + 1;
+                    }
+                });
+            }
+        });
+
+        const topGenres = Object.entries(genreCounts)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 3)
+            .map(([genreId]) => parseInt(genreId));
+
+        const likedIds = new Set(likedMovies.map(m => m.id));
+
+        return streamingMovies
+            .filter(m => {
+                if (likedIds.has(m.id)) return false;
+                const movieGenres = m.genres || m.genre_ids || [];
+                const movieGenreIds = movieGenres.map(g => typeof g === 'object' ? g.id : g);
+                return topGenres.some(topGenre => movieGenreIds.includes(topGenre));
+            })
+            .sort((a, b) => {
+                const ratingA = parseFloat(a.rating || a.vote_average || 0);
+                const ratingB = parseFloat(b.rating || b.vote_average || 0);
+                return ratingB - ratingA;
+            });
+    }
+
+    renderFeed(sections) {
+        const rows = [
+            { title: '🎬 In Cinemas Now', movies: sections.cinema, id: 'cinema' },
+            { title: '🔥 Trending This Week', movies: sections.trending, id: 'trending' },
+            { title: '✨ Recommended for You', movies: sections.recommended, id: 'recommended' },
+            { title: '🏆 Top Rated', movies: sections.topRated, id: 'topRated' },
+            { title: '💥 Action & Adventure', movies: sections.action, id: 'action' },
+            { title: '😂 Comedy', movies: sections.comedy, id: 'comedy' },
+            { title: '🚀 Sci-Fi', movies: sections.scifi, id: 'scifi' },
+            { title: '👻 Horror', movies: sections.horror, id: 'horror' },
+            { title: '🎯 Blockbusters', movies: sections.blockbusters, id: 'blockbusters' }
+        ];
+
+        // Filter out empty rows
+        const visibleRows = rows.filter(row => row.movies && row.movies.length > 0);
+
+        console.log('[Home] Visible rows:', visibleRows.map(r => `${r.title}: ${r.movies.length}`).join(', '));
+
+        const sectionsHTML = visibleRows.map(row => this.renderSection(row)).join('');
+
+        this.container.innerHTML = `
+            <div style="width: 100%; padding: 1.5rem 0 6rem;">
+                <!-- Header -->
+                <div style="padding: 0 1rem 1.5rem;">
+                    <h1 style="font-size: 1.75rem; font-weight: 800; background: linear-gradient(135deg, #b0d4e3, #f4e8c1); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin: 0 0 0.5rem;">
+                        Discover
+                    </h1>
+                    <p style="color: rgba(176, 212, 227, 0.6); font-size: 0.875rem; margin: 0;">
+                        Your personalized movie feed
+                    </p>
+                </div>
+
+                <!-- Movie Rows -->
+                ${sectionsHTML}
+            </div>
+        `;
+
+        // Add click handlers to movie cards
+        this.attachMovieClickHandlers();
+    }
+
+    renderSection(section) {
+        if (!section.movies || section.movies.length === 0) return '';
+
+        const moviesHTML = section.movies.map(movie => this.renderMovieCard(movie)).join('');
+
+        return `
+            <div style="margin-bottom: 2rem;">
+                <!-- Section Title -->
+                <h2 style="
+                    color: white;
+                    font-size: 1.125rem;
+                    font-weight: 700;
+                    padding: 0 1rem 1rem;
+                    margin: 0;
+                ">
+                    ${section.title}
+                </h2>
+
+                <!-- Horizontal Scrolling Row -->
+                <div style="
+                    display: flex;
+                    gap: 1rem;
+                    overflow-x: auto;
+                    padding: 0 1rem 1rem;
+                    scroll-snap-type: x mandatory;
+                    -webkit-overflow-scrolling: touch;
+                    scrollbar-width: none;
+                    -ms-overflow-style: none;
+                ">
+                    ${moviesHTML}
+                </div>
+            </div>
+        `;
+    }
+
+    renderMovieCard(movie) {
+        const posterURL = movie.posterURL || 
+                         (movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : null) ||
+                         `https://via.placeholder.com/300x450/18183A/DFDFB0?text=${encodeURIComponent(movie.title)}`;
+        const rating = movie.rating ? movie.rating.toFixed(1) : 'N/A';
+        const year = movie.releaseDate ? movie.releaseDate.split('-')[0] : '';
+        
+        const hasTrailer = movie.trailerKey && movie.trailerKey.trim() !== '';
+        const trailerUrl = hasTrailer ? `https://www.youtube.com/watch?v=${movie.trailerKey}` : null;
+        
+        const triggerBadgeHTML = renderTriggerBadge(movie, { size: 'small', position: 'top-left' });
+        
+        // ✅ FIXED: Use availableOn as primary source of truth
+        const platform = (() => {
+            // First priority: Check availableOn array
+            if (movie.availableOn && movie.availableOn.length > 0) {
+                return movie.availableOn[0];
+            }
+            
+            // Second priority: Use platform field if it's meaningful
+            if (movie.platform && movie.platform !== 'Not Available' && movie.platform !== 'Loading...') {
+                return movie.platform;
+            }
+            
+            // Fallback: Check release date
+            const releaseDate = new Date(movie.releaseDate || movie.release_date);
+            const sixMonthsAgo = new Date();
+            sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+            
+            return releaseDate > sixMonthsAgo ? 'In Cinemas' : 'Not Available';
+        })();
+        
+        let ratingColor = '#10b981';
+        if (parseFloat(rating) < 5) ratingColor = '#ef4444';
+        else if (parseFloat(rating) < 7) ratingColor = '#fbbf24';
+
+        return `
+            <div 
+                class="home-movie-card" 
+                data-movie-id="${movie.id}"
+                style="
+                    flex: 0 0 140px;
+                    scroll-snap-align: start;
+                    cursor: pointer;
+                    transition: transform 0.2s;
+                "
+                onmouseover="this.style.transform='scale(1.05)'"
+                onmouseout="this.style.transform='scale(1)'"
+            >
+                <div style="
+                    position: relative;
+                    width: 140px;
+                    height: 210px;
+                    border-radius: 0.75rem;
+                    overflow: hidden;
+                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+                    background: linear-gradient(135deg, rgba(176, 212, 227, 0.1), rgba(244, 232, 193, 0.1));
+                ">
+                    <img 
+                        src="${posterURL}" 
+                        alt="${movie.title}"
+                        style="width: 100%; height: 100%; object-fit: cover;"
+                        onerror="this.src='https://via.placeholder.com/300x450/18183A/DFDFB0?text=No+Poster'"
+                    />
+                    
+                    ${hasTrailer ? `
+                        <button 
+                            class="trailer-btn"
+                            data-trailer-url="${trailerUrl}"
+                            onclick="event.stopPropagation(); window.open('${trailerUrl}', '_blank')"
+                            style="
+                                position: absolute;
+                                top: 0.5rem;
+                                right: 0.5rem;
+                                width: 32px;
+                                height: 32px;
+                                background: rgba(255, 46, 99, 0.95);
+                                border: 2px solid white;
+                                border-radius: 50%;
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                                cursor: pointer;
+                                transition: all 0.2s;
+                                z-index: 10;
+                                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+                            "
+                            onmouseover="this.style.transform='scale(1.15)'; this.style.background='rgba(255, 46, 99, 1)'"
+                            onmouseout="this.style.transform='scale(1)'; this.style.background='rgba(255, 46, 99, 0.95)'"
+                            title="Watch Trailer"
+                        >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="white">
+                                <path d="M8 5v14l11-7z"/>
+                            </svg>
+                        </button>
+                    ` : ''}
+                    
+                    ${triggerBadgeHTML}
+                    
+                    <div style="
+                        position: absolute;
+                        bottom: 3.5rem;
+                        right: 0.5rem;
+                        background: rgba(26, 31, 46, 0.95);
+                        color: ${ratingColor};
+                        padding: 3px 6px;
+                        border-radius: 4px;
+                        font-size: 0.7rem;
+                        font-weight: 700;
+                        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+                    ">
+                        ⭐ ${rating}
+                    </div>
+                    
+                    <div style="
+                        position: absolute;
+                        bottom: 0;
+                        left: 0;
+                        right: 0;
+                        background: linear-gradient(to top, rgba(26, 31, 46, 0.95), transparent);
+                        padding: 0.75rem 0.5rem;
+                        padding-top: 2rem;
+                    ">
+                        <h3 style="
+                            font-size: 0.8rem;
+                            font-weight: 600;
+                            color: white;
+                            margin: 0 0 0.25rem;
+                            overflow: hidden;
+                            text-overflow: ellipsis;
+                            white-space: nowrap;
+                        ">${movie.title}</h3>
+                        
+                        <p style="
+                            font-size: 0.65rem;
+                            color: rgba(176, 212, 227, 0.8);
+                            margin: 0 0 0.25rem;
+                        ">${year}</p>
+                        
+                        <div style="
+                            display: inline-block;
+                            background: rgba(176, 212, 227, 0.2);
+                            border: 1px solid rgba(176, 212, 227, 0.3);
+                            padding: 2px 6px;
+                            border-radius: 3px;
+                            font-size: 0.6rem;
+                            color: #b0d4e3;
+                            font-weight: 600;
+                        ">
+                            ${platform}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    attachMovieClickHandlers() {
+        const movieCards = this.container.querySelectorAll('.home-movie-card');
+        movieCards.forEach(card => {
+            card.addEventListener('click', async () => {
+                const movieId = parseInt(card.dataset.movieId);
+                if (movieId && movieModal) {
+                    const movie = await tmdbService.getMovieDetails(movieId);
+                    if (movie) {
+                        movieModal.show(movie);
+                    }
+                }
+            });
+        });
     }
 }
-
-const tmdbService = new TMDBService();
-
-export { tmdbService, TMDBService };
-
