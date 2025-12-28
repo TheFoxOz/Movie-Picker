@@ -9,6 +9,7 @@
 
 import { doesTheDogDieService } from './does-the-dog-die.js';
 import { userProfileService } from './user-profile-revised.js';
+import { authService } from './auth-service.js';
 import { store } from '../state/store.js';
 
 class TMDBService {
@@ -175,6 +176,23 @@ class TMDBService {
                 const prefs = JSON.parse(localStorage.getItem('moviePickerPreferences') || '{}');
                 selectedPlatforms = Array.isArray(prefs.platforms) ? prefs.platforms : [];
             } catch {}
+        }
+        
+        // ✅ GROK FIX: Fallback 3 - User-specific localStorage (new format from profile.js)
+        if (!selectedPlatforms.length) {
+            try {
+                const user = authService?.getCurrentUser?.();
+                if (user?.uid) {
+                    const userPrefs = localStorage.getItem(`userPreferences_${user.uid}`);
+                    if (userPrefs) {
+                        const prefs = JSON.parse(userPrefs);
+                        selectedPlatforms = Array.isArray(prefs.platforms) ? prefs.platforms : [];
+                        console.log('[TMDB] ✅ Loaded platforms from user-specific localStorage');
+                    }
+                }
+            } catch (err) {
+                console.warn('[TMDB] Could not read user-specific preferences:', err);
+            }
         }
 
         // If user has no platforms selected → show everything (don't filter)
