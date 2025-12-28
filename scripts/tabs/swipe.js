@@ -359,6 +359,7 @@ export class SwipeTab {
                         }
                         // Don't call showNextCard() yet - let filtering complete first
                     } else if (tmdbService.filterByUserPlatforms) {
+                        // ✅ UPDATED: "In Cinemas" now checked in filterByUserPlatforms
                         // Check if current movie matches user platforms
                         const testArray = [enrichedMovie];
                         const filtered = tmdbService.filterByUserPlatforms(testArray);
