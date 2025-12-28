@@ -97,8 +97,31 @@ export class ProfileTab {
                 -webkit-overflow-scrolling: touch;
             ">
                 <div class="profile-container" style="padding: 1.5rem 1rem 6rem; max-width: 600px; margin: 0 auto;">
-                    <!-- User Info -->
-                    <div style="text-align: center; margin-bottom: 2rem;">
+                    <!-- Badges Section -->
+                    <div id="badges-container"></div>
+                    
+                    <!-- Avatar Upload Section -->
+                    <div style="
+                        background: linear-gradient(135deg, rgba(166, 192, 221, 0.2), rgba(139, 163, 184, 0.2));
+                        border: 1px solid rgba(166, 192, 221, 0.3);
+                        border-radius: 1rem;
+                        padding: 1.5rem;
+                        margin-bottom: 1.5rem;
+                        text-align: center;
+                    ">
+                        <h2 style="
+                            font-size: 1.125rem;
+                            font-weight: 700;
+                            color: #FDFAB0;
+                            margin-bottom: 1rem;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            gap: 0.5rem;
+                        ">
+                            👤 Profile Picture
+                        </h2>
+                        
                         <!-- Avatar with Upload -->
                         <div id="avatar-container" style="
                             position: relative;
@@ -152,16 +175,13 @@ export class ProfileTab {
                             </div>
                         </div>
                         
-                        <h1 style="font-size: 1.5rem; font-weight: 700; color: #FDFAB0; margin-bottom: 0.5rem;">
+                        <p style="color: #A6C0DD; font-size: 0.875rem; margin: 0;">
                             ${user.displayName || 'MoviEase User'}
-                        </h1>
-                        <p style="color: #A6C0DD; font-size: 0.875rem;">
+                        </p>
+                        <p style="color: #A6C0DD; font-size: 0.75rem; margin: 0.25rem 0 0 0; opacity: 0.7;">
                             ${user.email || ''}
                         </p>
                     </div>
-
-                    <!-- Badges Section -->
-                    <div id="badges-container"></div>
                     
                     ${this.renderAddFriendSection(user)}
                     ${this.renderRegionSection(profile)}
