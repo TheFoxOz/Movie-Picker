@@ -61,10 +61,10 @@ export class SwipeCard {
         this.movie.platform = platform;
         this.movie.availableOn = availableOn || [];
         
-        // Determine display platform
-        const displayPlatform = availableOn && availableOn.length > 0 
-            ? availableOn[0] 
-            : (platform && platform !== 'Loading...' ? platform : 'Not Available');
+        // ✅ FIX: Show the platform that matches user's preferences
+        const displayPlatform = this.getPreferredPlatform(availableOn) || 
+                               (availableOn && availableOn.length > 0 ? availableOn[0] : null) ||
+                               (platform && platform !== 'Loading...' ? platform : 'Not Available');
         
         // Find and update the platform badge in the DOM
         const platformBadge = this.element?.querySelector('.platform-badge');
@@ -72,6 +72,38 @@ export class SwipeCard {
             platformBadge.textContent = displayPlatform;
             console.log(`[SwipeCard] ✅ Updated platform display: ${displayPlatform}`);
         }
+    }
+    
+    /**
+     * Get the user's preferred platform from the available platforms
+     */
+    getPreferredPlatform(availableOn) {
+        if (!availableOn || availableOn.length === 0) return null;
+        
+        // Get user's selected platforms from localStorage
+        const prefs = JSON.parse(localStorage.getItem('moviEasePreferences') || '{}');
+        const selectedPlatforms = prefs.platforms || [];
+        
+        // Normalize function (same as tmdb.js)
+        const normalize = str => (str || '')
+            .toLowerCase()
+            .replace(/amazon\s*video/gi, 'primevideo')
+            .replace(/amazon\s*prime\s*video/gi, 'primevideo')
+            .replace(/prime\s*video/gi, 'primevideo')
+            .replace(/\+/g, 'plus')
+            .replace(/[^a-z0-9]/g, '')
+            .trim();
+        
+        const userNormalized = new Set(selectedPlatforms.map(normalize));
+        
+        // Find first platform that matches user's preferences
+        for (const platform of availableOn) {
+            if (userNormalized.has(normalize(platform))) {
+                return platform; // Return the matching platform
+            }
+        }
+        
+        return null; // No match found
     }
 
     async fetchTriggerWarnings() {
@@ -149,10 +181,10 @@ export class SwipeCard {
         // ✅ FIX: Use overview or synopsis
         const description = this.movie.overview || this.movie.synopsis || 'No description available.';
         
-        // ✅ FIX: Platform with availableOn priority
-        const platform = (this.movie.availableOn && this.movie.availableOn.length > 0) 
-            ? this.movie.availableOn[0]
-            : (this.movie.platform || 'Loading...');
+        // ✅ FIX: Show user's preferred platform that matched
+        const platform = this.getPreferredPlatform(this.movie.availableOn) ||
+                        (this.movie.availableOn && this.movie.availableOn.length > 0 ? this.movie.availableOn[0] : null) ||
+                        (this.movie.platform || 'Loading...');
 
         this.element = document.createElement('div');
         this.element.className = 'swipe-card';
