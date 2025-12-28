@@ -14,7 +14,6 @@
  */
 
 import { store } from "../state/store.js";
-import { SwipeCard } from "../components/swipe-card.js";
 import { tmdbService } from "../services/tmdb.js";
 import { authService } from "../services/auth-service.js";
 import { badgeService } from "../services/badge-service.js";
