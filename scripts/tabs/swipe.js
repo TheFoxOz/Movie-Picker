@@ -349,26 +349,26 @@ export class SwipeTab {
                     const shouldFilterCurrent = !enrichedMovie.availableOn || enrichedMovie.availableOn.length === 0;
                     
                     if (shouldFilterCurrent) {
-                        console.log(`[SwipeTab] ⚠️ Current card "${enrichedMovie.title}" has no streaming platforms, skipping to next card`);
-                        // Destroy current card and show next one
+                        console.log(`[SwipeTab] ⚠️ Current card "${enrichedMovie.title}" has no streaming platforms, will be filtered`);
+                        // Just destroy the card - filtering will handle removal from queue
                         if (this.currentCard) {
                             this.currentCard.destroy();
                             this.currentCard = null;
                         }
-                        setTimeout(() => this.showNextCard(), 100);
+                        // Don't call showNextCard() yet - let filtering complete first
                     } else if (tmdbService.filterByUserPlatforms) {
                         // Check if current movie matches user platforms
                         const testArray = [enrichedMovie];
                         const filtered = tmdbService.filterByUserPlatforms(testArray);
                         
                         if (filtered.length === 0) {
-                            console.log(`[SwipeTab] ⚠️ Current card "${enrichedMovie.title}" not on user platforms, skipping to next card`);
-                            // Destroy current card and show next one
+                            console.log(`[SwipeTab] ⚠️ Current card "${enrichedMovie.title}" not on user platforms, will be filtered`);
+                            // Just destroy the card - filtering will handle removal from queue
                             if (this.currentCard) {
                                 this.currentCard.destroy();
                                 this.currentCard = null;
                             }
-                            setTimeout(() => this.showNextCard(), 100);
+                            // Don't call showNextCard() yet - let filtering complete first
                         }
                     }
                 }
@@ -430,6 +430,12 @@ export class SwipeTab {
                 const beforeTriggerFilter = this.movieQueue.length;
                 this.movieQueue = tmdbService.filterBlockedMovies(this.movieQueue);
                 console.log(`[SwipeTab] Trigger filter: ${beforeTriggerFilter} → ${this.movieQueue.length} movies`);
+            }
+            
+            // ✅ NEW: If current card was removed during filtering, show next card
+            if (!this.currentCard && this.movieQueue.length > 0) {
+                console.log(`[SwipeTab] Current card was filtered out, showing next card`);
+                setTimeout(() => this.showNextCard(), 100);
             }
             
             // Fetch trigger warnings in background
