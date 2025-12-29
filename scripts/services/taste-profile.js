@@ -138,10 +138,23 @@ class TasteProfileService {
      */
     analyzeGenres(swipeHistory) {
         const genreMap = {};
+        
+        console.log('[TasteProfile] 🔍 Sample swipe structure:', swipeHistory[0]);
 
-        swipeHistory.forEach(swipe => {
+        swipeHistory.forEach((swipe, index) => {
             const weight = this.actionWeights[swipe.action] || 0;
             const genres = swipe.genres || swipe.movie?.genres || swipe.movie?.genre_ids || [];
+            
+            // Debug first few swipes
+            if (index < 3) {
+                console.log(`[TasteProfile] Swipe ${index}:`, {
+                    movieId: swipe.movieId || swipe.movie?.id,
+                    action: swipe.action,
+                    genres: genres,
+                    swipeKeys: Object.keys(swipe),
+                    movieKeys: swipe.movie ? Object.keys(swipe.movie) : 'no movie object'
+                });
+            }
 
             // Handle both genre objects {id: 28, name: 'Action'} and IDs [28, 12]
             const genreNames = genres.map(g => {
@@ -163,6 +176,8 @@ class TasteProfileService {
                 }
             });
         });
+        
+        console.log('[TasteProfile] 📊 Genre map after analysis:', Object.keys(genreMap).length, 'genres found');
 
         return genreMap;
     }
