@@ -135,6 +135,9 @@ class CoupleService {
      */
     async getPendingInvites(userId) {
         try {
+            // MEDIUM FIX #1: Cleanup old invites while fetching
+            await this.cleanupOldInvites(userId);
+
             const invitesRef = collection(db, 'coupleInvites');
             const q = query(
                 invitesRef,
@@ -161,6 +164,46 @@ class CoupleService {
         } catch (error) {
             console.error('[Couple] Error getting invites:', error);
             return [];
+        }
+    }
+
+    /**
+     * MEDIUM FIX #1: Cleanup expired invites (>30 days old)
+     * Called periodically when user checks invites
+     */
+    async cleanupOldInvites(userId) {
+        try {
+            const cutoffTime = Date.now() - (30 * 24 * 60 * 60 * 1000); // 30 days ago
+            
+            // Cleanup invites sent BY this user
+            const sentRef = collection(db, 'coupleInvites');
+            const sentQuery = query(
+                sentRef,
+                where('from', '==', userId),
+                where('createdAt', '<', cutoffTime)
+            );
+            const sentSnapshot = await getDocs(sentQuery);
+            
+            // Cleanup invites sent TO this user
+            const receivedQuery = query(
+                sentRef,
+                where('to', '==', userId),
+                where('createdAt', '<', cutoffTime)
+            );
+            const receivedSnapshot = await getDocs(receivedQuery);
+            
+            const deletePromises = [];
+            sentSnapshot.forEach(doc => deletePromises.push(deleteDoc(doc.ref)));
+            receivedSnapshot.forEach(doc => deletePromises.push(deleteDoc(doc.ref)));
+            
+            if (deletePromises.length > 0) {
+                await Promise.all(deletePromises);
+                console.log(`[Couple] 🧹 Cleaned up ${deletePromises.length} old invites`);
+            }
+
+        } catch (error) {
+            console.warn('[Couple] Error cleaning up invites:', error);
+            // Non-critical, don't throw
         }
     }
 
