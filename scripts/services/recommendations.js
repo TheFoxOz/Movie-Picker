@@ -84,38 +84,68 @@ class RecommendationsService {
                 tasteProfileService.analyzeTasteProfile(userId2)
             ]);
 
-            // Find common top genres
-            const commonGenres = this.findCommonGenres(profile1, profile2);
-
-            if (commonGenres.length === 0) {
-                console.log('[Recommendations] No common genres, using popular movies');
-                return this.getPopularMovies(limit);
-            }
-
             // Calculate average preferred rating
             const avgRating = (parseFloat(profile1.avgRating) + parseFloat(profile2.avgRating)) / 2;
             const minRating = Math.max(6, avgRating - 1);
 
             console.log('[Recommendations] Couple criteria:', {
-                commonGenres: commonGenres.map(g => g.name),
+                avgRating,
                 minRating
             });
 
-            // Get recommendations based on common preferences
-            const genreIds = commonGenres
-                .slice(0, 2)
-                .map(g => tasteProfileService.getGenreIdByName(g.name))
-                .filter(Boolean);
+            // Find common top genres
+            const commonGenres = this.findCommonGenres(profile1, profile2);
 
-            const response = await tmdbService.discoverMovies({
-                sortBy: 'vote_average.desc',
-                withGenres: genreIds.join(','),
-                voteAverageGte: minRating,
-                voteCountGte: 100,
-                page: 1
-            });
+            // MEDIUM FIX #3: Use actual shared matches as seeds for better recommendations
+            const sharedMatches = coupleData.sharedMatches || [];
+            let movies = [];
 
-            let movies = response.movies || [];
+            if (sharedMatches.length >= 3) {
+                console.log('[Recommendations] Using shared matches as seed:', sharedMatches.length);
+                
+                // Get similar movies to their shared matches
+                const seedMovieIds = sharedMatches.slice(0, 3).map(m => m.movieId);
+                
+                // Use common genres + high rating based on what they both liked
+                const genreIds = commonGenres
+                    .slice(0, 2)
+                    .map(g => tasteProfileService.getGenreIdByName(g.name))
+                    .filter(Boolean);
+
+                const response = await tmdbService.discoverMovies({
+                    sortBy: 'vote_average.desc',
+                    withGenres: genreIds.join(','),
+                    voteAverageGte: Math.max(7, avgRating - 0.5), // Higher bar since they matched
+                    voteCountGte: 150,
+                    page: 1
+                });
+
+                movies = response.movies || [];
+                
+                // Filter out movies they've already both swiped
+                const swipedIds = new Set(sharedMatches.map(m => m.movieId));
+                movies = movies.filter(m => !swipedIds.has(m.id));
+
+            } else if (commonGenres.length === 0) {
+                console.log('[Recommendations] No common genres, using popular movies');
+                return this.getPopularMovies(limit);
+            } else {
+                // Fallback to genre-based if not enough shared matches
+                const genreIds = commonGenres
+                    .slice(0, 2)
+                    .map(g => tasteProfileService.getGenreIdByName(g.name))
+                    .filter(Boolean);
+
+                const response = await tmdbService.discoverMovies({
+                    sortBy: 'vote_average.desc',
+                    withGenres: genreIds.join(','),
+                    voteAverageGte: minRating,
+                    voteCountGte: 100,
+                    page: 1
+                });
+
+                movies = response.movies || [];
+            }
 
             // Enrich with platform data
             if (movies.length > 0 && tmdbService.loadWatchProvidersForMovies) {
@@ -426,10 +456,11 @@ class RecommendationsService {
 
     clearCache() {
         this.cache.clear();
+        console.log('[Recommendations] 🧹 All caches cleared');
     }
 
     /**
-     * Invalidate user cache (call when user swipes)
+     * MEDIUM FIX #2: Invalidate user cache (call when user swipes)
      */
     invalidateUserCache(userId) {
         const keysToDelete = [];
@@ -439,6 +470,32 @@ class RecommendationsService {
             }
         });
         keysToDelete.forEach(key => this.cache.delete(key));
+        
+        if (keysToDelete.length > 0) {
+            console.log(`[Recommendations] 🔄 Invalidated ${keysToDelete.length} cache entries for user:`, userId);
+        }
+    }
+
+    /**
+     * Invalidate couple cache (call when either partner swipes)
+     */
+    invalidateCoupleCache(coupleId) {
+        const key = `couple_${coupleId}`;
+        if (this.cache.has(key)) {
+            this.cache.delete(key);
+            console.log('[Recommendations] 🔄 Invalidated couple cache:', coupleId);
+        }
+    }
+
+    /**
+     * Invalidate room cache (call when room gets new swipes)
+     */
+    invalidateRoomCache(roomId) {
+        const key = `room_${roomId}`;
+        if (this.cache.has(key)) {
+            this.cache.delete(key);
+            console.log('[Recommendations] 🔄 Invalidated room cache:', roomId);
+        }
     }
 }
 
