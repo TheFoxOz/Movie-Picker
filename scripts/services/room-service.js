@@ -34,12 +34,19 @@ class RoomService {
      * Create a new swipe room
      * @param {string} hostId - Room creator's user ID
      * @param {string} name - Room name (optional)
+     * @param {string} password - Optional password protection
      * @returns {Promise<Object>} Room data with code
      */
-    async createRoom(hostId, name = 'Movie Night') {
+    async createRoom(hostId, name = 'Movie Night', password = null) {
         console.log('[Room] Creating room for host:', hostId);
 
         try {
+            // SECURITY FIX #3: Limit to 5 active rooms per user
+            const existingRooms = await this.getUserRooms(hostId);
+            if (existingRooms.length >= 5) {
+                throw new Error('Maximum 5 active rooms allowed. Please close an old room first.');
+            }
+
             // Get host data
             const hostDoc = await getDoc(doc(db, 'users', hostId));
             if (!hostDoc.exists()) {
@@ -75,23 +82,27 @@ class RoomService {
                 createdAt: Date.now(),
                 expiresAt,
                 lastActivity: Date.now(),
-                maxUsers: this.maxUsersPerRoom
+                maxUsers: this.maxUsersPerRoom,
+                // SECURITY FIX #1: Add password protection
+                hasPassword: !!password,
+                password: password || null
             });
 
-            console.log('[Room] ✅ Room created:', { roomId, code, name });
+            console.log('[Room] ✅ Room created:', { roomId, code, name, hasPassword: !!password });
 
-            notify.success(`Room created! Code: ${code}`);
+            notify.success(`Room created! Code: ${code}${password ? ' 🔒' : ''}`);
 
             return {
                 roomId,
                 code,
                 name,
-                expiresAt
+                expiresAt,
+                hasPassword: !!password
             };
 
         } catch (error) {
             console.error('[Room] Error creating room:', error);
-            notify.error('Failed to create room');
+            notify.error(error.message || 'Failed to create room');
             throw error;
         }
     }
@@ -131,9 +142,10 @@ class RoomService {
      * Join room via code
      * @param {string} userId - User ID
      * @param {string} code - 6-digit room code
+     * @param {string} password - Optional password if room is protected
      * @returns {Promise<Object>} Room data
      */
-    async joinRoom(userId, code) {
+    async joinRoom(userId, code, password = null) {
         console.log('[Room] User joining room:', { userId, code });
 
         try {
@@ -160,6 +172,11 @@ class RoomService {
             const roomDoc = snapshot.docs[0];
             const roomId = roomDoc.id;
             const roomData = roomDoc.data();
+
+            // SECURITY FIX #1: Check password if room is protected
+            if (roomData.hasPassword && roomData.password !== password) {
+                throw new Error('Incorrect room password 🔒');
+            }
 
             // Check if room expired
             if (roomData.expiresAt < Date.now()) {
@@ -295,6 +312,16 @@ class RoomService {
             if (roomData.expiresAt < Date.now()) {
                 await this.closeRoom(roomId);
                 throw new Error('Room has expired');
+            }
+
+            // SECURITY FIX #4: Prevent double-swiping same movie
+            if (roomData.swipes?.[userId]?.[movieId]) {
+                console.warn('[Room] Movie already swiped by this user, ignoring duplicate');
+                return {
+                    success: true,
+                    alreadySwiped: true,
+                    matches: roomData.matches || []
+                };
             }
 
             // Update user's swipes
