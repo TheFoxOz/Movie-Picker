@@ -1,17 +1,17 @@
 /**
- * Matches Tab - Enhanced with Watched Tracking & UI Improvements
- * ✅ WATCHED TRACKING: Mark movies as watched with friends
- * ✅ UI IMPROVEMENTS: Glass morphism, animations, hover effects
- * ✅ MOVIE WHEEL: Random movie picker integration
- * ✅ RANKING SYSTEM: Score-based sorting with visual badges
- * ✅ FILTERS: All / Unwatched / Watched tabs
- * ✅ BADGE TRACKING: Tracks matches and watched movies for achievements
- * ✅ NO DUPLICATE HEADER: Header now from app-init.js
+ * Matches Tab - Enhanced with ALL Features
+ * ✅ NEW: YOUR TASTE PROFILE - Genre breakdown and recommendations
+ * ✅ NEW: COUPLE MODE - Link with partner and find mutual matches
+ * ✅ NEW: SWIPE ROOMS - Group swiping with real-time sync
+ * ✅ EXISTING: Watched tracking, filters, movie wheel, badges
  */
 
 import { tmdbService } from '../services/tmdb.js';
 import { authService } from '../services/auth-service.js';
 import { badgeService } from '../services/badge-service.js';
+import { tasteProfileService } from '../services/taste-profile.js';
+import { coupleService } from '../services/couple-service.js';
+import { roomService } from '../services/room-service.js';
 import { movieModal } from '../components/movie-modal.js';
 import { renderTriggerBadge } from '../utils/trigger-warnings.js';
 import { movieWheel } from '../components/movie-wheel.js';
@@ -28,6 +28,15 @@ class MatchesTab {
         this.friendListeners = new Map();
         this.watchedMovies = new Set();
         this.currentFilter = 'all';
+        
+        // NEW: Properties for new sections
+        this.tasteProfile = null;
+        this.coupleData = null;
+        this.userRooms = [];
+        this.sectionStates = {
+            tasteExpanded: false,
+            roomsExpanded: false
+        };
     }
 
     async init(container) {
@@ -39,7 +48,15 @@ class MatchesTab {
         this.container = container;
         this.injectStyles();
         await this.render();
-        await this.loadFriends();
+        
+        // Load all sections (NEW + existing)
+        await Promise.all([
+            this.loadTasteProfile(),    // NEW
+            this.loadCoupleData(),      // NEW
+            this.loadUserRooms(),       // NEW
+            this.loadFriends()          // EXISTING
+        ]);
+        
         this.attachEventListeners();
     }
 
@@ -89,6 +106,84 @@ class MatchesTab {
 
             .glow-pulse {
                 animation: glow-pulse 2s ease-in-out infinite;
+            }
+
+            /* NEW: Section headers */
+            .section-header {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 1rem;
+                cursor: pointer;
+                transition: background 0.2s;
+                border-radius: 0.75rem;
+            }
+
+            .section-header:hover {
+                background: rgba(166, 192, 221, 0.1);
+            }
+
+            .expand-icon {
+                transition: transform 0.3s;
+            }
+
+            .expand-icon.expanded {
+                transform: rotate(180deg);
+            }
+
+            /* NEW: Genre bars */
+            .genre-bar {
+                height: 24px;
+                background: linear-gradient(90deg, rgba(166, 192, 221, 0.3), rgba(253, 250, 176, 0.3));
+                border-radius: 12px;
+                overflow: hidden;
+            }
+
+            .genre-fill {
+                height: 100%;
+                background: linear-gradient(90deg, #A6C0DD, #FDFAB0);
+                transition: width 0.6s ease-out;
+            }
+
+            /* NEW: Secondary buttons */
+            .secondary-btn {
+                padding: 0.75rem 1.5rem;
+                background: rgba(166, 192, 221, 0.2);
+                border: 2px solid #A6C0DD;
+                border-radius: 0.75rem;
+                color: #FDFAB0;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.2s;
+            }
+
+            .secondary-btn:hover {
+                background: rgba(166, 192, 221, 0.3);
+                transform: translateY(-2px);
+            }
+
+            /* NEW: Room cards */
+            .room-card {
+                background: linear-gradient(135deg, rgba(166, 192, 221, 0.15), rgba(253, 250, 176, 0.1));
+                border: 2px solid rgba(166, 192, 221, 0.3);
+                border-radius: 0.75rem;
+                padding: 1rem;
+                cursor: pointer;
+                transition: all 0.3s;
+            }
+
+            .room-card:hover {
+                background: linear-gradient(135deg, rgba(166, 192, 221, 0.25), rgba(253, 250, 176, 0.15));
+                border-color: #FDFAB0;
+                transform: translateY(-2px);
+            }
+
+            .room-code {
+                font-family: 'Courier New', monospace;
+                font-size: 1.5rem;
+                font-weight: 700;
+                color: #FDFAB0;
+                letter-spacing: 0.2em;
             }
 
             /* Movie Card Enhancements */
@@ -233,87 +328,74 @@ class MatchesTab {
         }
         
         this.container.innerHTML = `
-            <div class="matches-content" style="
-                width: 100%;
-                padding: 1rem;
-                padding-bottom: 6rem;
-            ">
-                <!-- Friends List -->
+            <div class="matches-content" style="width: 100%; padding: 1rem; padding-bottom: 6rem;">
+                
+                <!-- NEW SECTION 1: TASTE PROFILE -->
+                <div id="taste-profile-section" class="glass-card" style="margin-bottom: 1.5rem; border-radius: 0.75rem; overflow: hidden;">
+                    <div class="section-header" data-section="taste">
+                        <div style="display: flex; align-items: center; gap: 0.75rem;">
+                            <span style="font-size: 1.5rem;">👤</span>
+                            <div>
+                                <h3 style="font-size: 1rem; font-weight: 600; color: #FDFAB0; margin: 0;">Your Taste Profile</h3>
+                                <p id="taste-summary" style="font-size: 0.875rem; color: #A6C0DD; margin: 0;">Loading...</p>
+                            </div>
+                        </div>
+                        <span class="expand-icon" style="color: #A6C0DD; font-size: 1.25rem;">▼</span>
+                    </div>
+                    <div id="taste-content" style="display: none; padding: 0 1rem 1rem 1rem;"></div>
+                </div>
+
+                <!-- NEW SECTION 2: COUPLE MODE -->
+                <div id="couple-section" class="glass-card" style="margin-bottom: 1.5rem; border-radius: 0.75rem; padding: 1rem;"></div>
+
+                <!-- NEW SECTION 3: SWIPE ROOMS -->
+                <div id="rooms-section" class="glass-card" style="margin-bottom: 1.5rem; border-radius: 0.75rem; overflow: hidden;">
+                    <div class="section-header" data-section="rooms">
+                        <div style="display: flex; align-items: center; gap: 0.75rem;">
+                            <span style="font-size: 1.5rem;">🎭</span>
+                            <div>
+                                <h3 style="font-size: 1rem; font-weight: 600; color: #FDFAB0; margin: 0;">Swipe Rooms</h3>
+                                <p id="rooms-summary" style="font-size: 0.875rem; color: #A6C0DD; margin: 0;">Loading...</p>
+                            </div>
+                        </div>
+                        <span class="expand-icon" style="color: #A6C0DD; font-size: 1.25rem;">▼</span>
+                    </div>
+                    <div id="rooms-content" style="display: none; padding: 0 1rem 1rem 1rem;"></div>
+                </div>
+
+                <!-- EXISTING: Friends List -->
                 <div id="friends-list" class="friends-list" style="margin-bottom: 2rem;">
                     ${this.renderLoadingState()}
                 </div>
 
-                <!-- Filter Tabs -->
+                <!-- EXISTING: Filter Tabs -->
                 <div id="filter-tabs" style="display: none; margin-bottom: 1.5rem;">
-                    <div style="
-                        display: flex;
-                        gap: 0.5rem;
-                        background: rgba(166, 192, 221, 0.1);
-                        padding: 0.5rem;
-                        border-radius: 0.75rem;
-                        border: 1px solid rgba(166, 192, 221, 0.2);
-                    ">
+                    <div style="display: flex; gap: 0.5rem; background: rgba(166, 192, 221, 0.1); padding: 0.5rem; border-radius: 0.75rem; border: 1px solid rgba(166, 192, 221, 0.2);">
                         <button class="filter-tab active" data-filter="all">All Matches</button>
                         <button class="filter-tab" data-filter="unwatched">Unwatched</button>
                         <button class="filter-tab" data-filter="watched">Watched</button>
                     </div>
                 </div>
 
-                <!-- Action Buttons -->
+                <!-- EXISTING: Action Buttons -->
                 <div id="action-buttons" style="display: none; margin-bottom: 1.5rem;">
-                    <button id="movie-wheel-btn" class="action-btn" style="
-                        width: 100%;
-                        padding: 1rem;
-                        background: linear-gradient(135deg, #ff2e63, #ff6b9d);
-                        border: none;
-                        border-radius: 0.75rem;
-                        color: white;
-                        font-weight: 700;
-                        font-size: 1rem;
-                        cursor: pointer;
-                        box-shadow: 0 4px 15px rgba(255, 46, 99, 0.3);
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        gap: 0.5rem;
-                    ">
+                    <button id="movie-wheel-btn" class="action-btn" style="width: 100%; padding: 1rem; background: linear-gradient(135deg, #ff2e63, #ff6b9d); border: none; border-radius: 0.75rem; color: white; font-weight: 700; font-size: 1rem; cursor: pointer; box-shadow: 0 4px 15px rgba(255, 46, 99, 0.3); display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
                         <span style="font-size: 1.5rem;">🎡</span>
                         <span>Random Pick</span>
                     </button>
                 </div>
 
-                <!-- Matches Display -->
+                <!-- EXISTING: Matches Display -->
                 <div id="matches-display" class="matches-display" style="display: none;">
-                    <h2 class="section-title" style="
-                        font-size: 1.25rem;
-                        font-weight: 600;
-                        color: #FDFAB0;
-                        margin-bottom: 1rem;
-                        display: flex;
-                        align-items: center;
-                        justify-content: space-between;
-                    ">
+                    <h2 class="section-title" style="font-size: 1.25rem; font-weight: 600; color: #FDFAB0; margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between;">
                         <span id="match-title"></span>
-                        <span id="match-count" style="
-                            font-size: 0.875rem;
-                            color: #A6C0DD;
-                            font-weight: 500;
-                        "></span>
+                        <span id="match-count" style="font-size: 0.875rem; color: #A6C0DD; font-weight: 500;"></span>
                     </h2>
-                    <div id="matches-grid" class="movie-grid" style="
-                        display: grid;
-                        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-                        gap: 1rem;
-                    "></div>
+                    <div id="matches-grid" class="movie-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 1rem;"></div>
                 </div>
 
-                <!-- Empty State -->
-                <div id="empty-state" style="
-                    display: none;
-                    text-align: center;
-                    padding: 3rem 1rem;
-                    color: #A6C0DD;
-                ">
+                <!-- EXISTING: Empty State -->
+                <div id="empty-state" style="display: none; text-align: center; padding: 3rem 1rem; color: #A6C0DD;">
                     <p style="font-size: 3rem; margin-bottom: 1rem;" class="bounce-in">👥</p>
                     <h3 style="color: #FDFAB0; margin-bottom: 0.5rem;">No Friends Yet</h3>
                     <p>Add friends to find movie matches!</p>
@@ -325,20 +407,224 @@ class MatchesTab {
     renderLoadingState() {
         return `
             <div style="text-align: center; padding: 2rem;">
-                <div class="spinner glow-pulse" style="
-                    width: 40px;
-                    height: 40px;
-                    border: 4px solid rgba(166, 192, 221, 0.2);
-                    border-top-color: #A6C0DD;
-                    border-radius: 50%;
-                    animation: spin 1s linear infinite;
-                    margin: 0 auto 1rem;
-                "></div>
+                <div class="spinner glow-pulse" style="width: 40px; height: 40px; border: 4px solid rgba(166, 192, 221, 0.2); border-top-color: #A6C0DD; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 1rem;"></div>
                 <p style="color: #A6C0DD;">Loading friends...</p>
             </div>
             <style>@keyframes spin { to { transform: rotate(360deg); }}</style>
         `;
     }
+
+    // ===========================================
+    // NEW: TASTE PROFILE METHODS
+    // ===========================================
+
+    async loadTasteProfile() {
+        const currentUser = authService.getCurrentUser();
+        if (!currentUser) return;
+
+        try {
+            this.tasteProfile = await tasteProfileService.analyzeTasteProfile(currentUser.uid);
+            this.renderTasteProfile();
+        } catch (error) {
+            console.error('[Matches] Error loading taste profile:', error);
+        }
+    }
+
+    renderTasteProfile() {
+        const summary = document.getElementById('taste-summary');
+        const content = document.getElementById('taste-content');
+
+        if (!this.tasteProfile || this.tasteProfile.totalSwipes === 0) {
+            summary.textContent = 'Keep swiping to build your profile!';
+            return;
+        }
+
+        const topGenre = this.tasteProfile.topGenres[0]?.name || 'Various';
+        summary.textContent = `${topGenre} ${this.tasteProfile.topGenres[0]?.percentage || 0}% • ${this.tasteProfile.totalSwipes} swipes`;
+
+        content.innerHTML = `
+            <div style="display: flex; flex-direction: column; gap: 1rem;">
+                <div>
+                    <h4 style="font-size: 0.875rem; font-weight: 600; color: #A6C0DD; margin: 0 0 0.75rem 0;">Top Genres</h4>
+                    ${this.tasteProfile.topGenres.map(genre => `
+                        <div style="margin-bottom: 0.75rem;">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                                <span style="color: #FDFAB0; font-weight: 500;">${genre.name}</span>
+                                <span style="color: #A6C0DD;">${genre.percentage}%</span>
+                            </div>
+                            <div class="genre-bar"><div class="genre-fill" style="width: ${genre.percentage}%;"></div></div>
+                        </div>
+                    `).join('')}
+                </div>
+
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem;">
+                    <div style="background: rgba(166, 192, 221, 0.1); padding: 0.75rem; border-radius: 0.5rem;">
+                        <div style="font-size: 0.75rem; color: #A6C0DD; margin-bottom: 0.25rem;">Like Rate</div>
+                        <div style="font-size: 1.25rem; font-weight: 700; color: #FDFAB0;">${this.tasteProfile.likeRate}%</div>
+                    </div>
+                    <div style="background: rgba(166, 192, 221, 0.1); padding: 0.75rem; border-radius: 0.5rem;">
+                        <div style="font-size: 0.75rem; color: #A6C0DD; margin-bottom: 0.25rem;">Avg Rating</div>
+                        <div style="font-size: 1.25rem; font-weight: 700; color: #FDFAB0;">⭐ ${this.tasteProfile.avgRating}</div>
+                    </div>
+                </div>
+
+                ${this.tasteProfile.topActors && this.tasteProfile.topActors.length > 0 ? `
+                    <div>
+                        <h4 style="font-size: 0.875rem; font-weight: 600; color: #A6C0DD; margin: 0 0 0.5rem 0;">Favorite Actors</h4>
+                        <div style="color: #FDFAB0; font-size: 0.875rem;">${this.tasteProfile.topActors.map(a => a.name).join(' • ')}</div>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    }
+
+    // ===========================================
+    // NEW: COUPLE MODE METHODS
+    // ===========================================
+
+    async loadCoupleData() {
+        const currentUser = authService.getCurrentUser();
+        if (!currentUser) return;
+
+        try {
+            const coupleId = await coupleService.getUserCouple(currentUser.uid);
+            
+            if (coupleId) {
+                this.coupleData = await coupleService.getCoupleData(coupleId);
+                coupleService.setupCoupleListener(coupleId, (data) => {
+                    this.coupleData = data;
+                    this.renderCoupleSection();
+                });
+            }
+
+            this.renderCoupleSection();
+        } catch (error) {
+            console.error('[Matches] Error loading couple data:', error);
+        }
+    }
+
+    renderCoupleSection() {
+        const section = document.getElementById('couple-section');
+        if (!section) return;
+
+        const currentUser = authService.getCurrentUser();
+        if (!currentUser) return;
+
+        if (!this.coupleData) {
+            section.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
+                    <span style="font-size: 1.5rem;">💑</span>
+                    <div>
+                        <h3 style="font-size: 1rem; font-weight: 600; color: #FDFAB0; margin: 0;">Couple Mode</h3>
+                        <p style="font-size: 0.875rem; color: #A6C0DD; margin: 0;">Find movies you'll both love</p>
+                    </div>
+                </div>
+                <button id="link-couple-btn" class="secondary-btn" style="width: 100%;">+ Link with Partner</button>
+            `;
+            return;
+        }
+
+        const partnerId = this.coupleData.users.find(id => id !== currentUser.uid);
+        const partnerName = this.coupleData.userNames[partnerId] || 'Partner';
+        const matchCount = this.coupleData.sharedMatches?.length || 0;
+        const compatibility = this.coupleData.compatibility || 0;
+        const emoji = coupleService.getCompatibilityEmoji(compatibility);
+
+        section.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+                <span style="font-size: 1.5rem;">💑</span>
+                <div style="flex: 1;">
+                    <h3 style="font-size: 1rem; font-weight: 600; color: #FDFAB0; margin: 0;">You ❤️ ${partnerName}</h3>
+                    <p style="font-size: 0.875rem; color: #A6C0DD; margin: 0;">Compatibility: ${compatibility}% ${emoji}</p>
+                </div>
+            </div>
+
+            ${matchCount > 0 ? `
+                <div style="background: linear-gradient(135deg, rgba(255, 46, 99, 0.2), rgba(255, 107, 157, 0.2)); border: 2px solid rgba(255, 46, 99, 0.4); border-radius: 0.75rem; padding: 1rem; margin-bottom: 1rem;">
+                    <div style="font-size: 1.5rem; font-weight: 700; color: #FDFAB0; margin-bottom: 0.25rem;">${matchCount} Matches! ✨</div>
+                    <div style="font-size: 0.875rem; color: #A6C0DD;">Movies you both loved</div>
+                </div>
+            ` : `
+                <div style="text-align: center; padding: 1.5rem; color: #A6C0DD; border: 2px dashed rgba(166, 192, 221, 0.3); border-radius: 0.75rem; margin-bottom: 1rem;">
+                    <div style="font-size: 2rem; margin-bottom: 0.5rem;">💕</div>
+                    <div>Keep swiping to find your matches!</div>
+                </div>
+            `}
+
+            <div style="display: flex; gap: 0.75rem;">
+                <button id="view-couple-matches-btn" class="secondary-btn" style="flex: 1;">View Matches</button>
+                <button id="unlink-couple-btn" class="secondary-btn" style="padding: 0.75rem 1rem; background: rgba(239, 68, 68, 0.2); border-color: #ef4444;">Unlink</button>
+            </div>
+        `;
+    }
+
+    // ===========================================
+    // NEW: ROOMS METHODS
+    // ===========================================
+
+    async loadUserRooms() {
+        const currentUser = authService.getCurrentUser();
+        if (!currentUser) return;
+
+        try {
+            this.userRooms = await roomService.getUserRooms(currentUser.uid);
+            this.renderRoomsSection();
+        } catch (error) {
+            console.error('[Matches] Error loading rooms:', error);
+        }
+    }
+
+    renderRoomsSection() {
+        const summary = document.getElementById('rooms-summary');
+        const content = document.getElementById('rooms-content');
+
+        if (this.userRooms.length === 0) {
+            summary.textContent = 'No active rooms';
+            content.innerHTML = `
+                <div style="text-align: center; padding: 1.5rem; color: #A6C0DD;">
+                    <div style="font-size: 2rem; margin-bottom: 0.5rem;">🎬</div>
+                    <p style="margin-bottom: 1rem;">Watch with friends! Create or join a room.</p>
+                </div>
+                <div style="display: flex; gap: 0.75rem;">
+                    <button id="create-room-btn" class="secondary-btn" style="flex: 1;">+ Create Room</button>
+                    <button id="join-room-btn" class="secondary-btn" style="flex: 1;">Join Room</button>
+                </div>
+            `;
+            return;
+        }
+
+        summary.textContent = `${this.userRooms.length} active room${this.userRooms.length > 1 ? 's' : ''}`;
+
+        content.innerHTML = `
+            <div style="display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 1rem;">
+                ${this.userRooms.map(room => `
+                    <div class="room-card" data-room-id="${room.id}">
+                        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.5rem;">
+                            <div style="flex: 1;">
+                                <div style="font-size: 1rem; font-weight: 600; color: #FDFAB0; margin-bottom: 0.25rem;">${room.name}</div>
+                                <div class="room-code">${roomService.formatCode(room.code)}</div>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="font-size: 0.75rem; color: #A6C0DD;">${roomService.getTimeRemaining(room.expiresAt)}</div>
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 1rem; font-size: 0.875rem; color: #A6C0DD;">
+                            <span>👥 ${room.users.length} users</span>
+                            <span>🎯 ${room.matches?.length || 0} matches</span>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+            <div style="display: flex; gap: 0.75rem;">
+                <button id="create-room-btn" class="secondary-btn" style="flex: 1;">+ Create Room</button>
+                <button id="join-room-btn" class="secondary-btn" style="flex: 1;">Join Room</button>
+            </div>
+        `;
+    }
+
+    // ===========================================
+    // EXISTING METHODS (ALL PRESERVED)
+    // ===========================================
 
     async loadFriends() {
         this.isLoading = true;
@@ -439,11 +725,7 @@ class MatchesTab {
         }
 
         friendsList.innerHTML = `
-            <div style="
-                display: grid;
-                grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-                gap: 1rem;
-            ">
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 1rem;">
                 ${validFriends.map((friend, index) => this.renderFriendCard(friend, index)).join('')}
             </div>
         `;
@@ -454,53 +736,16 @@ class MatchesTab {
         const swipeCount = friend.swipeHistory?.length || 0;
 
         return `
-            <div class="friend-card slide-up glass-card" data-friend-id="${friend.id}" style="
-                background: linear-gradient(135deg, rgba(166, 192, 221, 0.2), rgba(253, 250, 176, 0.15));
-                border-radius: 12px;
-                padding: 1rem;
-                text-align: center;
-                cursor: pointer;
-                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-                border: 2px solid transparent;
-                animation-delay: ${index * 0.1}s;
-            " onmouseover="this.style.borderColor='#FDFAB0'; this.style.transform='translateY(-4px)'; this.style.boxShadow='0 8px 20px rgba(166, 192, 221, 0.3)';" 
-               onmouseout="this.style.borderColor='transparent'; this.style.transform='translateY(0)'; this.style.boxShadow='none';">
-                <img 
-                    src="${photoUrl}" 
-                    alt="${friend.displayName}"
-                    style="
-                        width: 60px;
-                        height: 60px;
-                        border-radius: 50%;
-                        object-fit: cover;
-                        margin: 0 auto 0.75rem;
-                        border: 3px solid #18183A;
-                        display: block;
-                        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
-                    "
-                >
-                <h3 style="
-                    font-size: 0.95rem;
-                    font-weight: 600;
-                    color: #FDFAB0;
-                    margin: 0 0 0.25rem 0;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
-                    white-space: nowrap;
-                ">${friend.displayName}</h3>
-                <p style="
-                    font-size: 0.8rem;
-                    color: #A6C0DD;
-                    margin: 0;
-                ">${swipeCount} swipes</p>
+            <div class="friend-card slide-up glass-card" data-friend-id="${friend.id}" style="background: linear-gradient(135deg, rgba(166, 192, 221, 0.2), rgba(253, 250, 176, 0.15)); border-radius: 12px; padding: 1rem; text-align: center; cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); border: 2px solid transparent; animation-delay: ${index * 0.1}s;" onmouseover="this.style.borderColor='#FDFAB0'; this.style.transform='translateY(-4px)'; this.style.boxShadow='0 8px 20px rgba(166, 192, 221, 0.3)';" onmouseout="this.style.borderColor='transparent'; this.style.transform='translateY(0)'; this.style.boxShadow='none';">
+                <img src="${photoUrl}" alt="${friend.displayName}" style="width: 60px; height: 60px; border-radius: 50%; object-fit: cover; margin: 0 auto 0.75rem; border: 3px solid #18183A; display: block; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);">
+                <h3 style="font-size: 0.95rem; font-weight: 600; color: #FDFAB0; margin: 0 0 0.25rem 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${friend.displayName}</h3>
+                <p style="font-size: 0.8rem; color: #A6C0DD; margin: 0;">${swipeCount} swipes</p>
             </div>
         `;
     }
 
     async showMatchesForFriend(friend) {
         this.selectedFriend = friend;
-        
-        // Load watched movies for this friend
         await this.loadWatchedMovies(friend.id);
         
         const matchesDisplay = document.getElementById('matches-display');
@@ -520,17 +765,7 @@ class MatchesTab {
             const matches = await this.calculateMatches(friend);
             
             if (matches.length === 0) {
-                matchesGrid.innerHTML = `
-                    <div style="
-                        grid-column: 1 / -1;
-                        text-align: center;
-                        padding: 2rem;
-                        color: #A6C0DD;
-                    " class="slide-up">
-                        <p style="font-size: 2rem; margin-bottom: 0.5rem;">🎬</p>
-                        <p>No matches yet. Keep swiping!</p>
-                    </div>
-                `;
+                matchesGrid.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; padding: 2rem; color: #A6C0DD;" class="slide-up"><p style="font-size: 2rem; margin-bottom: 0.5rem;">🎬</p><p>No matches yet. Keep swiping!</p></div>`;
                 return;
             }
 
@@ -552,18 +787,13 @@ class MatchesTab {
             matchCount.textContent = `${validMovies.length} matches`;
             this.renderMatchesGrid(validMovies);
 
-            // ✅ NEW: Track match badge
             if (validMovies.length > 0) {
                 await this.trackMatchBadge();
             }
 
         } catch (error) {
             console.error('[Matches] Error calculating matches:', error);
-            matchesGrid.innerHTML = `
-                <div style="grid-column: 1 / -1; text-align: center; padding: 2rem; color: #A6C0DD;">
-                    Failed to load matches
-                </div>
-            `;
+            matchesGrid.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; padding: 2rem; color: #A6C0DD;">Failed to load matches</div>`;
         }
     }
 
@@ -598,7 +828,6 @@ class MatchesTab {
             const isWatched = this.watchedMovies.has(movieId);
             
             if (isWatched) {
-                // Remove from watched
                 this.watchedMovies.delete(movieId);
                 const watchedDoc = await getDoc(watchedRef);
                 if (watchedDoc.exists()) {
@@ -608,7 +837,6 @@ class MatchesTab {
                 }
                 this.showToast('Removed from watched 📝');
             } else {
-                // Add to watched
                 this.watchedMovies.add(movieId);
                 await setDoc(watchedRef, {
                     [movieId.toString()]: {
@@ -617,12 +845,9 @@ class MatchesTab {
                     }
                 }, { merge: true });
                 this.showToast('Marked as watched ✅');
-                
-                // ✅ NEW: Track watched badge
                 await this.trackWatchedBadge();
             }
             
-            // Re-render with current filter
             this.applyFilter(this.currentFilter);
             
         } catch (error) {
@@ -634,7 +859,6 @@ class MatchesTab {
     applyFilter(filter) {
         this.currentFilter = filter;
         
-        // Update active tab
         document.querySelectorAll('.filter-tab').forEach(tab => {
             tab.classList.remove('active');
             if (tab.dataset.filter === filter) {
@@ -661,9 +885,7 @@ class MatchesTab {
             const user = authService.getCurrentUser();
             if (!user) return;
             
-            const newBadges = await badgeService.checkBadges(user.uid, {
-                type: 'match'
-            });
+            const newBadges = await badgeService.checkBadges(user.uid, { type: 'match' });
             
             if (newBadges.length > 0) {
                 console.log('[Matches] 🏆 Unlocked badges:', newBadges.map(b => b.name));
@@ -678,9 +900,7 @@ class MatchesTab {
             const user = authService.getCurrentUser();
             if (!user) return;
             
-            const newBadges = await badgeService.checkBadges(user.uid, {
-                type: 'watched'
-            });
+            const newBadges = await badgeService.checkBadges(user.uid, { type: 'watched' });
             
             if (newBadges.length > 0) {
                 console.log('[Matches] 🏆 Unlocked badges:', newBadges.map(b => b.name));
@@ -695,9 +915,7 @@ class MatchesTab {
             const user = authService.getCurrentUser();
             if (!user) return;
             
-            const newBadges = await badgeService.checkBadges(user.uid, {
-                type: 'wheel_spin'
-            });
+            const newBadges = await badgeService.checkBadges(user.uid, { type: 'wheel_spin' });
             
             if (newBadges.length > 0) {
                 console.log('[Matches] 🏆 Unlocked badges:', newBadges.map(b => b.name));
@@ -721,13 +939,7 @@ class MatchesTab {
         console.log(`[Matches] User swipes: ${userSwipes.length}, Friend swipes: ${friendSwipes.length}`);
 
         const getActionScore = (action) => {
-            const scores = {
-                'love': 5,
-                'like': 3,
-                'maybe': 1,
-                'nope': -3,
-                'pass': -3
-            };
+            const scores = { 'love': 5, 'like': 3, 'maybe': 1, 'nope': -3, 'pass': -3 };
             return scores[action] || 0;
         };
 
@@ -788,19 +1000,8 @@ class MatchesTab {
 
     renderLoadingCards(count) {
         return Array(count).fill(0).map(() => `
-            <div class="movie-card loading" style="
-                aspect-ratio: 2/3;
-                background: linear-gradient(90deg, rgba(166, 192, 221, 0.2) 0%, rgba(253, 250, 176, 0.2) 50%, rgba(166, 192, 221, 0.2) 100%);
-                background-size: 200% 100%;
-                animation: shimmer 1.5s infinite;
-                border-radius: 8px;
-            "></div>
-            <style>
-                @keyframes shimmer {
-                    0% { background-position: -200% 0; }
-                    100% { background-position: 200% 0; }
-                }
-            </style>
+            <div class="movie-card loading" style="aspect-ratio: 2/3; background: linear-gradient(90deg, rgba(166, 192, 221, 0.2) 0%, rgba(253, 250, 176, 0.2) 50%, rgba(166, 192, 221, 0.2) 100%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 8px;"></div>
+            <style>@keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; }}</style>
         `).join('');
     }
 
@@ -830,12 +1031,7 @@ class MatchesTab {
         let rankingBadge = '';
         if (matchData) {
             const { combinedScore, userAction, friendAction } = matchData;
-            
-            const actionEmoji = {
-                'love': '❤️',
-                'like': '👍',
-                'maybe': '🤔'
-            };
+            const actionEmoji = { 'love': '❤️', 'like': '👍', 'maybe': '🤔' };
             
             let rankColor = '#10b981';
             if (combinedScore >= 10) rankColor = '#ff2e63';
@@ -844,23 +1040,7 @@ class MatchesTab {
             else if (combinedScore >= 4) rankColor = '#3b82f6';
             
             rankingBadge = `
-                <div style="
-                    position: absolute;
-                    bottom: 4.5rem;
-                    left: 0.5rem;
-                    background: linear-gradient(135deg, ${rankColor}, ${rankColor}dd);
-                    border: 2px solid white;
-                    padding: 4px 8px;
-                    border-radius: 8px;
-                    font-size: 0.75rem;
-                    font-weight: 700;
-                    color: white;
-                    display: flex;
-                    align-items: center;
-                    gap: 4px;
-                    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-                    z-index: 10;
-                " title="Combined Score: ${combinedScore} (You: ${userAction}, Friend: ${friendAction})">
+                <div style="position: absolute; bottom: 4.5rem; left: 0.5rem; background: linear-gradient(135deg, ${rankColor}, ${rankColor}dd); border: 2px solid white; padding: 4px 8px; border-radius: 8px; font-size: 0.75rem; font-weight: 700; color: white; display: flex; align-items: center; gap: 4px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); z-index: 10;" title="Combined Score: ${combinedScore} (You: ${userAction}, Friend: ${friendAction})">
                     <span style="font-size: 0.9rem;">${actionEmoji[userAction] || '👤'}</span>
                     <span style="font-size: 1rem; margin: 0 2px;">+</span>
                     <span style="font-size: 0.9rem;">${actionEmoji[friendAction] || '👥'}</span>
@@ -870,112 +1050,29 @@ class MatchesTab {
         }
 
         return `
-            <div class="movie-card slide-up ${isWatched ? 'watched' : ''}" data-movie-id="${movie.id}" style="
-                position: relative;
-                cursor: pointer;
-                border-radius: 8px;
-                overflow: hidden;
-                background: #18183A;
-                animation-delay: ${index * 0.05}s;
-            ">
-                <img 
-                    src="${posterUrl}" 
-                    alt="${movie.title}"
-                    style="width: 100%; aspect-ratio: 2/3; object-fit: cover;"
-                    onerror="this.src='https://via.placeholder.com/300x450?text=No+Poster'"
-                >
+            <div class="movie-card slide-up ${isWatched ? 'watched' : ''}" data-movie-id="${movie.id}" style="position: relative; cursor: pointer; border-radius: 8px; overflow: hidden; background: #18183A; animation-delay: ${index * 0.05}s;">
+                <img src="${posterUrl}" alt="${movie.title}" style="width: 100%; aspect-ratio: 2/3; object-fit: cover;" onerror="this.src='https://via.placeholder.com/300x450?text=No+Poster'">
                 
-                <!-- Watched Checkbox -->
-                <label class="watched-checkbox" 
-                       onclick="event.stopPropagation();"
-                       style="
-                           background: ${isWatched ? '#10b981' : 'rgba(24, 24, 58, 0.9)'};
-                           border-color: ${isWatched ? 'white' : '#A6C0DD'};
-                       ">
-                    <input type="checkbox" 
-                           ${isWatched ? 'checked' : ''}
-                           onchange="window.matchesTab.toggleWatched(${movie.id}, '${this.selectedFriend.id}')">
+                <label class="watched-checkbox" onclick="event.stopPropagation();" style="background: ${isWatched ? '#10b981' : 'rgba(24, 24, 58, 0.9)'}; border-color: ${isWatched ? 'white' : '#A6C0DD'};">
+                    <input type="checkbox" ${isWatched ? 'checked' : ''} onchange="window.matchesTab.toggleWatched(${movie.id}, '${this.selectedFriend.id}')">
                     <span class="checkmark" style="opacity: ${isWatched ? 1 : 0};">✓</span>
                 </label>
                 
-                <!-- Trailer Button -->
                 ${hasTrailer ? `
-                    <button 
-                        onclick="event.stopPropagation(); window.open('${trailerUrl}', '_blank')"
-                        style="
-                            position: absolute;
-                            top: 0.5rem;
-                            right: 0.5rem;
-                            width: 28px;
-                            height: 28px;
-                            background: rgba(255, 46, 99, 0.95);
-                            border: 2px solid white;
-                            border-radius: 50%;
-                            display: flex;
-                            align-items: center;
-                            justify-content: center;
-                            cursor: pointer;
-                            z-index: 10;
-                            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-                        "
-                        title="Watch Trailer"
-                    >
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="white">
-                            <path d="M8 5v14l11-7z"/>
-                        </svg>
+                    <button onclick="event.stopPropagation(); window.open('${trailerUrl}', '_blank')" style="position: absolute; top: 0.5rem; right: 0.5rem; width: 28px; height: 28px; background: rgba(255, 46, 99, 0.95); border: 2px solid white; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 10; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);" title="Watch Trailer">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"/></svg>
                     </button>
                 ` : ''}
                 
                 ${triggerBadgeHTML}
                 
-                <!-- Rating Badge -->
-                <div style="
-                    position: absolute;
-                    top: ${triggerBadgeHTML ? '2.5rem' : '0.5rem'};
-                    right: 0.5rem;
-                    background: rgba(24, 24, 58, 0.9);
-                    color: ${ratingColor};
-                    padding: 4px 8px;
-                    border-radius: 6px;
-                    font-size: 0.8rem;
-                    font-weight: 700;
-                    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-                ">
-                    ⭐ ${rating}
-                </div>
+                <div style="position: absolute; top: ${triggerBadgeHTML ? '2.5rem' : '0.5rem'}; right: 0.5rem; background: rgba(24, 24, 58, 0.9); color: ${ratingColor}; padding: 4px 8px; border-radius: 6px; font-size: 0.8rem; font-weight: 700; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);">⭐ ${rating}</div>
                 
                 ${rankingBadge}
                 
-                <div style="
-                    position: absolute;
-                    bottom: 0;
-                    left: 0;
-                    right: 0;
-                    background: linear-gradient(to top, rgba(24, 24, 58, 0.95), transparent);
-                    padding: 0.75rem;
-                ">
-                    <h3 style="
-                        font-size: 0.9rem;
-                        font-weight: 600;
-                        color: #FDFAB0;
-                        margin: 0 0 4px 0;
-                        overflow: hidden;
-                        text-overflow: ellipsis;
-                        white-space: nowrap;
-                    ">${movie.title}</h3>
-                    
-                    <div style="
-                        display: inline-block;
-                        background: rgba(166, 192, 221, 0.2);
-                        border: 1px solid rgba(166, 192, 221, 0.3);
-                        padding: 2px 6px;
-                        border-radius: 3px;
-                        font-size: 0.7rem;
-                        color: #A6C0DD;
-                        font-weight: 600;
-                    ">
-                        ${platform}
-                    </div>
+                <div style="position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(to top, rgba(24, 24, 58, 0.95), transparent); padding: 0.75rem;">
+                    <h3 style="font-size: 0.9rem; font-weight: 600; color: #FDFAB0; margin: 0 0 4px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${movie.title}</h3>
+                    <div style="display: inline-block; background: rgba(166, 192, 221, 0.2); border: 1px solid rgba(166, 192, 221, 0.3); padding: 2px 6px; border-radius: 3px; font-size: 0.7rem; color: #A6C0DD; font-weight: 600;">${platform}</div>
                 </div>
             </div>
         `;
@@ -984,8 +1081,77 @@ class MatchesTab {
     attachEventListeners() {
         if (!this.container) return;
         
-        // Friend card clicks
         this.container.addEventListener('click', async (e) => {
+            // NEW: Section expand/collapse
+            const header = e.target.closest('.section-header');
+            if (header) {
+                const section = header.dataset.section;
+                const content = document.getElementById(`${section}-content`);
+                const icon = header.querySelector('.expand-icon');
+                
+                if (content) {
+                    const isExpanded = content.style.display !== 'none';
+                    content.style.display = isExpanded ? 'none' : 'block';
+                    icon.classList.toggle('expanded', !isExpanded);
+                }
+                return;
+            }
+
+            // NEW: Couple link button
+            if (e.target.id === 'link-couple-btn') {
+                const email = prompt('Enter your partner\'s email address:');
+                if (email && email.trim()) {
+                    coupleService.sendCoupleInvite(email.trim());
+                }
+                return;
+            }
+
+            // NEW: Unlink couple
+            if (e.target.id === 'unlink-couple-btn') {
+                if (confirm('Unlink couple? This cannot be undone.')) {
+                    const currentUser = authService.getCurrentUser();
+                    if (currentUser) {
+                        coupleService.unlinkCouple(currentUser.uid).then(() => {
+                            this.coupleData = null;
+                            this.renderCoupleSection();
+                        });
+                    }
+                }
+                return;
+            }
+
+            // NEW: Create room
+            if (e.target.id === 'create-room-btn') {
+                const name = prompt('Enter room name:', 'Movie Night');
+                if (name && name.trim()) {
+                    const currentUser = authService.getCurrentUser();
+                    if (currentUser) {
+                        roomService.createRoom(currentUser.uid, name.trim()).then(() => this.loadUserRooms());
+                    }
+                }
+                return;
+            }
+
+            // NEW: Join room
+            if (e.target.id === 'join-room-btn') {
+                const code = prompt('Enter 6-digit room code:');
+                if (code && code.trim()) {
+                    const currentUser = authService.getCurrentUser();
+                    if (currentUser) {
+                        roomService.joinRoom(currentUser.uid, code.trim()).then(() => this.loadUserRooms());
+                    }
+                }
+                return;
+            }
+
+            // NEW: Room card click
+            const roomCard = e.target.closest('.room-card');
+            if (roomCard) {
+                this.showToast('Room viewing coming soon! 🎭');
+                return;
+            }
+
+            // EXISTING: Friend card clicks
             const friendCard = e.target.closest('.friend-card');
             if (friendCard) {
                 const friendId = friendCard.dataset.friendId;
@@ -996,7 +1162,7 @@ class MatchesTab {
                 return;
             }
 
-            // Movie card clicks
+            // EXISTING: Movie card clicks
             const movieCard = e.target.closest('.movie-card');
             if (movieCard && !movieCard.classList.contains('loading')) {
                 const movieId = parseInt(movieCard.dataset.movieId);
@@ -1007,7 +1173,7 @@ class MatchesTab {
             }
         });
 
-        // Filter tabs
+        // EXISTING: Filter tabs
         this.container.addEventListener('click', (e) => {
             const filterTab = e.target.closest('.filter-tab');
             if (filterTab) {
@@ -1016,7 +1182,7 @@ class MatchesTab {
             }
         });
 
-        // Movie wheel button
+        // EXISTING: Movie wheel button
         this.container.addEventListener('click', (e) => {
             if (e.target.closest('#movie-wheel-btn')) {
                 this.openMovieWheel();
@@ -1027,7 +1193,6 @@ class MatchesTab {
     openMovieWheel() {
         if (!this.selectedFriend) return;
         
-        // Get unwatched movies
         const unwatchedMovies = this.matches.filter(m => !this.watchedMovies.has(m.id));
         
         if (unwatchedMovies.length < 3) {
@@ -1035,14 +1200,10 @@ class MatchesTab {
             return;
         }
         
-        // Open movie wheel with current matches
         movieWheel.open(unwatchedMovies, this.selectedFriend.displayName, async (selectedMovie) => {
             console.log('[Matches] Movie selected from wheel:', selectedMovie.title);
-            
-            // ✅ NEW: Track wheel spin badge
             await this.trackWheelSpinBadge();
             
-            // Optionally open modal or mark as watched
             if (movieModal) {
                 movieModal.show(selectedMovie);
             }
@@ -1072,11 +1233,7 @@ class MatchesTab {
     showError(message) {
         const friendsList = document.getElementById('friends-list');
         if (friendsList) {
-            friendsList.innerHTML = `
-                <div style="text-align: center; padding: 2rem; color: #A6C0DD;">
-                    <p>❌ ${message}</p>
-                </div>
-            `;
+            friendsList.innerHTML = `<div style="text-align: center; padding: 2rem; color: #A6C0DD;"><p>❌ ${message}</p></div>`;
         }
     }
 
@@ -1084,13 +1241,22 @@ class MatchesTab {
         this.friendListeners.forEach(unsubscribe => unsubscribe());
         this.friendListeners.clear();
         
+        // NEW: Cleanup new services
+        coupleService.cleanup();
+        roomService.cleanup();
+        
         this.friends = [];
         this.matches = [];
         this.selectedFriend = null;
         this.watchedMovies.clear();
+        
+        // NEW: Reset new properties
+        this.tasteProfile = null;
+        this.coupleData = null;
+        this.userRooms = [];
     }
 }
 
 const matchesTab = new MatchesTab();
-window.matchesTab = matchesTab; // Expose globally for watched checkbox
+window.matchesTab = matchesTab;
 export { matchesTab, MatchesTab };
