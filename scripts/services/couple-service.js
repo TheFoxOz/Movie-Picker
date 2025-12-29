@@ -41,6 +41,11 @@ class CoupleService {
                 throw new Error('Not authenticated');
             }
 
+            // SECURITY FIX #5: Prevent self-invite
+            if (partnerEmail.toLowerCase() === currentUser.email?.toLowerCase()) {
+                throw new Error("You can't invite yourself! 😅");
+            }
+
             // Check if user is already in a couple
             const existingCouple = await this.getUserCouple(currentUser.uid);
             if (existingCouple) {
@@ -190,6 +195,20 @@ class CoupleService {
             if (inviteData.expiresAt < Date.now()) {
                 await deleteDoc(inviteRef);
                 throw new Error('Invitation has expired');
+            }
+
+            // SECURITY FIX #2: Check if either user is already coupled (race condition prevention)
+            const currentUserCouple = await this.getUserCouple(currentUser.uid);
+            const partnerCouple = await this.getUserCouple(inviteData.from);
+
+            if (currentUserCouple) {
+                await updateDoc(inviteRef, { status: 'rejected' });
+                throw new Error('You are already linked with someone. Unlink first.');
+            }
+
+            if (partnerCouple) {
+                await updateDoc(inviteRef, { status: 'rejected' });
+                throw new Error('Your partner is already linked with someone else.');
             }
 
             // Create couple
