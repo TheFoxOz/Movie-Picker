@@ -237,12 +237,21 @@ class TasteProfileService {
 
     /**
      * Analyze actors and directors from detailed movie data
+     * NOTE: Disabled for now - getMovieCredits not available in tmdbService
      */
     async analyzeMovieDetails(swipes) {
+        // Temporarily disabled - credits API not available
+        console.log('[TasteProfile] Movie credits analysis skipped (API not available)');
+        
+        return {
+            topActors: [],
+            topDirectors: []
+        };
+        
+        /* FUTURE: Re-enable when tmdbService.getMovieCredits is added
         const actorMap = {};
         const directorMap = {};
 
-        // Fetch credits for each movie (with rate limiting)
         for (const swipe of swipes) {
             try {
                 const movieId = swipe.movieId || swipe.movie?.id;
@@ -251,7 +260,6 @@ class TasteProfileService {
                 const credits = await tmdbService.getMovieCredits(movieId);
                 
                 if (credits) {
-                    // Extract top 5 actors
                     const cast = credits.cast?.slice(0, 5) || [];
                     cast.forEach(actor => {
                         if (!actorMap[actor.name]) {
@@ -260,7 +268,6 @@ class TasteProfileService {
                         actorMap[actor.name].count++;
                     });
 
-                    // Extract director
                     const director = credits.crew?.find(person => person.job === 'Director');
                     if (director) {
                         if (!directorMap[director.name]) {
@@ -270,7 +277,6 @@ class TasteProfileService {
                     }
                 }
 
-                // Rate limiting
                 await new Promise(resolve => setTimeout(resolve, 100));
 
             } catch (error) {
@@ -289,6 +295,7 @@ class TasteProfileService {
                 .slice(0, 3)
                 .map(([name, data]) => ({ name, count: data.count }))
         };
+        */
     }
 
     /**
