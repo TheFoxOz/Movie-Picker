@@ -566,6 +566,41 @@ class TMDBService {
             watch_region: userProfile?.region || 'US'
         });
 
+        // ✅ NEW: Add user's streaming platforms to query
+        // This makes TMDB return movies ON YOUR PLATFORMS first!
+        const currentUser = authService?.getCurrentUser?.();
+        if (currentUser) {
+            // Get user's selected platforms
+            let selectedPlatforms = [];
+            
+            // Try profile first
+            if (userProfile?.selectedPlatforms?.length) {
+                selectedPlatforms = userProfile.selectedPlatforms;
+            }
+            // Try user-specific localStorage
+            else if (currentUser.uid) {
+                try {
+                    const userPrefs = localStorage.getItem(`userPreferences_${currentUser.uid}`);
+                    if (userPrefs) {
+                        const prefs = JSON.parse(userPrefs);
+                        selectedPlatforms = Array.isArray(prefs.platforms) ? prefs.platforms : [];
+                    }
+                } catch (err) {
+                    console.warn('[TMDB] Could not read user preferences:', err);
+                }
+            }
+            
+            // Map platform names to TMDB provider IDs
+            if (selectedPlatforms.length > 0) {
+                const providerIds = this.getPlatformProviderIds(selectedPlatforms, userProfile?.region || 'US');
+                
+                if (providerIds.length > 0) {
+                    params.append('with_watch_providers', providerIds.join('|'));
+                    console.log('[TMDB] 🎯 Discovering movies on platforms:', selectedPlatforms.join(', '));
+                }
+            }
+        }
+
         if (options.withGenres) {
             params.append('with_genres', options.withGenres);
         }
@@ -597,6 +632,71 @@ class TMDBService {
             console.error('[TMDB] ❌ Discovery failed:', error);
             return { movies: [], totalPages: 0, totalResults: 0, page: 1 };
         }
+    }
+
+    /**
+     * Map platform names to TMDB provider IDs
+     * @param {Array} platformNames - User's selected platform names
+     * @param {string} region - User's region (GB, US, etc)
+     * @returns {Array} Array of TMDB provider IDs
+     */
+    getPlatformProviderIds(platformNames, region = 'US') {
+        // TMDB Watch Provider IDs for UK (region: GB)
+        const providerMapGB = {
+            'Netflix': 8,
+            'Prime Video': 119,
+            'Disney+': 337,
+            'Apple TV+': 350,
+            'Sky Go': 29,
+            'Now TV': 39,
+            'Now TV Cinema': 39,
+            'Paramount+': 531,
+            'ITVX': 982,
+            'Channel 4': 103,
+            'BBC iPlayer': 38,
+            'All 4': 103,
+            'In Cinemas': 'cinema' // Special handling
+        };
+
+        // TMDB Watch Provider IDs for US
+        const providerMapUS = {
+            'Netflix': 8,
+            'Prime Video': 9,
+            'Disney+': 337,
+            'Apple TV+': 350,
+            'Hulu': 15,
+            'HBO Max': 384,
+            'Max': 384,
+            'Paramount+': 531,
+            'Peacock': 387
+        };
+
+        const providerMap = region === 'GB' ? providerMapGB : providerMapUS;
+        const ids = [];
+        
+        platformNames.forEach(name => {
+            // Skip "In Cinemas" for provider query
+            if (name === 'In Cinemas') return;
+            
+            // Try exact match first
+            if (providerMap[name]) {
+                ids.push(providerMap[name]);
+                return;
+            }
+            
+            // Try fuzzy match (case insensitive, partial)
+            const normalized = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+            
+            for (const [key, value] of Object.entries(providerMap)) {
+                const keyNormalized = key.toLowerCase().replace(/[^a-z0-9]/g, '');
+                if (keyNormalized.includes(normalized) || normalized.includes(keyNormalized)) {
+                    ids.push(value);
+                    break;
+                }
+            }
+        });
+
+        return [...new Set(ids)]; // Remove duplicates
     }
 
     async getPopularMovies(page = 1) {
