@@ -24,6 +24,29 @@ const GENRE_IDS = {
     FANTASY: 14
 };
 
+// ✅ CRITICAL: Map genre names to IDs (for swipe history compatibility)
+const GENRE_NAME_TO_ID = {
+    'Action': 28,
+    'Adventure': 12,
+    'Animation': 16,
+    'Comedy': 35,
+    'Crime': 80,
+    'Documentary': 99,
+    'Drama': 18,
+    'Family': 10751,
+    'Fantasy': 14,
+    'History': 36,
+    'Horror': 27,
+    'Music': 10402,
+    'Mystery': 9648,
+    'Romance': 10749,
+    'Science Fiction': 878,
+    'TV Movie': 10770,
+    'Thriller': 53,
+    'War': 10752,
+    'Western': 37
+};
+
 export class HomeTab {
     constructor() {
         this.container = null;
@@ -323,14 +346,18 @@ export class HomeTab {
                     else if (typeof genre === 'number') {
                         genreId = genre;
                     }
-                    // Handle string number: "28"
-                    else if (typeof genre === 'string' && !isNaN(genre)) {
-                        genreId = parseInt(genre);
+                    // ✅ CRITICAL FIX: Handle genre NAME strings: "Action" -> 28
+                    else if (typeof genre === 'string') {
+                        genreId = GENRE_NAME_TO_ID[genre];
+                        if (genreId) {
+                            console.log(`[Home] ✅ Mapped "${genre}" → ${genreId}`); // ✅ DEBUG
+                        } else {
+                            console.log(`[Home] ⚠️ Unknown genre name: "${genre}"`); // ✅ DEBUG
+                        }
                     }
                     
                     if (genreId && typeof genreId === 'number') {
                         genreCounts[genreId] = (genreCounts[genreId] || 0) + 1;
-                        console.log(`[Home] ✅ Counted genre ${genreId}`); // ✅ DEBUG
                     } else {
                         console.log(`[Home] ❌ Could not extract genre from:`, genre); // ✅ DEBUG
                     }
