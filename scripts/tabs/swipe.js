@@ -20,6 +20,7 @@ import { authService } from "../services/auth-service.js";
 import { badgeService } from "../services/badge-service.js";
 import { notify } from "../utils/notifications.js";
 import { celebrate } from "../utils/confetti.js";
+import { renderWatchedButton, initWatchedButtons, storeMovieData } from '../utils/watched-button.js';
 
 export class SwipeTab {
     constructor() {
@@ -31,12 +32,15 @@ export class SwipeTab {
         this.currentPage = 1;
         this.hasMorePages = true;
         this.isEnriching = false;
-        this.consecutiveEmptyPages = 0;  // ✅ NEW: Track empty pages for deep search
+        this.hideWatched = this.loadHideWatchedSetting();  // ✅ NEW: Watched feature
     }
 
     async render(container) {
         console.log('[SwipeTab] Rendering...');
         this.container = container;
+        
+        // ✅ NEW: Expose instance globally for toggle button
+        window.swipeTab = this;
 
         container.innerHTML = `
             <div style="width: 100%; padding: 0; position: relative; min-height: calc(100vh - 5rem);">
@@ -273,28 +277,14 @@ export class SwipeTab {
 
             console.log(`[SwipeTab] Filtered: ${moviesBeforeFilter} → ${movies.length} movies (removed ${moviesBeforeFilter - movies.length})`);
 
-            // ✅ NEW: Deep search pagination - keep loading if no new movies found
-            if (movies.length === 0) {
-                this.consecutiveEmptyPages++;
-                console.log(`[SwipeTab] ⚠️ Page ${this.currentPage - 1} had 0 new movies (${this.consecutiveEmptyPages} consecutive empty pages)`);
-                
-                // If queue is empty and no new movies found, search deeper!
-                if (this.movieQueue.length === 0 && this.consecutiveEmptyPages < 10 && this.hasMorePages) {
-                    console.log('[SwipeTab] 🔄 Queue empty - searching deeper pages...');
-                    this.isLoading = false;
-                    await this.loadMoviesWithRetry(attempt);
-                    return;
-                }
-                
-                // Stop after 10 consecutive empty pages
-                if (this.consecutiveEmptyPages >= 10) {
-                    console.log('[SwipeTab] 🛑 No new movies found after 10 pages - stopping search');
-                    this.hasMorePages = false;
-                }
-            } else {
-                // Reset counter when we find new movies
-                this.consecutiveEmptyPages = 0;
-                console.log(`[SwipeTab] ✅ Found ${movies.length} new movies - continuing`);
+            // ✅ NEW: Store movie data for watched button
+            storeMovieData(movies);
+            
+            // ✅ NEW: Filter watched movies if enabled
+            if (this.hideWatched && movies.length > 0) {
+                const beforeWatchedFilter = movies.length;
+                movies = this.filterWatchedMovies(movies);
+                console.log(`[SwipeTab] Watched filter: ${beforeWatchedFilter} → ${movies.length} movies`);
             }
 
             // Add to queue with placeholder data
@@ -567,6 +557,9 @@ export class SwipeTab {
         
         container.innerHTML = "";
         this.currentCard = new SwipeCard(container, movie);
+        
+        // ✅ NEW: Initialize watched buttons after card is created
+        setTimeout(() => initWatchedButtons(), 100);
     }
 
     attachListeners() {
@@ -657,6 +650,71 @@ export class SwipeTab {
             console.error('[SwipeTab] Error tracking badge progress:', error);
         }
     }
+
+    // ========================================================================
+    // ✅ NEW: WATCHED MOVIES FEATURE METHODS
+    // ========================================================================
+
+    /**
+     * Filter out watched movies from queue
+     */
+    filterWatchedMovies(movies) {
+        if (!this.hideWatched || !authService || !authService.getWatchedMovies) {
+            return movies;
+        }
+        
+        const watchedIds = new Set(
+            authService.getWatchedMovies().map(w => w.movieId)
+        );
+        
+        const filtered = movies.filter(m => !watchedIds.has(m.id));
+        console.log(`[SwipeTab] Watched filter: ${movies.length} → ${filtered.length} movies`);
+        
+        return filtered;
+    }
+
+    /**
+     * Load hide watched setting from localStorage
+     */
+    loadHideWatchedSetting() {
+        try {
+            const saved = localStorage.getItem('hideWatchedMovies');
+            return saved === 'true';
+        } catch (error) {
+            return false;
+        }
+    }
+
+    /**
+     * Save hide watched setting to localStorage
+     */
+    saveHideWatchedSetting(value) {
+        try {
+            localStorage.setItem('hideWatchedMovies', value.toString());
+        } catch (error) {
+            console.error('[SwipeTab] Error saving hideWatched setting:', error);
+        }
+    }
+
+    /**
+     * Toggle hide watched setting
+     */
+    toggleHideWatched() {
+        this.hideWatched = !this.hideWatched;
+        this.saveHideWatchedSetting(this.hideWatched);
+        console.log('[SwipeTab] Hide watched:', this.hideWatched);
+        
+        // Reload movies with new filter
+        this.movieQueue = [];
+        this.currentIndex = 0;
+        this.currentPage = 1;
+        this.loadMoviesWithRetry();
+    }
+
+    // ========================================================================
+    // END: WATCHED MOVIES FEATURE
+    // ========================================================================
+
 
     handleButtonAction(action) {
         console.log('[SwipeTab] Button action:', action);
