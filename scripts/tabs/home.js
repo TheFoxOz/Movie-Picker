@@ -287,6 +287,7 @@ export class HomeTab {
             .filter(m => m && m.id);
 
         console.log('[Home] Analyzing', likedMovies.length, 'liked movies for recommendations...');
+        console.log('[Home] 🔍 Sample liked movie:', likedMovies[0]); // ✅ DEBUG
 
         // ✅ Fallback: If no liked movies, show high-rated movies
         if (likedMovies.length === 0) {
@@ -296,30 +297,53 @@ export class HomeTab {
                 .sort((a, b) => parseFloat(b.rating || b.vote_average || 0) - parseFloat(a.rating || a.vote_average || 0));
         }
 
-        // ✅ IMPROVED: Extract favorite genres from BOTH genres AND genre_ids
+        // ✅ CRITICAL FIX: Extract genres from ALL possible locations
         const genreCounts = {};
         let moviesWithGenres = 0;
         
         likedMovies.forEach(movie => {
-            // Try multiple sources for genre data
-            const genreData = movie.genres || movie.genre_ids || movie.genreIds || [];
+            // ✅ Check EVERY possible location for genre data
+            const genreData = 
+                movie.genres ||           // {id: 28, name: "Action"}[]
+                movie.genre_ids ||        // [28, 35, 16]
+                movie.genreIds ||         // [28, 35, 16]
+                [];
             
             if (genreData && genreData.length > 0) {
+                console.log(`[Home] 🎬 "${movie.title || 'Unknown'}" has genres:`, genreData); // ✅ DEBUG
                 moviesWithGenres++;
                 genreData.forEach(genre => {
-                    // Handle both {id: 28, name: "Action"} and just 28
-                    const genreId = typeof genre === 'object' ? genre.id : genre;
+                    let genreId;
+                    
+                    // Handle {id: 28, name: "Action"}
+                    if (typeof genre === 'object' && genre.id) {
+                        genreId = genre.id;
+                    }
+                    // Handle plain number: 28
+                    else if (typeof genre === 'number') {
+                        genreId = genre;
+                    }
+                    // Handle string number: "28"
+                    else if (typeof genre === 'string' && !isNaN(genre)) {
+                        genreId = parseInt(genre);
+                    }
+                    
                     if (genreId && typeof genreId === 'number') {
                         genreCounts[genreId] = (genreCounts[genreId] || 0) + 1;
+                        console.log(`[Home] ✅ Counted genre ${genreId}`); // ✅ DEBUG
+                    } else {
+                        console.log(`[Home] ❌ Could not extract genre from:`, genre); // ✅ DEBUG
                     }
                 });
+            } else {
+                console.log(`[Home] ⚠️ "${movie.title || 'Unknown'}" has NO genre data`); // ✅ DEBUG
             }
         });
 
         console.log(`[Home] Found genre data in ${moviesWithGenres}/${likedMovies.length} liked movies`);
         console.log('[Home] Genre counts:', genreCounts);
 
-        // ✅ IMPROVED: Get top 3 genres OR fallback to popular genres
+        // ✅ Get top 3 genres OR fallback to popular genres
         let topGenres;
         if (Object.keys(genreCounts).length > 0) {
             // User has genre preferences
@@ -327,11 +351,11 @@ export class HomeTab {
                 .sort((a, b) => b[1] - a[1])
                 .slice(0, 3)
                 .map(([genreId]) => parseInt(genreId));
-            console.log('[Home] Top genres from user:', topGenres);
+            console.log('[Home] 🎯 Top genres from user:', topGenres, 'counts:', topGenres.map(id => genreCounts[id]));
         } else {
             // No genre data - use popular genres
             topGenres = [GENRE_IDS.ACTION, GENRE_IDS.COMEDY, GENRE_IDS.SCIFI];
-            console.log('[Home] No genre data - using popular genres:', topGenres);
+            console.log('[Home] 🎯 No genre data - using popular genres:', topGenres);
         }
 
         // Filter out already-liked movies
@@ -346,6 +370,7 @@ export class HomeTab {
                 // Check if movie has any of the top genres
                 const movieGenres = m.genres || m.genre_ids || m.genreIds || [];
                 const movieGenreIds = movieGenres.map(g => typeof g === 'object' ? g.id : g);
+                
                 return topGenres.some(topGenre => movieGenreIds.includes(topGenre));
             })
             .sort((a, b) => {
@@ -354,7 +379,7 @@ export class HomeTab {
                 return ratingB - ratingA;
             });
 
-        console.log(`[Home] Found ${recommended.length} recommended movies`);
+        console.log(`[Home] ✅ Found ${recommended.length} recommended movies matching genres:`, topGenres);
         return recommended;
     }
 
