@@ -1,0 +1,86 @@
+/**
+ * CRITICAL CSS ADDITIONS - Add these to your base.css or main.css
+ * ONLY includes essential fixes, not full redesign
+ */
+
+/* ===================================
+   1. FIX BUTTON OVERLAP (CRITICAL!)
+   =================================== */
+
+.swipe-actions {
+    position: fixed !important;
+    bottom: calc(5rem + 1rem + env(safe-area-inset-bottom)) !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    z-index: 100 !important;
+}
+
+/* Mobile adjustment */
+@media (max-width: 48rem) {
+    .swipe-actions {
+        bottom: calc(4.5rem + 1rem + env(safe-area-inset-bottom)) !important;
+    }
+}
+
+/* Add padding to swipe container */
+.swipe-container {
+    padding-bottom: 10rem !important;
+}
+
+/* ===================================
+   2. SAFE AREAS (iPhone notch, etc)
+   =================================== */
+
+.app-container {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+}
+
+.bottom-nav {
+    padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* ===================================
+   3. BETTER TYPOGRAPHY (OPTIONAL)
+   =================================== */
+
+h1, .heading-xl {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #FDFAB0;
+    letter-spacing: -0.02em;
+}
+
+h2, .heading-lg {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #FDFAB0;
+}
+
+h3, .heading-md {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #A6C0DD;
+}
+
+/* ===================================
+   4. TOUCH TARGETS (ACCESSIBILITY)
+   =================================== */
+
+button, a, .clickable {
+    min-height: 44px;
+    min-width: 44px;
+}
+
+/* ===================================
+   5. FOCUS STATES (ACCESSIBILITY)
+   =================================== */
+
+*:focus-visible {
+    outline: 2px solid #FDFAB0;
+    outline-offset: 2px;
+}
+
+/* ===================================
+   END OF CRITICAL ADDITIONS
+   =================================== */
