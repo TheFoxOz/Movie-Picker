@@ -31,6 +31,7 @@ export class SwipeTab {
         this.currentPage = 1;
         this.hasMorePages = true;
         this.isEnriching = false;
+        this.consecutiveEmptyPages = 0;  // ✅ NEW: Track empty pages for deep search
     }
 
     async render(container) {
@@ -271,6 +272,30 @@ export class SwipeTab {
             });
 
             console.log(`[SwipeTab] Filtered: ${moviesBeforeFilter} → ${movies.length} movies (removed ${moviesBeforeFilter - movies.length})`);
+
+            // ✅ NEW: Deep search pagination - keep loading if no new movies found
+            if (movies.length === 0) {
+                this.consecutiveEmptyPages++;
+                console.log(`[SwipeTab] ⚠️ Page ${this.currentPage - 1} had 0 new movies (${this.consecutiveEmptyPages} consecutive empty pages)`);
+                
+                // If queue is empty and no new movies found, search deeper!
+                if (this.movieQueue.length === 0 && this.consecutiveEmptyPages < 10 && this.hasMorePages) {
+                    console.log('[SwipeTab] 🔄 Queue empty - searching deeper pages...');
+                    this.isLoading = false;
+                    await this.loadMoviesWithRetry(attempt);
+                    return;
+                }
+                
+                // Stop after 10 consecutive empty pages
+                if (this.consecutiveEmptyPages >= 10) {
+                    console.log('[SwipeTab] 🛑 No new movies found after 10 pages - stopping search');
+                    this.hasMorePages = false;
+                }
+            } else {
+                // Reset counter when we find new movies
+                this.consecutiveEmptyPages = 0;
+                console.log(`[SwipeTab] ✅ Found ${movies.length} new movies - continuing`);
+            }
 
             // Add to queue with placeholder data
             const newMovies = movies.map(m => ({
