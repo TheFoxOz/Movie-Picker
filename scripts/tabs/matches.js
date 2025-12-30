@@ -1,9 +1,10 @@
 /**
- * Matches Tab - Enhanced with ALL Features
+ * Matches Tab - Enhanced with ALL Features + VISUAL IMPROVEMENTS
  * ✅ NEW: YOUR TASTE PROFILE - Genre breakdown and recommendations
  * ✅ NEW: COUPLE MODE - Link with partner and find mutual matches
  * ✅ NEW: SWIPE ROOMS - Group swiping with real-time sync
  * ✅ EXISTING: Watched tracking, filters, movie wheel, badges
+ * ✅ VISUAL: Better glass cards, larger stats, improved hierarchy
  */
 
 import { tmdbService } from '../services/tmdb.js';
@@ -66,11 +67,15 @@ class MatchesTab {
         const style = document.createElement('style');
         style.id = 'matches-enhanced-styles';
         style.textContent = `
-            /* Glass Morphism */
+            /* Glass Morphism - ENHANCED ✨ */
             .glass-card {
-                background: rgba(166, 192, 221, 0.1);
-                backdrop-filter: blur(10px);
-                border: 1px solid rgba(166, 192, 221, 0.2);
+                background: rgba(166, 192, 221, 0.05);
+                backdrop-filter: blur(20px);
+                -webkit-backdrop-filter: blur(20px);
+                border: 1px solid rgba(166, 192, 221, 0.1);
+                border-radius: 1rem;
+                padding: 1.5rem;
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
             }
 
             /* Animations */
@@ -108,19 +113,20 @@ class MatchesTab {
                 animation: glow-pulse 2s ease-in-out infinite;
             }
 
-            /* NEW: Section headers */
+            /* Section headers - ENHANCED ✨ */
             .section-header {
                 display: flex;
                 align-items: center;
                 justify-content: space-between;
                 padding: 1rem;
                 cursor: pointer;
-                transition: background 0.2s;
+                transition: all 0.3s ease;
                 border-radius: 0.75rem;
             }
 
             .section-header:hover {
                 background: rgba(166, 192, 221, 0.1);
+                transform: translateX(4px);
             }
 
             .expand-icon {
@@ -131,7 +137,7 @@ class MatchesTab {
                 transform: rotate(180deg);
             }
 
-            /* NEW: Genre bars */
+            /* Genre bars */
             .genre-bar {
                 height: 24px;
                 background: linear-gradient(90deg, rgba(166, 192, 221, 0.3), rgba(253, 250, 176, 0.3));
@@ -145,7 +151,7 @@ class MatchesTab {
                 transition: width 0.6s ease-out;
             }
 
-            /* NEW: Secondary buttons */
+            /* Secondary buttons */
             .secondary-btn {
                 padding: 0.75rem 1.5rem;
                 background: rgba(166, 192, 221, 0.2);
@@ -160,22 +166,24 @@ class MatchesTab {
             .secondary-btn:hover {
                 background: rgba(166, 192, 221, 0.3);
                 transform: translateY(-2px);
+                box-shadow: 0 4px 12px rgba(166, 192, 221, 0.3);
             }
 
-            /* NEW: Room cards */
+            /* Room cards - ENHANCED ✨ */
             .room-card {
                 background: linear-gradient(135deg, rgba(166, 192, 221, 0.15), rgba(253, 250, 176, 0.1));
                 border: 2px solid rgba(166, 192, 221, 0.3);
-                border-radius: 0.75rem;
-                padding: 1rem;
+                border-radius: 1rem;
+                padding: 1.5rem;
                 cursor: pointer;
-                transition: all 0.3s;
+                transition: all 0.3s ease;
             }
 
             .room-card:hover {
                 background: linear-gradient(135deg, rgba(166, 192, 221, 0.25), rgba(253, 250, 176, 0.15));
                 border-color: #FDFAB0;
                 transform: translateY(-2px);
+                box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
             }
 
             .room-code {
@@ -331,36 +339,36 @@ class MatchesTab {
             <div class="matches-content" style="width: 100%; padding: 1rem; padding-bottom: 6rem;">
                 
                 <!-- NEW SECTION 1: TASTE PROFILE -->
-                <div id="taste-profile-section" class="glass-card" style="margin-bottom: 1.5rem; border-radius: 0.75rem; overflow: hidden;">
+                <div id="taste-profile-section" class="glass-card" style="margin-bottom: 1.5rem; overflow: hidden;">
                     <div class="section-header" data-section="taste">
                         <div style="display: flex; align-items: center; gap: 0.75rem;">
-                            <span style="font-size: 1.5rem;">👤</span>
+                            <span style="font-size: 1.5rem;">🎭</span>
                             <div>
-                                <h3 style="font-size: 1rem; font-weight: 600; color: #FDFAB0; margin: 0;">Your Taste Profile</h3>
+                                <h3 style="font-size: 1.25rem; font-weight: 600; color: #FDFAB0; margin: 0;">Your Taste Profile</h3>
                                 <p id="taste-summary" style="font-size: 0.875rem; color: #A6C0DD; margin: 0;">Loading...</p>
                             </div>
                         </div>
                         <span class="expand-icon" style="color: #A6C0DD; font-size: 1.25rem;">▼</span>
                     </div>
-                    <div id="taste-content" style="display: none; padding: 0 1rem 1rem 1rem;"></div>
+                    <div id="taste-content" style="display: none; padding: 1rem 0 0 0;"></div>
                 </div>
 
                 <!-- NEW SECTION 2: COUPLE MODE -->
-                <div id="couple-section" class="glass-card" style="margin-bottom: 1.5rem; border-radius: 0.75rem; padding: 1rem;"></div>
+                <div id="couple-section" class="glass-card" style="margin-bottom: 1.5rem;"></div>
 
                 <!-- NEW SECTION 3: SWIPE ROOMS -->
-                <div id="rooms-section" class="glass-card" style="margin-bottom: 1.5rem; border-radius: 0.75rem; overflow: hidden;">
+                <div id="rooms-section" class="glass-card" style="margin-bottom: 1.5rem; overflow: hidden;">
                     <div class="section-header" data-section="rooms">
                         <div style="display: flex; align-items: center; gap: 0.75rem;">
-                            <span style="font-size: 1.5rem;">🎭</span>
+                            <span style="font-size: 1.5rem;">🎪</span>
                             <div>
-                                <h3 style="font-size: 1rem; font-weight: 600; color: #FDFAB0; margin: 0;">Swipe Rooms</h3>
+                                <h3 style="font-size: 1.25rem; font-weight: 600; color: #FDFAB0; margin: 0;">Swipe Rooms</h3>
                                 <p id="rooms-summary" style="font-size: 0.875rem; color: #A6C0DD; margin: 0;">Loading...</p>
                             </div>
                         </div>
                         <span class="expand-icon" style="color: #A6C0DD; font-size: 1.25rem;">▼</span>
                     </div>
-                    <div id="rooms-content" style="display: none; padding: 0 1rem 1rem 1rem;"></div>
+                    <div id="rooms-content" style="display: none; padding: 1rem 0 0 0;"></div>
                 </div>
 
                 <!-- EXISTING: Friends List -->
@@ -458,13 +466,13 @@ class MatchesTab {
                 </div>
 
                 <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem;">
-                    <div style="background: rgba(166, 192, 221, 0.1); padding: 0.75rem; border-radius: 0.5rem;">
+                    <div style="background: rgba(166, 192, 221, 0.1); padding: 1rem; border-radius: 0.75rem; text-align: center;">
                         <div style="font-size: 0.75rem; color: #A6C0DD; margin-bottom: 0.25rem;">Like Rate</div>
-                        <div style="font-size: 1.25rem; font-weight: 700; color: #FDFAB0;">${this.tasteProfile.likeRate}%</div>
+                        <div style="font-size: 1.75rem; font-weight: 700; color: #FDFAB0;">${this.tasteProfile.likeRate}%</div>
                     </div>
-                    <div style="background: rgba(166, 192, 221, 0.1); padding: 0.75rem; border-radius: 0.5rem;">
+                    <div style="background: rgba(166, 192, 221, 0.1); padding: 1rem; border-radius: 0.75rem; text-align: center;">
                         <div style="font-size: 0.75rem; color: #A6C0DD; margin-bottom: 0.25rem;">Avg Rating</div>
-                        <div style="font-size: 1.25rem; font-weight: 700; color: #FDFAB0;">⭐ ${this.tasteProfile.avgRating}</div>
+                        <div style="font-size: 1.75rem; font-weight: 700; color: #FDFAB0;">⭐ ${this.tasteProfile.avgRating}</div>
                     </div>
                 </div>
 
@@ -512,11 +520,13 @@ class MatchesTab {
 
         if (!this.coupleData) {
             section.innerHTML = `
-                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
-                    <span style="font-size: 1.5rem;">💑</span>
-                    <div>
-                        <h3 style="font-size: 1rem; font-weight: 600; color: #FDFAB0; margin: 0;">Couple Mode</h3>
-                        <p style="font-size: 0.875rem; color: #A6C0DD; margin: 0;">Find movies you'll both love</p>
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                        <span style="font-size: 1.5rem;">💑</span>
+                        <div>
+                            <h3 style="font-size: 1.25rem; font-weight: 600; color: #FDFAB0; margin: 0;">Couple Mode</h3>
+                            <p style="font-size: 0.875rem; color: #A6C0DD; margin: 0;">Find movies you'll both love</p>
+                        </div>
                     </div>
                 </div>
                 <button id="link-couple-btn" class="secondary-btn" style="width: 100%;">+ Link with Partner</button>
@@ -534,8 +544,17 @@ class MatchesTab {
             <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
                 <span style="font-size: 1.5rem;">💑</span>
                 <div style="flex: 1;">
-                    <h3 style="font-size: 1rem; font-weight: 600; color: #FDFAB0; margin: 0;">You ❤️ ${partnerName}</h3>
-                    <p style="font-size: 0.875rem; color: #A6C0DD; margin: 0;">Compatibility: ${compatibility}% ${emoji}</p>
+                    <h3 style="font-size: 1.25rem; font-weight: 600; color: #FDFAB0; margin: 0;">You ❤️ ${partnerName}</h3>
+                    <p style="font-size: 0.875rem; color: #A6C0DD; margin: 0;">Together in Couple Mode</p>
+                </div>
+            </div>
+
+            <div style="text-align: center; margin: 2rem 0;">
+                <div style="font-size: 3.5rem; font-weight: 700; color: #FF6B9D; margin-bottom: 0.5rem;">
+                    ${compatibility}%
+                </div>
+                <div style="font-size: 1.25rem; color: #A6C0DD; margin-bottom: 0.5rem;">
+                    💕💕💕 Compatibility
                 </div>
             </div>
 
@@ -597,23 +616,28 @@ class MatchesTab {
 
         content.innerHTML = `
             <div style="display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 1rem;">
-                ${this.userRooms.map(room => `
-                    <div class="room-card" data-room-id="${room.id}">
-                        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.5rem;">
-                            <div style="flex: 1;">
-                                <div style="font-size: 1rem; font-weight: 600; color: #FDFAB0; margin-bottom: 0.25rem;">${room.name}</div>
-                                <div class="room-code">${roomService.formatCode(room.code)}</div>
+                ${this.userRooms.map(room => {
+                    const timeLeft = roomService.getTimeRemaining(room.expiresAt);
+                    return `
+                        <div class="room-card" data-room-id="${room.id}">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 1rem;">
+                                <div>
+                                    <div style="font-size: 1.25rem; font-weight: 600; color: #FDFAB0; margin-bottom: 0.5rem;">
+                                        ${room.name} ${room.hasPassword ? '🔒' : ''}
+                                    </div>
+                                    <div class="room-code">${roomService.formatCode(room.code)}</div>
+                                </div>
+                                <div style="text-align: right;">
+                                    <div style="font-size: 0.75rem; color: #A6C0DD;">${timeLeft}</div>
+                                </div>
                             </div>
-                            <div style="text-align: right;">
-                                <div style="font-size: 0.75rem; color: #A6C0DD;">${roomService.getTimeRemaining(room.expiresAt)}</div>
+                            <div style="display: flex; gap: 1rem; font-size: 0.875rem; color: #A6C0DD;">
+                                <span>👥 ${room.users.length} users</span>
+                                <span>🎯 ${room.matches?.length || 0} matches</span>
                             </div>
                         </div>
-                        <div style="display: flex; gap: 1rem; font-size: 0.875rem; color: #A6C0DD;">
-                            <span>👥 ${room.users.length} users</span>
-                            <span>🎯 ${room.matches?.length || 0} matches</span>
-                        </div>
-                    </div>
-                `).join('')}
+                    `;
+                }).join('')}
             </div>
             <div style="display: flex; gap: 0.75rem;">
                 <button id="create-room-btn" class="secondary-btn" style="flex: 1;">+ Create Room</button>
@@ -1117,6 +1141,12 @@ class MatchesTab {
                         });
                     }
                 }
+                return;
+            }
+
+            // NEW: View couple matches
+            if (e.target.id === 'view-couple-matches-btn') {
+                this.showToast('Couple matches coming soon! 💕');
                 return;
             }
 
