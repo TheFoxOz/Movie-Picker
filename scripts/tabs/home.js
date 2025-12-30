@@ -269,10 +269,17 @@ export class HomeTab {
      * Filter movies by specific genre ID
      */
     filterByGenre(streamingMovies, genreId) {
-        return streamingMovies
+        console.log(`[Home] 🔍 Filtering for genre ID ${genreId} from ${streamingMovies.length} movies`);
+        
+        const filtered = streamingMovies
             .filter(m => {
                 // Get genres from movie (could be array of IDs or names)
                 const genres = m.genres || m.genre_ids || m.genreIds || [];
+                
+                // ✅ DEBUG: Log first movie's genre format
+                if (streamingMovies.indexOf(m) === 0) {
+                    console.log(`[Home] 🔍 Sample movie "${m.title}" genres:`, genres);
+                }
                 
                 // Map genre data to IDs (handle both formats)
                 const movieGenreIds = genres.map(g => {
@@ -298,6 +305,9 @@ export class HomeTab {
                 const ratingB = parseFloat(b.rating || b.vote_average || 0);
                 return ratingB - ratingA;
             });
+        
+        console.log(`[Home] ✅ Found ${filtered.length} movies for genre ${genreId}`);
+        return filtered;
     }
 
     /**
