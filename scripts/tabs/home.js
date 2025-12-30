@@ -10,6 +10,8 @@ import { tmdbService } from '../services/tmdb.js';
 import { store } from '../state/store.js';
 import { movieModal } from '../components/movie-modal.js';
 import { renderTriggerBadge } from '../utils/trigger-warnings.js';
+import { renderWatchedButton, initWatchedButtons, storeMovieData } from '../utils/watched-button.js';
+import { authService } from '../services/auth-service.js';
 
 const GENRE_IDS = {
     ACTION: 28,
@@ -51,6 +53,7 @@ export class HomeTab {
     constructor() {
         this.container = null;
         this.allMovies = [];
+        this.hideWatched = this.loadHideWatchedSetting(); // Load from localStorage
     }
 
     async render(container) {
@@ -72,45 +75,54 @@ export class HomeTab {
         `;
 
         try {
-            // ✅ IMPROVED: Load 4 pages for Horror, Thriller, Blockbusters to get 20 movies each
+            // ✅ IMPROVED: Load 5-6 pages for better coverage (especially Horror!)
             console.log('[Home] Loading movie data from multiple pages...');
             const [
                 trending1, trending2,
-                popular1, popular2, popular3,
-                topRated1, topRated2, topRated3,
-                action1, action2, action3,
-                comedy1, comedy2, comedy3,
-                scifi1, scifi2, scifi3,
-                horror1, horror2, horror3, horror4, // ✅ NEW: 4 pages for horror
-                animation1, animation2,
-                thriller1, thriller2, thriller3 // ✅ NEW: 3 pages for thriller
+                popular1, popular2, popular3, popular4,
+                topRated1, topRated2, topRated3, topRated4,
+                action1, action2, action3, action4,
+                comedy1, comedy2, comedy3, comedy4,
+                scifi1, scifi2, scifi3, scifi4,
+                horror1, horror2, horror3, horror4, horror5, horror6, // ✅ 6 pages for horror!
+                animation1, animation2, animation3,
+                thriller1, thriller2, thriller3, thriller4
             ] = await Promise.all([
                 tmdbService.getTrendingMovies('week'),
                 tmdbService.getPopularMovies(2),
                 tmdbService.getPopularMovies(1),
+                tmdbService.getPopularMovies(2),
                 tmdbService.getPopularMovies(3),
                 tmdbService.getPopularMovies(4),
                 tmdbService.discoverMovies({ sortBy: 'vote_average.desc', minVotes: 1000, page: 1 }).then(r => r.movies || r),
                 tmdbService.discoverMovies({ sortBy: 'vote_average.desc', minVotes: 1000, page: 2 }).then(r => r.movies || r),
                 tmdbService.discoverMovies({ sortBy: 'vote_average.desc', minVotes: 1000, page: 3 }).then(r => r.movies || r),
+                tmdbService.discoverMovies({ sortBy: 'vote_average.desc', minVotes: 1000, page: 4 }).then(r => r.movies || r),
                 tmdbService.discoverMovies({ genres: [GENRE_IDS.ACTION], page: 1 }).then(r => r.movies || r),
                 tmdbService.discoverMovies({ genres: [GENRE_IDS.ACTION], page: 2 }).then(r => r.movies || r),
                 tmdbService.discoverMovies({ genres: [GENRE_IDS.ACTION], page: 3 }).then(r => r.movies || r),
+                tmdbService.discoverMovies({ genres: [GENRE_IDS.ACTION], page: 4 }).then(r => r.movies || r),
                 tmdbService.discoverMovies({ genres: [GENRE_IDS.COMEDY], page: 1 }).then(r => r.movies || r),
                 tmdbService.discoverMovies({ genres: [GENRE_IDS.COMEDY], page: 2 }).then(r => r.movies || r),
                 tmdbService.discoverMovies({ genres: [GENRE_IDS.COMEDY], page: 3 }).then(r => r.movies || r),
+                tmdbService.discoverMovies({ genres: [GENRE_IDS.COMEDY], page: 4 }).then(r => r.movies || r),
                 tmdbService.discoverMovies({ genres: [GENRE_IDS.SCIFI], page: 1 }).then(r => r.movies || r),
                 tmdbService.discoverMovies({ genres: [GENRE_IDS.SCIFI], page: 2 }).then(r => r.movies || r),
                 tmdbService.discoverMovies({ genres: [GENRE_IDS.SCIFI], page: 3 }).then(r => r.movies || r),
+                tmdbService.discoverMovies({ genres: [GENRE_IDS.SCIFI], page: 4 }).then(r => r.movies || r),
                 tmdbService.discoverMovies({ genres: [GENRE_IDS.HORROR], page: 1 }).then(r => r.movies || r),
                 tmdbService.discoverMovies({ genres: [GENRE_IDS.HORROR], page: 2 }).then(r => r.movies || r),
                 tmdbService.discoverMovies({ genres: [GENRE_IDS.HORROR], page: 3 }).then(r => r.movies || r),
                 tmdbService.discoverMovies({ genres: [GENRE_IDS.HORROR], page: 4 }).then(r => r.movies || r),
+                tmdbService.discoverMovies({ genres: [GENRE_IDS.HORROR], page: 5 }).then(r => r.movies || r),
+                tmdbService.discoverMovies({ genres: [GENRE_IDS.HORROR], page: 6 }).then(r => r.movies || r),
                 tmdbService.discoverMovies({ genres: [GENRE_IDS.ANIMATION], page: 1 }).then(r => r.movies || r),
                 tmdbService.discoverMovies({ genres: [GENRE_IDS.ANIMATION], page: 2 }).then(r => r.movies || r),
+                tmdbService.discoverMovies({ genres: [GENRE_IDS.ANIMATION], page: 3 }).then(r => r.movies || r),
                 tmdbService.discoverMovies({ genres: [GENRE_IDS.THRILLER], page: 1 }).then(r => r.movies || r),
                 tmdbService.discoverMovies({ genres: [GENRE_IDS.THRILLER], page: 2 }).then(r => r.movies || r),
-                tmdbService.discoverMovies({ genres: [GENRE_IDS.THRILLER], page: 3 }).then(r => r.movies || r)
+                tmdbService.discoverMovies({ genres: [GENRE_IDS.THRILLER], page: 3 }).then(r => r.movies || r),
+                tmdbService.discoverMovies({ genres: [GENRE_IDS.THRILLER], page: 4 }).then(r => r.movies || r)
             ]);
 
             // ✅ Merge and deduplicate all movies
@@ -118,19 +130,22 @@ export class HomeTab {
             const allMoviesMap = new Map();
             [
                 ...trending1, ...trending2,
-                ...popular1, ...popular2, ...popular3,
-                ...topRated1, ...topRated2, ...topRated3,
-                ...action1, ...action2, ...action3,
-                ...comedy1, ...comedy2, ...comedy3,
-                ...scifi1, ...scifi2, ...scifi3,
-                ...horror1, ...horror2, ...horror3, ...horror4,
-                ...animation1, ...animation2,
-                ...thriller1, ...thriller2, ...thriller3
+                ...popular1, ...popular2, ...popular3, ...popular4,
+                ...topRated1, ...topRated2, ...topRated3, ...topRated4,
+                ...action1, ...action2, ...action3, ...action4,
+                ...comedy1, ...comedy2, ...comedy3, ...comedy4,
+                ...scifi1, ...scifi2, ...scifi3, ...scifi4,
+                ...horror1, ...horror2, ...horror3, ...horror4, ...horror5, ...horror6,
+                ...animation1, ...animation2, ...animation3,
+                ...thriller1, ...thriller2, ...thriller3, ...thriller4
             ].forEach(m => {
                 if (m && m.id) allMoviesMap.set(m.id, m);
             });
             
             this.allMovies = Array.from(allMoviesMap.values());
+            
+            // ✅ Store movie data for watched button access
+            storeMovieData(this.allMovies);
             
             // ✅ Enrich with platform data
             console.log(`[Home] Enriching ${this.allMovies.length} movies with platform data...`);
@@ -144,7 +159,14 @@ export class HomeTab {
 
             // ✅ Separate movies by cinema status FIRST
             const cinemaMovies = this.filterCinemaMovies(this.allMovies);
-            const streamingMovies = this.filterStreamingMovies(this.allMovies);
+            let streamingMovies = this.filterStreamingMovies(this.allMovies);
+
+            // ✅ NEW: Filter watched movies if setting enabled
+            if (this.hideWatched) {
+                const beforeWatchedFilter = streamingMovies.length;
+                streamingMovies = this.filterWatchedMovies(streamingMovies);
+                console.log(`[Home] Watched filter: ${beforeWatchedFilter} → ${streamingMovies.length} movies`);
+            }
 
             console.log(`[Home] Cinema: ${cinemaMovies.length}, Streaming: ${streamingMovies.length}`);
 
@@ -460,6 +482,9 @@ export class HomeTab {
     }
 
     renderFeed(sections) {
+        // ✅ Expose homeTab instance globally for toggle button
+        window.homeTab = this;
+        
         const rows = [
             { title: '🎬 In Cinemas Now', movies: sections.cinema, id: 'cinema' },
             { title: '🔥 Trending This Week', movies: sections.trending, id: 'trending' },
@@ -482,6 +507,9 @@ export class HomeTab {
 
         this.container.innerHTML = `
             <div style="width: 100%; padding: 1.5rem 0 6rem;">
+                <!-- Hide Watched Toggle -->
+                ${this.renderHideWatchedToggle()}
+                
                 <!-- Movie Rows -->
                 ${sectionsHTML}
             </div>
@@ -537,6 +565,7 @@ export class HomeTab {
         const trailerUrl = hasTrailer ? `https://www.youtube.com/watch?v=${movie.trailerKey}` : null;
         
         const triggerBadgeHTML = renderTriggerBadge(movie, { size: 'small', position: 'top-left' });
+        const watchedButtonHTML = renderWatchedButton(movie, { size: 'small', position: 'top-right' });
         
         const platform = (() => {
             if (movie.availableOn && movie.availableOn.length > 0) {
@@ -595,7 +624,7 @@ export class HomeTab {
                             style="
                                 position: absolute;
                                 top: 0.5rem;
-                                right: 0.5rem;
+                                right: 3rem;
                                 width: 32px;
                                 height: 32px;
                                 background: rgba(255, 46, 99, 0.95);
@@ -620,6 +649,7 @@ export class HomeTab {
                     ` : ''}
                     
                     ${triggerBadgeHTML}
+                    ${watchedButtonHTML}
                     
                     <div style="
                         position: absolute;
@@ -692,5 +722,110 @@ export class HomeTab {
                 }
             });
         });
+        
+        // Initialize watched button handlers
+        initWatchedButtons();
+    }
+    
+    /**
+     * Filter out watched movies
+     */
+    filterWatchedMovies(movies) {
+        if (!authService || !authService.getWatchedMovies) return movies;
+        
+        const watchedIds = new Set(
+            authService.getWatchedMovies().map(w => w.movieId)
+        );
+        
+        return movies.filter(m => !watchedIds.has(m.id));
+    }
+    
+    /**
+     * Toggle hide watched setting
+     */
+    toggleHideWatched() {
+        this.hideWatched = !this.hideWatched;
+        this.saveHideWatchedSetting(this.hideWatched);
+        console.log('[Home] Hide watched:', this.hideWatched);
+        
+        // Re-render with new setting
+        this.render(this.container);
+    }
+    
+    /**
+     * Load hide watched setting from localStorage
+     */
+    loadHideWatchedSetting() {
+        try {
+            const saved = localStorage.getItem('hideWatchedMovies');
+            return saved === 'true';
+        } catch (error) {
+            return false;
+        }
+    }
+    
+    /**
+     * Save hide watched setting to localStorage
+     */
+    saveHideWatchedSetting(value) {
+        try {
+            localStorage.setItem('hideWatchedMovies', value.toString());
+        } catch (error) {
+            console.error('[Home] Error saving hideWatched setting:', error);
+        }
+    }
+    
+    /**
+     * Render hide watched toggle button
+     */
+    renderHideWatchedToggle() {
+        const isEnabled = this.hideWatched;
+        
+        return `
+            <div style="
+                padding: 1rem;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                background: rgba(26, 31, 46, 0.5);
+                border-radius: 0.75rem;
+                margin-bottom: 1rem;
+            ">
+                <span style="
+                    color: #b0d4e3;
+                    font-size: 0.875rem;
+                    font-weight: 600;
+                ">
+                    👁️ Hide Watched Movies
+                </span>
+                
+                <button
+                    id="hide-watched-toggle"
+                    onclick="window.homeTab?.toggleHideWatched()"
+                    style="
+                        position: relative;
+                        width: 48px;
+                        height: 28px;
+                        background: ${isEnabled ? '#10b981' : 'rgba(176, 212, 227, 0.2)'};
+                        border: 2px solid ${isEnabled ? '#10b981' : 'rgba(176, 212, 227, 0.3)'};
+                        border-radius: 14px;
+                        cursor: pointer;
+                        transition: all 0.3s;
+                    "
+                >
+                    <div style="
+                        position: absolute;
+                        top: 2px;
+                        ${isEnabled ? 'right: 2px;' : 'left: 2px;'}
+                        width: 20px;
+                        height: 20px;
+                        background: white;
+                        border-radius: 50%;
+                        transition: all 0.3s;
+                        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+                    "></div>
+                </button>
+            </div>
+        `;
     }
 }
