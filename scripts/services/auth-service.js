@@ -12,6 +12,7 @@
  * ✅ CRITICAL FIX #2: Sync swipe history BEFORE logout
  * ✅ CRITICAL FIX #3: Strong localStorage fallback when Firestore fails
  * ✅ CRITICAL FIX #4: Remove undefined fields before Firestore sync
+ * ✅ NEW: Watched movies feature with Firestore sync
  */
 
 // ---------------------------------------------------------------------
@@ -49,7 +50,10 @@ import {
     getDoc,
     setDoc,
     updateDoc,
-    onSnapshot
+    onSnapshot,
+    collection,
+    getDocs,
+    deleteDoc
 } from 'firebase/firestore';
 
 // ✅ Set persistence mode explicitly
@@ -71,6 +75,11 @@ class AuthService {
         this.unsubscribers = [];
         this.redirectResultChecked = false;
         this.isProcessingAuth = false;
+        
+        // ✅ NEW: Watched movies state
+        this.watchedMovies = new Map();
+        this.onWatchedChange = null;
+        this.watchedUnsubscribe = null;
     }
 
     // ✅ NEW: Initialize auth service (call this first!)
@@ -101,8 +110,14 @@ class AuthService {
                 // ✅ CRITICAL FIX #1: Load user data from Firestore
                 await this.loadUserData(user.uid);
                 
+                // ✅ NEW: Load watched movies
+                await this.loadWatchedMovies();
+                
                 // ✅ CRITICAL FIX #1: Re-attach real-time listeners on EVERY login
                 this.setupRealtimeListeners(user.uid);
+                
+                // ✅ NEW: Setup watched movies listener
+                this.setupWatchedListener();
 
                 // Navigate if on auth pages
                 const hash = window.location.hash;
@@ -121,6 +136,13 @@ class AuthService {
                 
                 // ✅ Clean up listeners on logout
                 this.cleanup();
+                
+                // ✅ NEW: Clean up watched movies
+                if (this.watchedUnsubscribe) {
+                    this.watchedUnsubscribe();
+                    this.watchedUnsubscribe = null;
+                }
+                this.watchedMovies = new Map();
                 
                 this.currentUser = null;
                 store.setState({
@@ -742,6 +764,160 @@ class AuthService {
             console.warn('[Auth] Failed to save onboarding:', err.message);
         }
     }
+
+    // ========================================================================
+    // ✅ NEW: WATCHED MOVIES FEATURE
+    // ========================================================================
+
+    /**
+     * Mark a movie as watched
+     */
+    async markAsWatched(movie) {
+        if (!this.currentUser) {
+            console.warn('[Auth] Cannot mark as watched - user not authenticated');
+            return;
+        }
+        
+        try {
+            const watchedData = {
+                movieId: movie.id,
+                title: movie.title,
+                posterURL: movie.posterURL || movie.poster_path || '',
+                releaseDate: movie.releaseDate || movie.release_date || '',
+                rating: movie.rating || movie.vote_average || 0,
+                genres: movie.genres || movie.genre_ids || [],
+                watchedAt: new Date().toISOString(),
+                platform: movie.platform || movie.availableOn?.[0] || 'Unknown'
+            };
+            
+            await setDoc(
+                doc(db, 'users', this.currentUser.uid, 'watched', movie.id.toString()),
+                watchedData
+            );
+            
+            console.log('[Auth] ✅ Marked as watched:', movie.title);
+            
+            // Update local state
+            this.watchedMovies.set(movie.id, watchedData);
+            
+            // Notify listeners
+            this.notifyWatchedListeners();
+            
+        } catch (error) {
+            console.error('[Auth] ❌ Error marking as watched:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Mark a movie as unwatched (remove from watched)
+     */
+    async markAsUnwatched(movieId) {
+        if (!this.currentUser) {
+            console.warn('[Auth] Cannot unwatch - user not authenticated');
+            return;
+        }
+        
+        try {
+            await deleteDoc(
+                doc(db, 'users', this.currentUser.uid, 'watched', movieId.toString())
+            );
+            
+            console.log('[Auth] ✅ Marked as unwatched:', movieId);
+            
+            // Update local state
+            this.watchedMovies.delete(movieId);
+            
+            // Notify listeners
+            this.notifyWatchedListeners();
+            
+        } catch (error) {
+            console.error('[Auth] ❌ Error marking as unwatched:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Check if a movie is watched
+     */
+    isMovieWatched(movieId) {
+        return this.watchedMovies.has(movieId);
+    }
+
+    /**
+     * Get all watched movies
+     */
+    getWatchedMovies() {
+        return Array.from(this.watchedMovies.values());
+    }
+
+    /**
+     * Load watched movies from Firestore
+     */
+    async loadWatchedMovies() {
+        if (!this.currentUser) return;
+        
+        try {
+            const watchedRef = collection(db, 'users', this.currentUser.uid, 'watched');
+            const querySnapshot = await getDocs(watchedRef);
+            
+            this.watchedMovies = new Map();
+            
+            querySnapshot.forEach(doc => {
+                const data = doc.data();
+                this.watchedMovies.set(data.movieId, data);
+            });
+            
+            console.log(`[Auth] Loaded ${this.watchedMovies.size} watched movies from Firestore`);
+            
+        } catch (error) {
+            console.error('[Auth] Error loading watched movies:', error);
+            this.watchedMovies = new Map();
+        }
+    }
+
+    /**
+     * Set up real-time listener for watched movies
+     */
+    setupWatchedListener() {
+        if (!this.currentUser) return;
+        
+        const watchedRef = collection(db, 'users', this.currentUser.uid, 'watched');
+        
+        this.watchedUnsubscribe = onSnapshot(watchedRef, (snapshot) => {
+            this.watchedMovies = new Map();
+            
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                this.watchedMovies.set(data.movieId, data);
+            });
+            
+            console.log(`[Auth] Real-time update: ${this.watchedMovies.size} watched movies`);
+            this.notifyWatchedListeners();
+        });
+        
+        console.log('[Auth] ✅ Watched movies listener attached');
+    }
+
+    /**
+     * Notify watched listeners
+     */
+    notifyWatchedListeners() {
+        if (this.onWatchedChange) {
+            this.onWatchedChange(this.getWatchedMovies());
+        }
+    }
+
+    /**
+     * Subscribe to watched changes
+     */
+    onWatchedUpdated(callback) {
+        this.onWatchedChange = callback;
+    }
+
+    // ========================================================================
+    // END: WATCHED MOVIES FEATURE
+    // ========================================================================
 
     getCurrentUser() { return this.currentUser; }
     isAuthenticated() { return !!this.currentUser; }
