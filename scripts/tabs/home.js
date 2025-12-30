@@ -1,11 +1,9 @@
 /**
- * MoviEase - Home Tab
- * Netflix-style personalized movie feed with horizontal scrolling rows
- * ✅ FIXED: Proper genre filtering with cinema exclusion
- * ✅ FIXED: 20 movies per row
- * ✅ FIXED: No duplicate movies across sections
- * ✅ FIXED: Null check for movie.genres to prevent crashes
- * ✅ NEW: Platform filtering by user's selected platforms
+ * MoviEase - Home Tab - IMPROVED VERSION
+ * ✅ FIXED: Better recommendations using genre_ids from swipes
+ * ✅ FIXED: Load more pages for Horror (4 pages = 80 movies)
+ * ✅ FIXED: Load more pages for Blockbusters
+ * ✅ FIXED: Smarter genre matching with fallbacks
  */
 
 import { tmdbService } from '../services/tmdb.js';
@@ -51,33 +49,45 @@ export class HomeTab {
         `;
 
         try {
-            // ✅ Load multiple pages for each category to get more variety
+            // ✅ IMPROVED: Load 4 pages for Horror, Thriller, Blockbusters to get 20 movies each
             console.log('[Home] Loading movie data from multiple pages...');
             const [
                 trending1, trending2,
-                popular1, popular2,
-                topRated1, topRated2,
-                action1, action2,
-                comedy1, comedy2,
-                scifi1, scifi2,
-                horror1, horror2,
-                animation1
+                popular1, popular2, popular3,
+                topRated1, topRated2, topRated3,
+                action1, action2, action3,
+                comedy1, comedy2, comedy3,
+                scifi1, scifi2, scifi3,
+                horror1, horror2, horror3, horror4, // ✅ NEW: 4 pages for horror
+                animation1, animation2,
+                thriller1, thriller2, thriller3 // ✅ NEW: 3 pages for thriller
             ] = await Promise.all([
                 tmdbService.getTrendingMovies('week'),
                 tmdbService.getPopularMovies(2),
                 tmdbService.getPopularMovies(1),
                 tmdbService.getPopularMovies(3),
+                tmdbService.getPopularMovies(4),
                 tmdbService.discoverMovies({ sortBy: 'vote_average.desc', minVotes: 1000, page: 1 }).then(r => r.movies || r),
                 tmdbService.discoverMovies({ sortBy: 'vote_average.desc', minVotes: 1000, page: 2 }).then(r => r.movies || r),
+                tmdbService.discoverMovies({ sortBy: 'vote_average.desc', minVotes: 1000, page: 3 }).then(r => r.movies || r),
                 tmdbService.discoverMovies({ genres: [GENRE_IDS.ACTION], page: 1 }).then(r => r.movies || r),
                 tmdbService.discoverMovies({ genres: [GENRE_IDS.ACTION], page: 2 }).then(r => r.movies || r),
+                tmdbService.discoverMovies({ genres: [GENRE_IDS.ACTION], page: 3 }).then(r => r.movies || r),
                 tmdbService.discoverMovies({ genres: [GENRE_IDS.COMEDY], page: 1 }).then(r => r.movies || r),
                 tmdbService.discoverMovies({ genres: [GENRE_IDS.COMEDY], page: 2 }).then(r => r.movies || r),
+                tmdbService.discoverMovies({ genres: [GENRE_IDS.COMEDY], page: 3 }).then(r => r.movies || r),
                 tmdbService.discoverMovies({ genres: [GENRE_IDS.SCIFI], page: 1 }).then(r => r.movies || r),
                 tmdbService.discoverMovies({ genres: [GENRE_IDS.SCIFI], page: 2 }).then(r => r.movies || r),
+                tmdbService.discoverMovies({ genres: [GENRE_IDS.SCIFI], page: 3 }).then(r => r.movies || r),
                 tmdbService.discoverMovies({ genres: [GENRE_IDS.HORROR], page: 1 }).then(r => r.movies || r),
                 tmdbService.discoverMovies({ genres: [GENRE_IDS.HORROR], page: 2 }).then(r => r.movies || r),
-                tmdbService.discoverMovies({ genres: [GENRE_IDS.ANIMATION], page: 1 }).then(r => r.movies || r)
+                tmdbService.discoverMovies({ genres: [GENRE_IDS.HORROR], page: 3 }).then(r => r.movies || r),
+                tmdbService.discoverMovies({ genres: [GENRE_IDS.HORROR], page: 4 }).then(r => r.movies || r),
+                tmdbService.discoverMovies({ genres: [GENRE_IDS.ANIMATION], page: 1 }).then(r => r.movies || r),
+                tmdbService.discoverMovies({ genres: [GENRE_IDS.ANIMATION], page: 2 }).then(r => r.movies || r),
+                tmdbService.discoverMovies({ genres: [GENRE_IDS.THRILLER], page: 1 }).then(r => r.movies || r),
+                tmdbService.discoverMovies({ genres: [GENRE_IDS.THRILLER], page: 2 }).then(r => r.movies || r),
+                tmdbService.discoverMovies({ genres: [GENRE_IDS.THRILLER], page: 3 }).then(r => r.movies || r)
             ]);
 
             // ✅ Merge and deduplicate all movies
@@ -85,13 +95,14 @@ export class HomeTab {
             const allMoviesMap = new Map();
             [
                 ...trending1, ...trending2,
-                ...popular1, ...popular2,
-                ...topRated1, ...topRated2,
-                ...action1, ...action2,
-                ...comedy1, ...comedy2,
-                ...scifi1, ...scifi2,
-                ...horror1, ...horror2,
-                ...animation1
+                ...popular1, ...popular2, ...popular3,
+                ...topRated1, ...topRated2, ...topRated3,
+                ...action1, ...action2, ...action3,
+                ...comedy1, ...comedy2, ...comedy3,
+                ...scifi1, ...scifi2, ...scifi3,
+                ...horror1, ...horror2, ...horror3, ...horror4,
+                ...animation1, ...animation2,
+                ...thriller1, ...thriller2, ...thriller3
             ].forEach(m => {
                 if (m && m.id) allMoviesMap.set(m.id, m);
             });
@@ -118,16 +129,22 @@ export class HomeTab {
             const state = store.getState();
             const swipeHistory = state.swipeHistory || [];
 
-            // ✅ FIXED: Filter each category properly by genre
+            // ✅ IMPROVED: Generate recommendations based on liked movies
+            const recommendedMovies = this.getRecommendedMovies(streamingMovies, swipeHistory);
+            const likedCount = swipeHistory.filter(s => s.action === 'like' || s.action === 'love').length;
+            console.log(`[Home] Generated ${recommendedMovies.length} recommendations based on ${likedCount} liked/loved movies`);
+
+            // ✅ Filter each category properly by genre
             const sections = {
                 cinema: cinemaMovies.slice(0, 20),
                 trending: this.filterStreamingByIds(streamingMovies, [...trending1, ...trending2]).slice(0, 20),
-                recommended: this.getRecommendedMovies(streamingMovies, swipeHistory).slice(0, 20),
-                topRated: this.filterStreamingByIds(streamingMovies, [...topRated1, ...topRated2]).slice(0, 20),
+                recommended: recommendedMovies.slice(0, 20),
+                topRated: this.filterStreamingByIds(streamingMovies, [...topRated1, ...topRated2, ...topRated3]).slice(0, 20),
                 action: this.filterByGenre(streamingMovies, GENRE_IDS.ACTION).slice(0, 20),
                 comedy: this.filterByGenre(streamingMovies, GENRE_IDS.COMEDY).slice(0, 20),
                 scifi: this.filterByGenre(streamingMovies, GENRE_IDS.SCIFI).slice(0, 20),
                 horror: this.filterByGenre(streamingMovies, GENRE_IDS.HORROR).slice(0, 20),
+                thriller: this.filterByGenre(streamingMovies, GENRE_IDS.THRILLER).slice(0, 20),
                 blockbusters: this.getBlockbusters(streamingMovies).slice(0, 20)
             };
 
@@ -259,47 +276,75 @@ export class HomeTab {
     }
 
     /**
-     * Get recommended movies based on user's likes/loves
-     * ✅ FIXED: Added null checks for movie.genres
+     * ✅ IMPROVED: Get recommended movies based on user's likes/loves
+     * Works with both old swipes (using genre_ids) and new swipes (using genres)
      */
     getRecommendedMovies(streamingMovies, swipeHistory) {
+        // Get liked/loved movies
         const likedMovies = swipeHistory
             .filter(s => s.action === 'like' || s.action === 'love')
             .map(s => s.movie)
-            .filter(m => m && m.id); // ✅ CRITICAL FIX: Filter out null/undefined movies
+            .filter(m => m && m.id);
 
+        console.log('[Home] Analyzing', likedMovies.length, 'liked movies for recommendations...');
+
+        // ✅ Fallback: If no liked movies, show high-rated movies
         if (likedMovies.length === 0) {
+            console.log('[Home] No liked movies found, showing high-rated movies');
             return streamingMovies
                 .filter(m => parseFloat(m.rating || m.vote_average || 0) >= 7)
                 .sort((a, b) => parseFloat(b.rating || b.vote_average || 0) - parseFloat(a.rating || a.vote_average || 0));
         }
 
-        // Extract favorite genres
+        // ✅ IMPROVED: Extract favorite genres from BOTH genres AND genre_ids
         const genreCounts = {};
+        let moviesWithGenres = 0;
+        
         likedMovies.forEach(movie => {
-            // ✅ CRITICAL FIX: Check if genres exists and is an array before accessing
-            const genres = movie.genres || movie.genre_ids || [];
-            if (Array.isArray(genres)) {
-                genres.forEach(genre => {
+            // Try multiple sources for genre data
+            const genreData = movie.genres || movie.genre_ids || movie.genreIds || [];
+            
+            if (genreData && genreData.length > 0) {
+                moviesWithGenres++;
+                genreData.forEach(genre => {
+                    // Handle both {id: 28, name: "Action"} and just 28
                     const genreId = typeof genre === 'object' ? genre.id : genre;
-                    if (genreId) { // ✅ Extra safety check
+                    if (genreId && typeof genreId === 'number') {
                         genreCounts[genreId] = (genreCounts[genreId] || 0) + 1;
                     }
                 });
             }
         });
 
-        const topGenres = Object.entries(genreCounts)
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 3)
-            .map(([genreId]) => parseInt(genreId));
+        console.log(`[Home] Found genre data in ${moviesWithGenres}/${likedMovies.length} liked movies`);
+        console.log('[Home] Genre counts:', genreCounts);
 
+        // ✅ IMPROVED: Get top 3 genres OR fallback to popular genres
+        let topGenres;
+        if (Object.keys(genreCounts).length > 0) {
+            // User has genre preferences
+            topGenres = Object.entries(genreCounts)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 3)
+                .map(([genreId]) => parseInt(genreId));
+            console.log('[Home] Top genres from user:', topGenres);
+        } else {
+            // No genre data - use popular genres
+            topGenres = [GENRE_IDS.ACTION, GENRE_IDS.COMEDY, GENRE_IDS.SCIFI];
+            console.log('[Home] No genre data - using popular genres:', topGenres);
+        }
+
+        // Filter out already-liked movies
         const likedIds = new Set(likedMovies.map(m => m.id));
 
-        return streamingMovies
+        // ✅ Find movies matching top genres
+        const recommended = streamingMovies
             .filter(m => {
+                // Skip already liked
                 if (likedIds.has(m.id)) return false;
-                const movieGenres = m.genres || m.genre_ids || [];
+                
+                // Check if movie has any of the top genres
+                const movieGenres = m.genres || m.genre_ids || m.genreIds || [];
                 const movieGenreIds = movieGenres.map(g => typeof g === 'object' ? g.id : g);
                 return topGenres.some(topGenre => movieGenreIds.includes(topGenre));
             })
@@ -308,6 +353,9 @@ export class HomeTab {
                 const ratingB = parseFloat(b.rating || b.vote_average || 0);
                 return ratingB - ratingA;
             });
+
+        console.log(`[Home] Found ${recommended.length} recommended movies`);
+        return recommended;
     }
 
     renderFeed(sections) {
@@ -320,6 +368,7 @@ export class HomeTab {
             { title: '😂 Comedy', movies: sections.comedy, id: 'comedy' },
             { title: '🚀 Sci-Fi', movies: sections.scifi, id: 'scifi' },
             { title: '👻 Horror', movies: sections.horror, id: 'horror' },
+            { title: '🎭 Thriller', movies: sections.thriller, id: 'thriller' },
             { title: '🎯 Blockbusters', movies: sections.blockbusters, id: 'blockbusters' }
         ];
 
@@ -388,19 +437,15 @@ export class HomeTab {
         
         const triggerBadgeHTML = renderTriggerBadge(movie, { size: 'small', position: 'top-left' });
         
-        // ✅ FIXED: Use availableOn as primary source of truth
         const platform = (() => {
-            // First priority: Check availableOn array
             if (movie.availableOn && movie.availableOn.length > 0) {
                 return movie.availableOn[0];
             }
             
-            // Second priority: Use platform field if it's meaningful
             if (movie.platform && movie.platform !== 'Not Available' && movie.platform !== 'Loading...') {
                 return movie.platform;
             }
             
-            // Fallback: Check release date
             const releaseDate = new Date(movie.releaseDate || movie.release_date);
             const sixMonthsAgo = new Date();
             sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
