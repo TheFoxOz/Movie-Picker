@@ -271,8 +271,27 @@ export class HomeTab {
     filterByGenre(streamingMovies, genreId) {
         return streamingMovies
             .filter(m => {
-                const genres = m.genre_ids || m.genreIds || [];
-                return genres.includes(genreId);
+                // Get genres from movie (could be array of IDs or names)
+                const genres = m.genres || m.genre_ids || m.genreIds || [];
+                
+                // Map genre data to IDs (handle both formats)
+                const movieGenreIds = genres.map(g => {
+                    // Handle {id: 27, name: "Horror"}
+                    if (typeof g === 'object' && g.id) {
+                        return g.id;
+                    }
+                    // Handle plain number: 27
+                    else if (typeof g === 'number') {
+                        return g;
+                    }
+                    // Handle genre name string: "Horror" → 27
+                    else if (typeof g === 'string') {
+                        return GENRE_NAME_TO_ID[g];
+                    }
+                    return null;
+                }).filter(id => id !== null && id !== undefined);
+                
+                return movieGenreIds.includes(genreId);
             })
             .sort((a, b) => {
                 const ratingA = parseFloat(a.rating || a.vote_average || 0);
