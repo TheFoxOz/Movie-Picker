@@ -387,6 +387,9 @@ export class HomeTab {
 
         // Filter out already-liked movies
         const likedIds = new Set(likedMovies.map(m => m.id));
+        
+        console.log(`[Home] 🔍 DEBUG: streamingMovies[0] genres:`, streamingMovies[0]?.genres || streamingMovies[0]?.genre_ids);
+        console.log(`[Home] 🔍 DEBUG: Looking for genre IDs:`, topGenres);
 
         // ✅ Find movies matching top genres
         const recommended = streamingMovies
@@ -394,11 +397,28 @@ export class HomeTab {
                 // Skip already liked
                 if (likedIds.has(m.id)) return false;
                 
-                // Check if movie has any of the top genres
+                // ✅ CRITICAL FIX: Handle BOTH genre names AND genre IDs
                 const movieGenres = m.genres || m.genre_ids || m.genreIds || [];
-                const movieGenreIds = movieGenres.map(g => typeof g === 'object' ? g.id : g);
                 
-                return topGenres.some(topGenre => movieGenreIds.includes(topGenre));
+                // Extract genre IDs (handle objects, numbers, and NAME STRINGS)
+                const movieGenreIds = movieGenres.map(g => {
+                    if (typeof g === 'object' && g.id) {
+                        return g.id; // {id: 28, name: "Action"}
+                    } else if (typeof g === 'number') {
+                        return g; // 28
+                    } else if (typeof g === 'string') {
+                        return GENRE_NAME_TO_ID[g]; // "Action" → 28
+                    }
+                    return null;
+                }).filter(id => id !== null && id !== undefined);
+                
+                const matches = topGenres.some(topGenre => movieGenreIds.includes(topGenre));
+                
+                if (matches) {
+                    console.log(`[Home] ✅ MATCH: "${m.title}" genres:`, movieGenres, '→ IDs:', movieGenreIds);
+                }
+                
+                return matches;
             })
             .sort((a, b) => {
                 const ratingA = parseFloat(a.rating || a.vote_average || 0);
