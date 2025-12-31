@@ -3,6 +3,8 @@ import { tmdbService } from '../services/tmdb.js';
 import { movieModal } from '../components/movie-modal.js';
 import { ENV } from '../config/env.js';
 import { renderTriggerBadge } from '../utils/trigger-warnings.js';
+import { renderWatchedButton, initWatchedButtons, storeMovieData } from '../utils/watched-button.js';
+import { authService } from '../services/auth-service.js';
 
 const GENRE_IDS = {
     ACTION: 28,
@@ -30,7 +32,7 @@ export class LibraryTab {
         this.container = null;
         this.allMovies = [];
         this.filteredMovies = [];
-        this.currentFilter = 'all';
+        this.currentFilter = 'all';  // 'all', 'love', 'like', 'maybe', 'pass', 'watched'
         this.currentGenre = 'all';
         this.currentPlatform = 'all';
         this.currentRating = 'all';
@@ -42,6 +44,17 @@ export class LibraryTab {
         this.hasMorePages = true;
         this.scrollListener = null;
         this.filterModalOpen = false;
+        
+        // ✅ NEW: Expose instance globally
+        window.libraryTab = this;
+        
+        // ✅ NEW: Listen for watched status changes
+        window.addEventListener('watchedStatusChanged', () => {
+            if (this.currentFilter === 'watched' && this.container) {
+                console.log('[LibraryTab] Watched status changed, refreshing view');
+                this.updateMoviesGrid();
+            }
+        });
     }
 
     filterMoviesByPreferences(movies) {
@@ -448,6 +461,7 @@ export class LibraryTab {
                             <button class="filter-btn" data-filter="like" style="${this.getButtonStyle(this.currentFilter==='like','linear-gradient(135deg,#10b981,#059669)')}">👍 Liked (${swipeCounts.liked})</button>
                             <button class="filter-btn" data-filter="maybe" style="${this.getButtonStyle(this.currentFilter==='maybe','linear-gradient(135deg,#fbbf24,#f59e0b)')}">🤔 Maybe (${swipeCounts.maybe})</button>
                             <button class="filter-btn" data-filter="pass" style="${this.getButtonStyle(this.currentFilter==='pass','linear-gradient(135deg,#ef4444,#dc2626)')}">👎 Passed (${swipeCounts.passed})</button>
+                            <button class="filter-btn" data-filter="watched" style="${this.getButtonStyle(this.currentFilter==='watched','linear-gradient(135deg,#10b981,#059669)')}">👁️ Watched (${this.getWatchedCount()})</button>
                         </div>
                     </div>
 
@@ -560,7 +574,17 @@ export class LibraryTab {
     renderMoviesGrid() {
         let moviesToShow = [...this.allMovies];
 
-        if (this.currentFilter !== 'all') {
+        // ✅ NEW: Handle watched filter
+        if (this.currentFilter === 'watched') {
+            const watchedMovies = this.getWatchedMovies();
+            console.log(`[Library] Filtering by watched:`, watchedMovies.length, 'movies');
+            
+            // Store watched movies for button access
+            storeMovieData(watchedMovies);
+            
+            // Display watched movies instead of allMovies
+            moviesToShow = watchedMovies;
+        } else if (this.currentFilter !== 'all') {
             const swiped = store.getState().swipeHistory || [];
             const ids = swiped
                 .filter(s => s.action === this.currentFilter)
@@ -620,7 +644,15 @@ export class LibraryTab {
 
         if (this.filteredMovies.length === 0) {
             return `<div style="grid-column:1/-1;text-align:center;padding:4rem;">
-                        <p style="color:#A6C0DD;font-size:1rem;">No movies match your filters</p>
+                        <div style="font-size: 3rem; margin-bottom: 1rem;">👁️</div>
+                        <p style="color:#A6C0DD;font-size:1rem;">
+                            ${this.currentFilter === 'watched' ? 'No watched movies yet' : 'No movies match your filters'}
+                        </p>
+                        ${this.currentFilter === 'watched' ? `
+                            <p style="color:rgba(166, 192, 227, 0.6);font-size:0.875rem;margin-top:0.5rem;">
+                                Mark movies as watched to track what you've seen
+                            </p>
+                        ` : ''}
                     </div>`;
         }
 
@@ -639,6 +671,9 @@ export class LibraryTab {
         
         const triggerBadgeHTML = renderTriggerBadge(movie, { size: 'small', position: 'top-left' });
         
+        // ✅ NEW: Add watched button
+        const watchedButtonHTML = renderWatchedButton(movie, { size: 'small', position: 'top-right' });
+        
         const platform = (() => {
             if (movie.platform && movie.platform !== 'Not Available') return movie.platform;
             if (movie.availableOn && movie.availableOn.length > 0) return movie.availableOn[0];
@@ -649,6 +684,25 @@ export class LibraryTab {
             
             return releaseDate > sixMonthsAgo ? 'In Cinemas' : 'Not Available';
         })();
+        
+        // ✅ NEW: Calculate watchedAt time ago for watched filter
+        const timeAgoHTML = this.currentFilter === 'watched' && movie.watchedAt 
+            ? `<div style="
+                    position: absolute;
+                    bottom: 3.5rem;
+                    left: 0.5rem;
+                    background: rgba(16, 185, 129, 0.95);
+                    border: 2px solid #10b981;
+                    border-radius: 0.5rem;
+                    padding: 0.25rem 0.5rem;
+                    font-size: 0.65rem;
+                    color: white;
+                    font-weight: 700;
+                    z-index: 5;
+                ">
+                    👁️ ${this.getTimeAgo(new Date(movie.watchedAt))}
+                </div>`
+            : '';
 
         return `
             <div class="library-movie-card" data-movie-id="${movie.id}">
@@ -666,12 +720,16 @@ export class LibraryTab {
                     <img src="${posterUrl}" alt="${movie.title}" style="width:100%;height:100%;object-fit:cover;"
                          onerror="this.src='https://placehold.co/300x450/18183A/FDFAB0?text=${encodeURIComponent(movie.title)}'">
                     
+                    ${triggerBadgeHTML}
+                    ${watchedButtonHTML}
+                    ${timeAgoHTML}
+                    
                     ${hasTrailer ? `
                         <button 
                             onclick="event.stopPropagation(); window.open('${trailerUrl}', '_blank')"
                             style="
                                 position: absolute;
-                                top: 0.5rem;
+                                top: ${watchedButtonHTML ? '3rem' : '0.5rem'};
                                 right: 0.5rem;
                                 width: 28px;
                                 height: 28px;
@@ -693,13 +751,11 @@ export class LibraryTab {
                         </button>
                     ` : ''}
                     
-                    ${triggerBadgeHTML}
-                    
                     ${rating ? `
                         <div style="
                             position:absolute;
                             top:${triggerBadgeHTML ? '2.5rem' : '0.5rem'};
-                            right:0.5rem;
+                            right:${watchedButtonHTML ? '3rem' : '0.5rem'};
                             padding:0.25rem 0.5rem;
                             background:rgba(253,250,176,0.95);
                             border-radius:0.5rem;
@@ -736,6 +792,9 @@ export class LibraryTab {
     }
 
     attachListeners() {
+        // ✅ NEW: Initialize watched buttons
+        setTimeout(() => initWatchedButtons(), 100);
+        
         const search = this.container.querySelector('#search-input');
         if (search) {
             let searchTimeout;
@@ -885,6 +944,9 @@ export class LibraryTab {
         if (grid) {
             grid.innerHTML = this.renderMoviesGrid();
             
+            // ✅ NEW: Initialize watched buttons after grid update
+            setTimeout(() => initWatchedButtons(), 100);
+            
             this.container.querySelectorAll('.library-movie-card').forEach(card => {
                 card.addEventListener('mouseover', () => card.style.transform = 'scale(1.05)');
                 card.addEventListener('mouseout', () => card.style.transform = 'scale(1)');
@@ -907,6 +969,71 @@ export class LibraryTab {
             `;
         }
     }
+
+    // ========================================================================
+    // ✅ NEW: WATCHED MOVIES FEATURE METHODS
+    // ========================================================================
+
+    /**
+     * Get watched movies from auth service
+     */
+    getWatchedMovies() {
+        if (!authService || !authService.getWatchedMovies) {
+            return [];
+        }
+        
+        const watched = authService.getWatchedMovies();
+        
+        // Convert watched data to movie format
+        return watched.map(w => ({
+            id: w.movieId,
+            title: w.title,
+            posterURL: w.posterURL,
+            poster_path: w.posterURL,
+            rating: w.rating,
+            vote_average: w.rating,
+            releaseDate: w.releaseDate,
+            release_date: w.releaseDate,
+            genres: w.genres,
+            genre_ids: w.genres,
+            platform: w.platform,
+            availableOn: [w.platform],
+            watchedAt: w.watchedAt
+        }));
+    }
+
+    /**
+     * Get watched movies count
+     */
+    getWatchedCount() {
+        if (!authService || !authService.getWatchedMovies) {
+            return 0;
+        }
+        return authService.getWatchedMovies().length;
+    }
+
+    /**
+     * Get human-readable time ago
+     */
+    getTimeAgo(date) {
+        const now = new Date();
+        const diffMs = now - date;
+        const diffMins = Math.floor(diffMs / 60000);
+        const diffHours = Math.floor(diffMs / 3600000);
+        const diffDays = Math.floor(diffMs / 86400000);
+        
+        if (diffMins < 60) return diffMins <= 1 ? 'Just now' : `${diffMins}m ago`;
+        if (diffHours < 24) return `${diffHours}h ago`;
+        if (diffDays < 7) return `${diffDays}d ago`;
+        if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`;
+        if (diffDays < 365) return `${Math.floor(diffDays / 30)}mo ago`;
+        return `${Math.floor(diffDays / 365)}y ago`;
+    }
+
+    // ========================================================================
+    // END: WATCHED MOVIES FEATURE
+    // ========================================================================
+
 
     destroy() {
         const scrollContainer = this.container.querySelector('.library-scroll-container');
