@@ -625,7 +625,7 @@ export class HomeTab {
     renderMovieCard(movie) {
         const posterUrl = movie.posterURL || 
                          (movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : null) ||
-                         `https://via.placeholder.com/300x450/18183A/DFDFB0?text=${encodeURIComponent(movie.title)}`;
+                         `https://placehold.co/300x450/18183A/FDFAB0?text=${encodeURIComponent(movie.title)}`;
         
         const rating = movie.rating ? movie.rating.toFixed(1) : (movie.vote_average ? movie.vote_average.toFixed(1) : 'N/A');
         const year = movie.year || (movie.releaseDate ? movie.releaseDate.split('-')[0] : '') || '';
@@ -667,7 +667,7 @@ export class HomeTab {
                         src="${posterUrl}" 
                         alt="${movie.title}"
                         style="width: 100%; height: 100%; object-fit: cover;"
-                        onerror="this.src='https://via.placeholder.com/300x450/18183A/DFDFB0?text=No+Poster'"
+                        onerror="this.src='https://placehold.co/300x450/18183A/FDFAB0?text=No+Poster'"
                     />
                     
                     ${triggerBadgeHTML}
