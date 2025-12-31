@@ -629,6 +629,21 @@ export class SwipeTab {
         return movies;
     }
 
+    showCompletedState() {
+        const container = this.container?.querySelector("#swipe-container");
+        const completed = this.container?.querySelector("#swipe-completed");
+        
+        if (!container || !completed) {
+            console.warn('[SwipeTab] Completed state elements not found');
+            return;
+        }
+        
+        console.log('[SwipeTab] Showing completed state');
+        container.innerHTML = "";
+        completed.style.display = "flex";
+        celebrate.center();
+    }
+
     showNextCard() {
         const container = this.container?.querySelector("#swipe-container");
         const completed = this.container?.querySelector("#swipe-completed");
