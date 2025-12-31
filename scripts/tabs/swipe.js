@@ -205,16 +205,30 @@ export class SwipeTab {
         document.head.appendChild(style);
     }
 
+    /**
+     * ✅ OPTIMIZED: Hybrid loading strategy combining:
+     * 1. Recent releases (2023-2025) - highest priority
+     * 2. Genre rotation for variety
+     * 3. Personalized recommendations (after 80 swipes)
+     * 4. Multiple sorting methods
+     * 5. Deep pagination (20+ pages)
+     */
     async loadMoviesWithRetry(attempt = 1) {
         if (this.isLoading) {
             console.log('[SwipeTab] Already loading movies, skipping...');
             return;
         }
         
+        if (!this.hasMorePages && this.currentPage > 20) {
+            console.log('[SwipeTab] Reached maximum page limit (20)');
+            this.showCompletedState();
+            return;
+        }
+        
         this.isLoading = true;
 
         try {
-            console.log(`[SwipeTab] Loading movies (attempt ${attempt})...`);
+            console.log(`[SwipeTab] 🎬 Loading movies (attempt ${attempt}, page ${this.currentPage})...`);
             
             const tmdb = tmdbService;
             
@@ -222,65 +236,150 @@ export class SwipeTab {
                 throw new Error("TMDB service not initialized");
             }
 
-            console.log(`[SwipeTab] Loading Discover page ${this.currentPage}...`);
-
-            const response = await tmdb.discoverMovies({
-                sortBy: 'popularity.desc',
-                page: this.currentPage,
-                minVotes: 100
-            });
-
-            let movies = response.movies || [];
+            let allMovies = [];
             
-            console.log(`[SwipeTab] Loaded ${movies.length} movies from page ${this.currentPage}`);
-
-            // Check if we've reached the end
-            if (movies.length === 0 || this.currentPage >= (response.totalPages || 500)) {
-                console.log('[SwipeTab] Reached end of available movies');
-                this.hasMorePages = false;
-            } else {
-                this.currentPage++;
+            // ═══════════════════════════════════════════════════════
+            // STRATEGY 1: Recent Releases (2023+) - HIGHEST PRIORITY
+            // ═══════════════════════════════════════════════════════
+            if (this.currentPage <= 5) {
+                console.log('[SwipeTab] 🎬 Loading recent releases (2023+)...');
+                try {
+                    const recentResponse = await tmdb.discoverMovies({
+                        sortBy: 'primary_release_date.desc',
+                        page: this.currentPage,
+                        minVotes: 20,  // Lower threshold for newer movies
+                        primaryReleaseDateGte: '2023-01-01'
+                    });
+                    if (recentResponse?.movies) {
+                        allMovies.push(...recentResponse.movies);
+                        console.log(`[SwipeTab] ✅ Added ${recentResponse.movies.length} recent movies`);
+                    }
+                } catch (err) {
+                    console.warn('[SwipeTab] ⚠️ Recent releases failed:', err.message);
+                }
             }
-
-            // ✅ CRITICAL FIX: Filter out already swiped movies with Number comparison
+            
+            // ═══════════════════════════════════════════════════════
+            // STRATEGY 2: Genre Rotation for Variety
+            // ═══════════════════════════════════════════════════════
+            const genres = [27, 28, 878, 35, 53, 12, 14, 16]; // Horror, Action, Sci-Fi, Comedy, Thriller, Adventure, Fantasy, Animation
+            const genreId = genres[this.currentPage % genres.length];
+            console.log(`[SwipeTab] 🎭 Loading genre ${genreId} movies...`);
+            
+            try {
+                const genreResponse = await tmdb.discoverMovies({
+                    sortBy: 'vote_average.desc',
+                    page: Math.ceil(this.currentPage / 3),
+                    withGenres: genreId.toString(),
+                    minVotes: 100
+                });
+                if (genreResponse?.movies) {
+                    allMovies.push(...genreResponse.movies);
+                    console.log(`[SwipeTab] ✅ Added ${genreResponse.movies.length} genre movies`);
+                }
+            } catch (err) {
+                console.warn('[SwipeTab] ⚠️ Genre movies failed:', err.message);
+            }
+            
+            // ═══════════════════════════════════════════════════════
+            // STRATEGY 3: Personalized Recommendations (after 80 swipes)
+            // ═══════════════════════════════════════════════════════
             const state = store.getState();
             const swipeHistory = state.swipeHistory || [];
-            
-            // Create a Set of swiped movie IDs for efficient lookup
             const swipedMovieIds = new Set();
             swipeHistory.forEach(swipe => {
-                // ✅ CRITICAL: Check both swipe.movieId and swipe.movie.id
-                // Convert to Number for consistent comparison
-                if (swipe.movieId) {
-                    swipedMovieIds.add(Number(swipe.movieId));
-                }
-                if (swipe.movie && swipe.movie.id) {
-                    swipedMovieIds.add(Number(swipe.movie.id));
-                }
+                if (swipe.movieId) swipedMovieIds.add(Number(swipe.movieId));
+                if (swipe.movie?.id) swipedMovieIds.add(Number(swipe.movie.id));
             });
+            
+            if (swipedMovieIds.size > 80 && this.currentPage % 4 === 0) {
+                console.log('[SwipeTab] 🎯 Loading personalized recommendations...');
+                const lovedMovies = swipeHistory
+                    .filter(s => ['love', 'like'].includes(s.action))
+                    .slice(-5)
+                    .map(s => s.movieId);
+                
+                if (lovedMovies.length > 0) {
+                    try {
+                        const seedId = lovedMovies[Math.floor(Math.random() * lovedMovies.length)];
+                        const similar = await tmdb.getSimilarMovies(seedId);
+                        if (similar && similar.length > 0) {
+                            allMovies.push(...similar);
+                            console.log(`[SwipeTab] ✅ Added ${similar.length} similar movies (seed: ${seedId})`);
+                        }
+                    } catch (err) {
+                        console.warn('[SwipeTab] ⚠️ Similar movies failed:', err.message);
+                    }
+                }
+            }
+            
+            // ═══════════════════════════════════════════════════════
+            // STRATEGY 4: Popular with Sorting Rotation (fallback)
+            // ═══════════════════════════════════════════════════════
+            const sortMethods = ['popularity.desc', 'vote_count.desc', 'vote_average.desc'];
+            const sortBy = sortMethods[this.currentPage % sortMethods.length];
+            
+            console.log(`[SwipeTab] 📊 Loading popular (${sortBy}, page ${Math.ceil(this.currentPage / 2)})...`);
+            try {
+                const popularResponse = await tmdb.discoverMovies({
+                    sortBy: sortBy,
+                    page: Math.ceil(this.currentPage / 2),
+                    minVotes: 50  // Lower for more variety
+                });
+                if (popularResponse?.movies) {
+                    allMovies.push(...popularResponse.movies);
+                    console.log(`[SwipeTab] ✅ Added ${popularResponse.movies.length} popular movies`);
+                }
+            } catch (err) {
+                console.warn('[SwipeTab] ⚠️ Popular movies failed:', err.message);
+            }
+            
+            // ═══════════════════════════════════════════════════════
+            // Deduplicate Movies
+            // ═══════════════════════════════════════════════════════
+            const movieMap = new Map();
+            allMovies.forEach(m => {
+                if (m?.id) movieMap.set(m.id, m);
+            });
+            let movies = Array.from(movieMap.values());
+            
+            console.log(`[SwipeTab] 🔄 Deduplicated: ${allMovies.length} → ${movies.length} unique movies`);
+            
+            if (movies.length === 0) {
+                console.log('[SwipeTab] ⚠️ No movies returned from any source');
+                this.currentPage++;
+                
+                if (this.currentPage > 20) {
+                    console.log('[SwipeTab] Reached max page limit');
+                    this.hasMorePages = false;
+                    this.showCompletedState();
+                } else {
+                    this.isLoading = false;
+                    return this.loadMoviesWithRetry(1);
+                }
+                this.isLoading = false;
+                return;
+            }
 
-            console.log(`[SwipeTab] Filtering out ${swipedMovieIds.size} already-swiped movies:`, Array.from(swipedMovieIds));
+            console.log(`[SwipeTab] 🔍 Filtering out ${swipedMovieIds.size} already-swiped movies`);
 
             // Filter out swiped movies
             const moviesBeforeFilter = movies.length;
             movies = movies.filter(movie => {
-                if (!movie || !movie.id) {
-                    return false;
-                }
-                // ✅ CRITICAL: Compare as Numbers
+                if (!movie || !movie.id) return false;
                 const isAlreadySwiped = swipedMovieIds.has(Number(movie.id));
                 if (isAlreadySwiped) {
-                    console.log(`[SwipeTab] ✅ FILTERED OUT already-swiped movie: "${movie.title}" (ID: ${movie.id})`);
+                    console.log(`[SwipeTab] ✅ FILTERED OUT already-swiped: "${movie.title}" (${movie.id})`);
                 }
                 return !isAlreadySwiped;
             });
 
             console.log(`[SwipeTab] Filtered: ${moviesBeforeFilter} → ${movies.length} movies (removed ${moviesBeforeFilter - movies.length})`);
 
-            // ✅ NEW: Store movie data for watched button
+            // ✅ Store movie data for watched button
             storeMovieData(movies);
             
-            // ✅ NEW: Filter watched movies if enabled
+            // ✅ Filter watched movies if enabled
             if (this.hideWatched && movies.length > 0) {
                 const beforeWatchedFilter = movies.length;
                 movies = this.filterWatchedMovies(movies);
@@ -297,9 +396,9 @@ export class SwipeTab {
             }));
 
             this.movieQueue.push(...newMovies);
+            this.currentPage++;
 
-            // ✅ UPDATED: Enrich FIRST, then show card
-            // Enrich platform data before showing cards
+            // ✅ Enrich platform data before showing cards
             await this.enrichAndFilterMovies(newMovies);
 
             // Show first card if none shown yet (AFTER enrichment)
@@ -308,6 +407,13 @@ export class SwipeTab {
             }
 
             console.log(`[SwipeTab] ✅ Queue now has ${this.movieQueue.length} movies`);
+            
+            // If we got 0 unseen movies, try next page
+            if (movies.length === 0 && this.currentPage <= 20) {
+                console.log('[SwipeTab] No unseen movies, loading next page...');
+                this.isLoading = false;
+                return this.loadMoviesWithRetry(1);
+            }
 
         } catch (err) {
             console.error("[SwipeTab] Load failed:", err);
