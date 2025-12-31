@@ -95,26 +95,6 @@
             margin-bottom: 2rem;
         }
 
-        /* ✅ NEW: MoviEase Logo on Login Page */
-        .login-logo {
-            width: 120px;
-            height: 120px;
-            margin: 0 auto 1rem;
-            display: block;
-            animation: fadeInScale 0.8s ease-out;
-        }
-
-        @keyframes fadeInScale {
-            from {
-                opacity: 0;
-                transform: scale(0.8);
-            }
-            to {
-                opacity: 1;
-                transform: scale(1);
-            }
-        }
-
         .logo-icon {
             width: 80px;
             height: 80px;
@@ -350,11 +330,10 @@
     <div class="login-container" id="login-container">
         <div class="login-card">
             <div class="logo">
-                <!-- ✅ NEW: MoviEase Logo -->
-                <img src="/favicons/logo.svg" alt="MoviEase" class="login-logo">
+                <!-- ✅ UPDATED: Full MoviEase Wordmark -->
+                <img src="/assets/gradient_word_mark_14.png" alt="MoviEase" style="width: auto; height: 100px; display: block; margin: 0 auto 1.5rem;">
                 
-                <h1>MoviEase</h1>
-                <p>Discover your next favorite film with ease</p>
+                <p style="color: rgba(176, 212, 227, 0.7); font-size: 1rem; margin: 0;">Discover your next favorite film with ease</p>
             </div>
 
             <div class="auth-buttons">
