@@ -52,14 +52,62 @@ export class SwipeCard {
     }
 
     /**
-     * ✅ NEW: Render all available platforms as badges
+     * ✅ ENHANCED: Deduplicate platform names (Netflix = Netflix Standard with Ads)
+     * Shows only unique platforms, removing subscription tier duplicates
+     */
+    deduplicatePlatforms(platforms) {
+        if (!platforms || platforms.length === 0) return [];
+        
+        // Mapping of similar platforms to base name
+        const platformMap = {
+            'netflix': 'Netflix',
+            'netflix standard with ads': 'Netflix',
+            'netflix basic with ads': 'Netflix',
+            'amazon prime video': 'Prime Video',
+            'prime video': 'Prime Video',
+            'amazon video': 'Prime Video',
+            'disney+': 'Disney+',
+            'disney plus': 'Disney+',
+            'hbo max': 'Max',
+            'max': 'Max',
+            'apple tv+': 'Apple TV+',
+            'apple tv plus': 'Apple TV+',
+            'paramount+': 'Paramount+',
+            'paramount plus': 'Paramount+',
+            'peacock': 'Peacock',
+            'peacock premium': 'Peacock',
+            'hulu': 'Hulu',
+            'hulu (no ads)': 'Hulu',
+        };
+        
+        const seen = new Set();
+        const deduplicated = [];
+        
+        for (const platform of platforms) {
+            const normalized = platform.toLowerCase().trim();
+            const baseName = platformMap[normalized] || platform;
+            
+            if (!seen.has(baseName)) {
+                seen.add(baseName);
+                deduplicated.push(baseName);
+            }
+        }
+        
+        return deduplicated;
+    }
+    
+    /**
+     * ✅ UPDATED: Render deduplicated platforms as badges
      */
     renderAllPlatformBadges() {
         const availableOn = this.movie.availableOn || [];
         const platform = this.movie.platform;
         
+        // Deduplicate platforms first
+        const uniquePlatforms = this.deduplicatePlatforms(availableOn);
+        
         // If we have multiple platforms, show them all
-        if (availableOn.length > 0) {
+        if (uniquePlatforms.length > 0) {
             // Get user's selected platforms for highlighting
             const prefs = JSON.parse(localStorage.getItem(`userPreferences_${authService.getCurrentUser()?.uid}`) || '{}');
             const selectedPlatforms = prefs.platforms || [];
@@ -67,7 +115,7 @@ export class SwipeCard {
             const normalize = (str) => str.toLowerCase().replace(/[^a-z0-9]/g, '');
             const userNormalized = new Set(selectedPlatforms.map(normalize));
             
-            return availableOn.map(platformName => {
+            return uniquePlatforms.map(platformName => {
                 const isUserPlatform = userNormalized.has(normalize(platformName));
                 return `
                     <div class="platform-badge" style="
@@ -302,18 +350,122 @@ export class SwipeCard {
                     <p style="color: rgba(255,255,255,0.7); font-size: 1rem; margin: 0 0 1rem 0;">
                         ${year} • ${genre}
                     </p>
-                    <p style="color: rgba(255,255,255,0.9); line-height: 1.6; margin: 0;">
+                    <p style="color: rgba(255,255,255,0.9); line-height: 1.6; margin: 0 0 1rem 0;">
                         ${description}
                     </p>
+                    
+                    <!-- ✅ NEW: Cast Section -->
+                    ${this.renderCastSection()}
                 </div>
             </div>
         `;
 
         this.container.appendChild(this.element);
         
+        // ✅ Fetch cast data asynchronously
+        this.fetchCastData();
+        
         // ✅ If warnings already loaded, add badge immediately
         if (this.movie.triggerWarnings && this.movie.triggerWarnings.length > 0) {
             this.updateWarningBadge();
+        }
+    }
+    
+    /**
+     * ✅ NEW: Render cast section (will be updated asynchronously)
+     */
+    renderCastSection() {
+        const cast = this.movie.cast || [];
+        
+        if (cast.length === 0) {
+            return `
+                <div id="cast-section" style="
+                    padding-top: 1rem;
+                    border-top: 1px solid rgba(255,255,255,0.1);
+                ">
+                    <p style="
+                        color: rgba(255,255,255,0.5);
+                        font-size: 0.875rem;
+                        margin: 0;
+                    ">Loading cast...</p>
+                </div>
+            `;
+        }
+        
+        const topCast = cast.slice(0, 5);
+        const castNames = topCast.map(c => c.name).join(', ');
+        
+        return `
+            <div id="cast-section" style="
+                padding-top: 1rem;
+                border-top: 1px solid rgba(255,255,255,0.1);
+            ">
+                <p style="
+                    color: rgba(255,255,255,0.6);
+                    font-size: 0.75rem;
+                    font-weight: 700;
+                    text-transform: uppercase;
+                    letter-spacing: 0.05em;
+                    margin: 0 0 0.5rem 0;
+                ">Cast</p>
+                <p style="
+                    color: rgba(255,255,255,0.9);
+                    font-size: 0.875rem;
+                    line-height: 1.5;
+                    margin: 0;
+                ">${castNames}</p>
+            </div>
+        `;
+    }
+    
+    /**
+     * ✅ NEW: Fetch cast data from TMDB
+     */
+    async fetchCastData() {
+        if (this.movie.cast && this.movie.cast.length > 0) {
+            return; // Already have cast data
+        }
+        
+        try {
+            const response = await fetch(
+                `https://api.themoviedb.org/3/movie/${this.movie.id}/credits?api_key=15d2ea6d0dc1d476efbca3eba2b9bbfb`
+            );
+            
+            if (!response.ok) throw new Error('Failed to fetch cast');
+            
+            const data = await response.json();
+            this.movie.cast = data.cast || [];
+            
+            // Update cast section in DOM
+            const castSection = this.element?.querySelector('#cast-section');
+            if (castSection && this.movie.cast.length > 0) {
+                const topCast = this.movie.cast.slice(0, 5);
+                const castNames = topCast.map(c => c.name).join(', ');
+                
+                castSection.innerHTML = `
+                    <p style="
+                        color: rgba(255,255,255,0.6);
+                        font-size: 0.75rem;
+                        font-weight: 700;
+                        text-transform: uppercase;
+                        letter-spacing: 0.05em;
+                        margin: 0 0 0.5rem 0;
+                    ">Cast</p>
+                    <p style="
+                        color: rgba(255,255,255,0.9);
+                        font-size: 0.875rem;
+                        line-height: 1.5;
+                        margin: 0;
+                    ">${castNames}</p>
+                `;
+            }
+        } catch (error) {
+            console.warn('[SwipeCard] Failed to fetch cast:', error);
+            // Remove loading message if fetch fails
+            const castSection = this.element?.querySelector('#cast-section');
+            if (castSection) {
+                castSection.remove();
+            }
         }
     }
 
