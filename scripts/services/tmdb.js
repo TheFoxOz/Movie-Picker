@@ -524,18 +524,49 @@ class TMDBService {
         return filtered;
     }
 
-    async fetchTriggerWarnings(movie) {
+    async fetchTriggerWarnings(movie, timeout = 5000) {
         if (!movie || !movie.id || movie.warningsLoaded) return;
 
+        // ✅ PHASE 1 FIX: Check cache first (7 days)
+        const cached = this.getTriggerWarningsFromCache(movie.id);
+        if (cached !== null) {
+            movie.triggerWarnings = cached;
+            movie.warningsLoaded = true;
+            movie.hasTriggerWarnings = cached.length > 0;
+            movie.triggerWarningCount = cached.length;
+            
+            // Dispatch event for UI updates
+            if (cached.length > 0) {
+                document.dispatchEvent(new CustomEvent('trigger-warnings-loaded', {
+                    detail: { movieId: movie.id, warnings: cached }
+                }));
+            }
+            
+            console.log(`[TMDB] ⚡ Cache HIT for warnings: ${movie.title}`);
+            return;
+        }
+
         try {
-            const warnings = await doesTheDogDieService.getWarningsForMovie(
+            // ✅ PHASE 1 FIX: Add timeout wrapper with Promise.race
+            const warningsPromise = doesTheDogDieService.getWarningsForMovie(
                 movie.title,
                 movie.imdb_id || null
             );
+            
+            const timeoutPromise = new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('Timeout')), timeout)
+            );
 
+            const warnings = await Promise.race([warningsPromise, timeoutPromise]);
+
+            // Success - set warnings
             movie.triggerWarnings = warnings || [];
             movie.warningsLoaded = true;
             movie.hasTriggerWarnings = warnings.length > 0;
+            movie.triggerWarningCount = warnings.length;
+
+            // ✅ PHASE 1 FIX: Cache the result (7 days)
+            this.saveTriggerWarningsToCache(movie.id, movie.triggerWarnings);
 
             if (warnings.length > 0) {
                 console.log(`[TMDB] ✅ ${warnings.length} warnings loaded for: ${movie.title}`);
@@ -546,9 +577,75 @@ class TMDBService {
             }
             
         } catch (error) {
-            console.error('[TMDB] Trigger warning fetch failed:', error);
+            // ✅ PHASE 1 FIX: Handle timeout gracefully
+            if (error.message === 'Timeout') {
+                console.warn(`[TMDB] ⏱️ Trigger warnings timeout (${timeout}ms) for: ${movie.title}`);
+            } else {
+                console.error('[TMDB] Trigger warning fetch failed:', error);
+            }
+            
+            // ✅ CRITICAL: Set empty array instead of leaving undefined
             movie.triggerWarnings = [];
             movie.warningsLoaded = true;
+            movie.hasTriggerWarnings = false;
+            movie.triggerWarningCount = 0;
+            movie.warningsFailed = true;
+            
+            // Still dispatch event so UI knows warnings finished loading
+            document.dispatchEvent(new CustomEvent('trigger-warnings-loaded', {
+                detail: { movieId: movie.id, warnings: [], failed: true }
+            }));
+        }
+    }
+
+    /**
+     * ✅ PHASE 1 FIX: Get trigger warnings from cache (7 day TTL)
+     * @param {number} movieId - TMDB movie ID
+     * @returns {Array|null} Cached warnings or null if not found/expired
+     */
+    getTriggerWarningsFromCache(movieId) {
+        const TRIGGER_CACHE_KEY = 'moviease_trigger_warnings';
+        const TRIGGER_CACHE_DURATION = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+        try {
+            const cacheStr = localStorage.getItem(TRIGGER_CACHE_KEY);
+            if (!cacheStr) return null;
+            
+            const cache = JSON.parse(cacheStr);
+            const cached = cache[movieId];
+            
+            if (cached && Date.now() - cached.timestamp < TRIGGER_CACHE_DURATION) {
+                return cached.warnings;
+            }
+            
+            return null;
+        } catch (error) {
+            console.error('[TMDB] Trigger cache read error:', error);
+            return null;
+        }
+    }
+
+    /**
+     * ✅ PHASE 1 FIX: Save trigger warnings to cache
+     * @param {number} movieId - TMDB movie ID
+     * @param {Array} warnings - Warnings array to cache
+     */
+    saveTriggerWarningsToCache(movieId, warnings) {
+        const TRIGGER_CACHE_KEY = 'moviease_trigger_warnings';
+        
+        try {
+            const cacheStr = localStorage.getItem(TRIGGER_CACHE_KEY) || '{}';
+            const cache = JSON.parse(cacheStr);
+            
+            cache[movieId] = {
+                warnings: warnings,
+                timestamp: Date.now()
+            };
+            
+            localStorage.setItem(TRIGGER_CACHE_KEY, JSON.stringify(cache));
+        } catch (error) {
+            console.error('[TMDB] Trigger cache write error:', error);
+            // Don't throw - caching is optional enhancement
         }
     }
 
