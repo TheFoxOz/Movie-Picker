@@ -22,14 +22,14 @@
 }
 
 .btn-primary {
-    background: linear-gradient(135deg, #ff2e63, #d90062);
+    background: linear-gradient(135deg, var(--color-marquee), var(--color-marquee-dark));
     color: white;
-    box-shadow: 0 4px 16px rgba(255,46,99,0.4);
+    box-shadow: 0 4px 16px rgba(var(--color-marquee-rgb), 0.4);
 }
 
 .btn-primary:hover {
     transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(255,46,99,0.6);
+    box-shadow: 0 6px 20px rgba(var(--color-marquee-rgb), 0.6);
 }
 
 button:active,
@@ -57,27 +57,27 @@ button:active,
 }
 
 .badge-primary {
-    background: rgba(255, 46, 99, 0.2);
-    border: 1px solid rgba(255, 46, 99, 0.4);
-    color: #ff2e63;
+    background: rgba(var(--color-marquee-rgb), 0.2);
+    border: 1px solid rgba(var(--color-marquee-rgb), 0.4);
+    color: var(--color-marquee);
 }
 
 .badge-success {
-    background: rgba(16, 185, 129, 0.2);
-    border: 1px solid rgba(16, 185, 129, 0.4);
-    color: #10b981;
+    background: rgba(var(--color-success-rgb), 0.2);
+    border: 1px solid rgba(var(--color-success-rgb), 0.4);
+    color: var(--color-success);
 }
 
 .badge-warning {
     background: rgba(251, 191, 36, 0.2);
     border: 1px solid rgba(251, 191, 36, 0.4);
-    color: #fbbf24;
+    color: var(--color-warning);
 }
 
 .badge-error {
-    background: rgba(239, 68, 68, 0.2);
-    border: 1px solid rgba(239, 68, 68, 0.4);
-    color: #ef4444;
+    background: rgba(var(--color-error-rgb), 0.2);
+    border: 1px solid rgba(var(--color-error-rgb), 0.4);
+    color: var(--color-error);
 }
 
 /* ============================================
@@ -223,8 +223,8 @@ button:active,
 }
 
 .error-box {
-    background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(220, 38, 38, 0.05));
-    border: 2px solid rgba(239, 68, 68, 0.3);
+    background: linear-gradient(135deg, rgba(var(--color-error-rgb), 0.1), rgba(var(--color-error-dark-rgb), 0.05));
+    border: 2px solid rgba(var(--color-error-rgb), 0.3);
     border-radius: 1rem;
     padding: 1.25rem;
     backdrop-filter: blur(10px);
@@ -259,7 +259,7 @@ button:active,
     gap: 0.5rem;
     margin-top: 1rem;
     padding: 0.75rem 1.25rem;
-    background: linear-gradient(135deg, #ef4444, #dc2626);
+    background: linear-gradient(135deg, var(--color-error), var(--color-error-dark));
     color: white;
     text-decoration: none;
     border-radius: 0.75rem;
@@ -269,9 +269,9 @@ button:active,
 }
 
 .error-link:hover {
-    background: linear-gradient(135deg, #dc2626, #b91c1c);
+    background: linear-gradient(135deg, var(--color-error-dark), var(--color-error-darker));
     transform: translateY(-2px);
-    box-shadow: 0 8px 20px rgba(239, 68, 68, 0.3);
+    box-shadow: 0 8px 20px rgba(var(--color-error-rgb), 0.3);
 }
 
 @keyframes slideDown {
@@ -347,7 +347,7 @@ button:active,
 
 /* Gradient Text */
 .gradient-text {
-    background: linear-gradient(135deg, #ff2e63, #d90062);
+    background: linear-gradient(135deg, var(--color-marquee), var(--color-marquee-dark));
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -372,7 +372,7 @@ button:active,
 }
 
 .hover-glow:hover {
-    box-shadow: 0 0 30px rgba(255, 46, 99, 0.6);
+    box-shadow: 0 0 30px rgba(var(--color-marquee-rgb), 0.6);
 }
 
 .hover-rotate:hover {
