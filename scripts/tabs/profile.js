@@ -1,6 +1,7 @@
 /**
  * MoviEase - Profile Tab  
  * ✅ Complete Add Friend feature with Firebase
+ * ✅ UPDATED: Cloud Functions for secure friend lookup
  * ✅ Avatar Upload with camera/gallery
  * ✅ Friend codes, friend list, real-time sync
  * ✅ Working theme toggle
@@ -30,6 +31,9 @@ import {
     onSnapshot,
     query 
 } from 'firebase/firestore';
+
+// ✅ NEW: Import Firebase Functions
+import { getFunctions, httpsCallable } from 'firebase/functions';
 
 const TMDB_REGIONS = [
     { code: 'US', name: 'United States', flag: '🇺🇸' },
@@ -64,6 +68,9 @@ export class ProfileTab {
         this.friends = [];
         this.friendsUnsubscribe = null;
         this.avatarUpdateHandler = null;
+        
+        // ✅ NEW: Initialize Firebase Functions
+        this.functions = getFunctions();
         
         // Initialize avatar upload component
         avatarUpload.init();
@@ -400,53 +407,50 @@ export class ProfileTab {
         }
     }
 
+    // ✅ UPDATED: Use Cloud Functions instead of scanning all users
     async addFriend(friendCode) {
         const user = authService.getCurrentUser();
         if (!user) return;
 
         try {
-            // Find user by friend code - scan all users
-            const usersRef = collection(db, 'users');
-            const usersSnapshot = await getDocs(usersRef);
+            console.log('[ProfileTab] Looking up friend code:', friendCode);
             
-            let friendId = null;
-            usersSnapshot.forEach((doc) => {
-                if (this.generateFriendCode(doc.id) === friendCode.toUpperCase()) {
-                    friendId = doc.id;
-                }
-            });
-
-            if (!friendId) {
+            // ✅ STEP 1: Find user by friend code using Cloud Function
+            const findUserFunction = httpsCallable(this.functions, 'findUserByFriendCode');
+            const findResult = await findUserFunction({ friendCode: friendCode.toUpperCase() });
+            
+            console.log('[ProfileTab] Find result:', findResult.data);
+            
+            if (!findResult.data.found) {
                 this.showToast('Friend code not found ❌', true);
                 return;
             }
+            
+            const friendId = findResult.data.user.uid;
 
+            // ✅ STEP 2: Prevent self-friending
             if (friendId === user.uid) {
                 this.showToast('Cannot add yourself as a friend ❌', true);
                 return;
             }
 
-            // Check if already friends
+            // ✅ STEP 3: Check if already friends
             const userDoc = await getDoc(doc(db, 'users', user.uid));
             const currentFriends = userDoc.exists() ? userDoc.data().friends || [] : [];
+            
             if (currentFriends.includes(friendId)) {
                 this.showToast('Already friends! 👥');
                 return;
             }
 
-            // Add to both users' friend lists
-            const userDocRef = doc(db, 'users', user.uid);
-            const friendDocRef = doc(db, 'users', friendId);
+            // ✅ STEP 4: Add friend using Cloud Function
+            console.log('[ProfileTab] Adding friend via Cloud Function');
+            const addFriendFunction = httpsCallable(this.functions, 'addFriendByCode');
+            await addFriendFunction({ friendCode: friendCode.toUpperCase() });
 
-            await updateDoc(userDocRef, {
-                friends: arrayUnion(friendId)
-            });
+            console.log('[ProfileTab] Friend added successfully:', friendId);
 
-            await updateDoc(friendDocRef, {
-                friends: arrayUnion(user.uid)
-            });
-
-            // ✅ NEW: Track badge progress for adding friend
+            // ✅ STEP 5: Track badge progress for adding friend
             await this.trackFriendBadge();
 
             this.showToast('Friend added successfully! 🎉');
@@ -461,7 +465,17 @@ export class ProfileTab {
 
         } catch (error) {
             console.error('[ProfileTab] Error adding friend:', error);
-            this.showToast('Failed to add friend ❌', true);
+            
+            // ✅ Better error messages based on Cloud Function error codes
+            if (error.code === 'functions/invalid-argument') {
+                this.showToast('Invalid friend code format ❌', true);
+            } else if (error.code === 'functions/not-found') {
+                this.showToast('Friend code not found ❌', true);
+            } else if (error.code === 'functions/unauthenticated') {
+                this.showToast('Please log in again ❌', true);
+            } else {
+                this.showToast('Failed to add friend ❌', true);
+            }
         }
     }
 
