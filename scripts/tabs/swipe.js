@@ -1,5 +1,6 @@
 /**
  * MoviEase - Swipe Tab Component
+ * ✅ WEEK 2 OPTIMIZED: Memory cleanup, enhanced loading, better error handling
  * ✅ FIXED: Removed duplicate scrolling wrapper
  * ✅ FIXED: Syncs swipe history to Firestore after each swipe
  * ✅ FIXED: Properly filters out already-swiped movies with Number comparison
@@ -11,6 +12,7 @@
  * ✅ INFINITE LOADING: Continuously loads movies from Discover API
  * ✅ BADGE TRACKING: Tracks swipes for achievement badges
  * ✅ NEW: Platform update notification for live card updates
+ * ✅ OPTIMIZED: Memory cleanup, predictive loading, platform caching
  */
 
 import { store } from "../state/store.js";
@@ -32,14 +34,19 @@ export class SwipeTab {
         this.currentPage = 1;
         this.hasMorePages = true;
         this.isEnriching = false;
-        this.hideWatched = this.loadHideWatchedSetting();  // ✅ NEW: Watched feature
+        this.hideWatched = this.loadHideWatchedSetting();
+        
+        // ✅ NEW: Performance tracking
+        this.enrichedCount = 0;
+        this.platformCache = new Map(); // ✅ Cache platform data
+        this.consecutiveErrors = 0;
+        this.lastErrorType = null;
     }
 
     async render(container) {
         console.log('[SwipeTab] Rendering...');
         this.container = container;
         
-        // ✅ NEW: Expose instance globally for toggle button
         window.swipeTab = this;
 
         container.innerHTML = `
@@ -58,10 +65,7 @@ export class SwipeTab {
                     margin: 0 auto;
                     width: 100%;
                 ">
-                    <div style="color: rgba(176, 212, 227, 0.6); text-align: center;">
-                        <div style="font-size: 3rem; margin-bottom: 1rem;">🎬</div>
-                        <p>Loading your movies...</p>
-                    </div>
+                    ${this.renderSkeletonCard()}
                 </div>
 
                 <!-- Action Buttons -->
@@ -122,6 +126,42 @@ export class SwipeTab {
         this.attachListeners();
         this.showNextCard();
         console.log('[SwipeTab] ✅ Render complete');
+    }
+
+    // ✅ NEW: Skeleton card for better loading UX
+    renderSkeletonCard() {
+        return `
+            <div class="skeleton-card" style="
+                width: 100%;
+                max-width: 380px;
+                aspect-ratio: 2/3;
+                border-radius: 1.5rem;
+                background: linear-gradient(135deg, rgba(166, 192, 221, 0.1), rgba(253, 250, 176, 0.05));
+                border: 2px solid rgba(166, 192, 221, 0.2);
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                gap: 1rem;
+                animation: skeleton-pulse 1.5s ease-in-out infinite;
+            ">
+                <div style="font-size: 3rem; opacity: 0.5;">🎬</div>
+                <div style="color: rgba(176, 212, 227, 0.6); font-size: 0.875rem;">Loading your movies...</div>
+                <div style="width: 120px; height: 4px; background: rgba(166, 192, 221, 0.2); border-radius: 2px; overflow: hidden;">
+                    <div style="height: 100%; width: 40%; background: linear-gradient(90deg, #A6C0DD, #FDFAB0); animation: loading-bar 1.5s ease-in-out infinite;"></div>
+                </div>
+            </div>
+            <style>
+                @keyframes skeleton-pulse {
+                    0%, 100% { opacity: 1; }
+                    50% { opacity: 0.6; }
+                }
+                @keyframes loading-bar {
+                    0% { transform: translateX(-100%); }
+                    100% { transform: translateX(300%); }
+                }
+            </style>
+        `;
     }
 
     injectButtonStyles() {
@@ -206,12 +246,7 @@ export class SwipeTab {
     }
 
     /**
-     * ✅ OPTIMIZED: Hybrid loading strategy combining:
-     * 1. Recent releases (2023-2025) - highest priority
-     * 2. Genre rotation for variety
-     * 3. Personalized recommendations (after 80 swipes)
-     * 4. Multiple sorting methods
-     * 5. Deep pagination (20+ pages)
+     * ✅ OPTIMIZED: Enhanced error handling + retry logic
      */
     async loadMoviesWithRetry(attempt = 1) {
         if (this.isLoading) {
@@ -238,16 +273,14 @@ export class SwipeTab {
 
             let allMovies = [];
             
-            // ═══════════════════════════════════════════════════════
-            // STRATEGY 1: Recent Releases (2023+) - HIGHEST PRIORITY
-            // ═══════════════════════════════════════════════════════
+            // STRATEGY 1: Recent Releases (2023+)
             if (this.currentPage <= 5) {
                 console.log('[SwipeTab] 🎬 Loading recent releases (2023+)...');
                 try {
                     const recentResponse = await tmdb.discoverMovies({
                         sortBy: 'primary_release_date.desc',
                         page: this.currentPage,
-                        minVotes: 20,  // Lower threshold for newer movies
+                        minVotes: 20,
                         primaryReleaseDateGte: '2023-01-01'
                     });
                     if (recentResponse?.movies) {
@@ -256,13 +289,12 @@ export class SwipeTab {
                     }
                 } catch (err) {
                     console.warn('[SwipeTab] ⚠️ Recent releases failed:', err.message);
+                    this.trackError('recent_releases', err);
                 }
             }
             
-            // ═══════════════════════════════════════════════════════
-            // STRATEGY 2: Genre Rotation for Variety
-            // ═══════════════════════════════════════════════════════
-            const genres = [27, 28, 878, 35, 53, 12, 14, 16]; // Horror, Action, Sci-Fi, Comedy, Thriller, Adventure, Fantasy, Animation
+            // STRATEGY 2: Genre Rotation
+            const genres = [27, 28, 878, 35, 53, 12, 14, 16];
             const genreId = genres[this.currentPage % genres.length];
             console.log(`[SwipeTab] 🎭 Loading genre ${genreId} movies...`);
             
@@ -279,11 +311,10 @@ export class SwipeTab {
                 }
             } catch (err) {
                 console.warn('[SwipeTab] ⚠️ Genre movies failed:', err.message);
+                this.trackError('genre', err);
             }
             
-            // ═══════════════════════════════════════════════════════
-            // STRATEGY 3: Personalized Recommendations (after 80 swipes)
-            // ═══════════════════════════════════════════════════════
+            // STRATEGY 3: Personalized Recommendations
             const state = store.getState();
             const swipeHistory = state.swipeHistory || [];
             const swipedMovieIds = new Set();
@@ -309,13 +340,12 @@ export class SwipeTab {
                         }
                     } catch (err) {
                         console.warn('[SwipeTab] ⚠️ Similar movies failed:', err.message);
+                        this.trackError('similar', err);
                     }
                 }
             }
             
-            // ═══════════════════════════════════════════════════════
-            // STRATEGY 4: Popular with Sorting Rotation (fallback)
-            // ═══════════════════════════════════════════════════════
+            // STRATEGY 4: Popular with Sorting Rotation
             const sortMethods = ['popularity.desc', 'vote_count.desc', 'vote_average.desc'];
             const sortBy = sortMethods[this.currentPage % sortMethods.length];
             
@@ -324,7 +354,7 @@ export class SwipeTab {
                 const popularResponse = await tmdb.discoverMovies({
                     sortBy: sortBy,
                     page: Math.ceil(this.currentPage / 2),
-                    minVotes: 50  // Lower for more variety
+                    minVotes: 50
                 });
                 if (popularResponse?.movies) {
                     allMovies.push(...popularResponse.movies);
@@ -332,11 +362,10 @@ export class SwipeTab {
                 }
             } catch (err) {
                 console.warn('[SwipeTab] ⚠️ Popular movies failed:', err.message);
+                this.trackError('popular', err);
             }
             
-            // ═══════════════════════════════════════════════════════
-            // Deduplicate Movies
-            // ═══════════════════════════════════════════════════════
+            // Deduplicate
             const movieMap = new Map();
             allMovies.forEach(m => {
                 if (m?.id) movieMap.set(m.id, m);
@@ -376,17 +405,15 @@ export class SwipeTab {
 
             console.log(`[SwipeTab] Filtered: ${moviesBeforeFilter} → ${movies.length} movies (removed ${moviesBeforeFilter - movies.length})`);
 
-            // ✅ Store movie data for watched button
             storeMovieData(movies);
             
-            // ✅ Filter watched movies if enabled
             if (this.hideWatched && movies.length > 0) {
                 const beforeWatchedFilter = movies.length;
                 movies = this.filterWatchedMovies(movies);
                 console.log(`[SwipeTab] Watched filter: ${beforeWatchedFilter} → ${movies.length} movies`);
             }
 
-            // Add to queue with placeholder data
+            // Add to queue
             const newMovies = movies.map(m => ({
                 ...m,
                 availableOn: [],
@@ -398,183 +425,175 @@ export class SwipeTab {
             this.movieQueue.push(...newMovies);
             this.currentPage++;
 
-            // ✅ Enrich platform data before showing cards
+            // ✅ OPTIMIZED: Enrich with caching
             await this.enrichAndFilterMovies(newMovies);
 
-            // Show first card if none shown yet (AFTER enrichment)
             if (this.currentPage === 2 && !this.currentCard && this.movieQueue.length > 0) {
                 this.showNextCard();
             }
 
             console.log(`[SwipeTab] ✅ Queue now has ${this.movieQueue.length} movies`);
             
-            // If we got 0 unseen movies, try next page
             if (movies.length === 0 && this.currentPage <= 20) {
                 console.log('[SwipeTab] No unseen movies, loading next page...');
                 this.isLoading = false;
                 return this.loadMoviesWithRetry(1);
             }
 
+            // ✅ NEW: Reset error count on success
+            this.consecutiveErrors = 0;
+            this.lastErrorType = null;
+
         } catch (err) {
             console.error("[SwipeTab] Load failed:", err);
+            this.consecutiveErrors++;
             
+            // ✅ ENHANCED: Better error handling
             if (attempt <= 3) {
                 notify.info(`Loading movies... (attempt ${attempt}/3)`);
                 this.isLoading = false;
                 setTimeout(() => this.loadMoviesWithRetry(attempt + 1), 1500);
             } else {
-                notify.error("Failed to load movies. Please refresh the page.");
-                
-                const container = this.container?.querySelector("#swipe-container");
-                if (container) {
-                    container.innerHTML = `
-                        <div style="color: rgba(176, 212, 227, 0.8); text-align: center; padding: 2rem;">
-                            <div style="font-size: 3rem; margin-bottom: 1rem;">⚠️</div>
-                            <h3 style="color: white; margin-bottom: 1rem;">Unable to Load Movies</h3>
-                            <p style="color: rgba(176, 212, 227, 0.6); margin-bottom: 1.5rem;">
-                                ${err.message || 'Unknown error'}
-                            </p>
-                            <button onclick="location.reload()" style="padding: 0.75rem 1.5rem; background: linear-gradient(135deg, #b0d4e3, #f4e8c1); border: none; border-radius: 0.75rem; color: #1a1f2e; font-weight: 700; cursor: pointer;">
-                                Reload App
-                            </button>
-                        </div>
-                    `;
-                }
+                this.showErrorState(err, attempt);
             }
         } finally {
             this.isLoading = false;
         }
     }
 
-    async enrichAndFilterMovies(movies) {
-        if (this.isEnriching || !movies || movies.length === 0) {
-            return;
+    // ✅ NEW: Enhanced error state with retry buttons
+    showErrorState(error, attempt) {
+        const container = this.container?.querySelector("#swipe-container");
+        if (!container) return;
+
+        let errorMessage = 'Unknown error';
+        let suggestion = 'Please try again';
+        let icon = '⚠️';
+
+        if (error.message?.includes('network') || error.message?.includes('fetch')) {
+            errorMessage = 'Network connection issue';
+            suggestion = 'Check your internet connection';
+            icon = '📡';
+        } else if (error.message?.includes('rate limit')) {
+            errorMessage = 'Too many requests';
+            suggestion = 'Please wait a moment';
+            icon = '⏱️';
+        } else if (error.message?.includes('TMDB')) {
+            errorMessage = 'Movie database unavailable';
+            suggestion = 'Service temporarily down';
+            icon = '🎬';
         }
+
+        container.innerHTML = `
+            <div style="color: rgba(176, 212, 227, 0.8); text-align: center; padding: 2rem; max-width: 380px;">
+                <div style="font-size: 3rem; margin-bottom: 1rem;">${icon}</div>
+                <h3 style="color: #FDFAB0; margin-bottom: 0.5rem; font-size: 1.25rem;">${errorMessage}</h3>
+                <p style="color: rgba(176, 212, 227, 0.6); margin-bottom: 1.5rem; font-size: 0.875rem;">${suggestion}</p>
+                <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                    <button id="retry-load" style="padding: 0.75rem 1.5rem; background: linear-gradient(135deg, #A6C0DD, #8ba3b8); border: none; border-radius: 0.75rem; color: #18183A; font-weight: 700; cursor: pointer;">Try Again</button>
+                    <button onclick="location.reload()" style="padding: 0.75rem 1.5rem; background: rgba(166, 192, 221, 0.2); border: 2px solid #A6C0DD; border-radius: 0.75rem; color: #FDFAB0; font-weight: 600; cursor: pointer;">Reload App</button>
+                </div>
+                ${this.consecutiveErrors > 2 ? `<p style="color: rgba(239, 68, 68, 0.8); margin-top: 1rem; font-size: 0.75rem;">Multiple errors detected</p>` : ''}
+            </div>
+        `;
+
+        const retryBtn = container.querySelector('#retry-load');
+        if (retryBtn) {
+            retryBtn.addEventListener('click', () => {
+                container.innerHTML = this.renderSkeletonCard();
+                this.loadMoviesWithRetry(1);
+            });
+        }
+    }
+
+    // ✅ NEW: Track error patterns
+    trackError(type, error) {
+        this.lastErrorType = type;
+        console.warn(`[SwipeTab] Error in ${type}:`, error.message);
+    }
+
+    async enrichAndFilterMovies(movies) {
+        if (this.isEnriching || !movies || movies.length === 0) return;
 
         this.isEnriching = true;
 
         try {
             console.log(`[SwipeTab] Enriching ${movies.length} movies with platform data...`);
             
-            // Enrich platform data
             await this.enrichWithPlatformData(movies);
             
-            // ✅ NEW: Notify current card to update platform display
             if (this.currentCard && this.currentCard.movie) {
                 const currentMovieId = this.currentCard.movie.id;
                 const enrichedMovie = movies.find(m => m.id === currentMovieId);
                 if (enrichedMovie && enrichedMovie.platform !== 'Loading...') {
                     this.currentCard.updatePlatform(enrichedMovie.platform, enrichedMovie.availableOn);
                     
-                    // ✅ UPDATED: Check if current card should be filtered (but keep "In Cinemas")
                     const platform = enrichedMovie.platform;
                     const shouldFilterCurrent = (platform === 'Coming Soon' || platform === 'Not Available');
                     
-                    if (shouldFilterCurrent) {
-                        console.log(`[SwipeTab] ⚠️ Current card "${enrichedMovie.title}" is ${platform}, will be filtered`);
-                        // Just destroy the card - filtering will handle removal from queue
-                        if (this.currentCard) {
+                    if (shouldFilterCurrent && this.currentCard) {
+                        console.log(`[SwipeTab] ⚠️ Current card filtered: ${platform}`);
+                        this.currentCard.destroy();
+                        this.currentCard = null;
+                    } else if (tmdbService.filterByUserPlatforms) {
+                        const filtered = tmdbService.filterByUserPlatforms([enrichedMovie]);
+                        if (filtered.length === 0 && this.currentCard) {
+                            console.log(`[SwipeTab] ⚠️ Current card not on user platforms`);
                             this.currentCard.destroy();
                             this.currentCard = null;
-                        }
-                        // Don't call showNextCard() yet - let filtering complete first
-                    } else if (tmdbService.filterByUserPlatforms) {
-                        // ✅ UPDATED: "In Cinemas" now checked in filterByUserPlatforms
-                        // Check if current movie matches user platforms
-                        const testArray = [enrichedMovie];
-                        const filtered = tmdbService.filterByUserPlatforms(testArray);
-                        
-                        if (filtered.length === 0) {
-                            console.log(`[SwipeTab] ⚠️ Current card "${enrichedMovie.title}" not on user platforms, will be filtered`);
-                            // Just destroy the card - filtering will handle removal from queue
-                            if (this.currentCard) {
-                                this.currentCard.destroy();
-                                this.currentCard = null;
-                            }
-                            // Don't call showNextCard() yet - let filtering complete first
                         }
                     }
                 }
             }
             
-            // ✅ UPDATED: Allow "In Cinemas" movies - only filter Coming Soon/Not Available
             const beforeFilter = this.movieQueue.length;
-            
-            // Create a set of movie IDs that should be removed (Coming Soon/Not Available ONLY)
             const moviesToRemove = new Set();
             movies.forEach(movie => {
-                const platform = movie.platform;
-                // ✅ CHANGED: Keep "In Cinemas", only remove "Coming Soon" and "Not Available"
-                if (platform === 'Coming Soon' || platform === 'Not Available') {
+                if (movie.platform === 'Coming Soon' || movie.platform === 'Not Available') {
                     moviesToRemove.add(movie.id);
-                    console.log(`[SwipeTab] Filtering out: "${movie.title}" (${platform})`);
                 }
             });
             
-            // Remove only the movies that are Coming Soon or Not Available
             this.movieQueue = this.movieQueue.filter(movie => !moviesToRemove.has(movie.id));
-            console.log(`[SwipeTab] Cinema filter: ${beforeFilter} → ${this.movieQueue.length} movies (kept "In Cinemas")`);
+            console.log(`[SwipeTab] Cinema filter: ${beforeFilter} → ${this.movieQueue.length} movies`);
             
-            // Apply user platform filter
             if (tmdbService.filterByUserPlatforms) {
                 const beforePlatformFilter = this.movieQueue.length;
-                const moviesBeforeFilter = [...this.movieQueue];  // ✅ FIX: Store reference
+                const moviesBeforeFilter = [...this.movieQueue];
                 this.movieQueue = tmdbService.filterByUserPlatforms(this.movieQueue);
                 console.log(`[SwipeTab] Platform filter: ${beforePlatformFilter} → ${this.movieQueue.length} movies`);
                 
-                // ✅ UPDATED: Only use fallback if we've tried multiple pages and found NOTHING
-                // Track consecutive empty results
                 if (this.movieQueue.length === 0) {
                     this.consecutiveEmptyResults = (this.consecutiveEmptyResults || 0) + 1;
                 } else {
                     this.consecutiveEmptyResults = 0;
                 }
                 
-                // ✅ FALLBACK: Only after 5+ pages with zero matches
-                // This prevents showing wrong platforms while still helping users in rare edge cases
                 if (this.movieQueue.length === 0 && beforePlatformFilter > 0 && this.consecutiveEmptyResults >= 5) {
-                    console.warn('[SwipeTab] ⚠️ Platform filter removed all movies across 5+ pages - TMDB region data may be incomplete');
-                    console.warn('[SwipeTab] Showing movies anyway (they have platforms, just not your selected ones)');
-                    
-                    // ✅ Restore movies with streaming platforms ONLY (respect user's In Cinemas choice)
+                    console.warn('[SwipeTab] ⚠️ Platform filter removed all movies');
                     this.movieQueue = moviesBeforeFilter.filter(movie => {
-                        const platform = movie.platform;
-                        
-                        // Keep movies with streaming platforms
-                        if (movie.availableOn && movie.availableOn.length > 0) {
-                            return true;
-                        }
-                        
-                        // Exclude Coming Soon/Not Available/Loading/In Cinemas (unless user enabled it)
-                        if (platform === 'Coming Soon' || platform === 'Not Available' || platform === 'Loading...' || platform === 'In Cinemas') {
-                            return false;
-                        }
-                        
-                        return true;
+                        return movie.availableOn && movie.availableOn.length > 0 && 
+                               movie.platform !== 'Coming Soon' && movie.platform !== 'Not Available';
                     });
-                    
-                    console.log(`[SwipeTab] ✅ Fallback: Showing ${this.movieQueue.length} movies with streaming platforms`);
+                    console.log(`[SwipeTab] ✅ Fallback: ${this.movieQueue.length} movies`);
                 }
             }
 
-            // Apply trigger warnings filter
             if (tmdbService.filterBlockedMovies) {
                 const beforeTriggerFilter = this.movieQueue.length;
                 this.movieQueue = tmdbService.filterBlockedMovies(this.movieQueue);
                 console.log(`[SwipeTab] Trigger filter: ${beforeTriggerFilter} → ${this.movieQueue.length} movies`);
             }
             
-            // ✅ NEW: If current card was removed during filtering, show next card
+            // ✅ OPTIMIZED: Memory cleanup
+            this.cleanupEnrichedMovies();
+            
             if (!this.currentCard && this.movieQueue.length > 0) {
-                console.log(`[SwipeTab] Current card was filtered out, showing next card`);
                 setTimeout(() => this.showNextCard(), 100);
             } else if (!this.currentCard && this.movieQueue.length === 0) {
-                console.log(`[SwipeTab] Queue empty after filtering, loading more movies...`);
-                // Queue is empty, trigger loading more movies
                 setTimeout(() => this.loadMoviesWithRetry(), 100);
             }
             
-            // Fetch trigger warnings in background
             this.movieQueue.forEach(movie => {
                 if (tmdbService.fetchTriggerWarnings) {
                     tmdbService.fetchTriggerWarnings(movie).catch(() => {});
@@ -586,10 +605,9 @@ export class SwipeTab {
         }
     }
 
+    // ✅ OPTIMIZED: Platform caching
     async enrichWithPlatformData(movies, options = { maxConcurrent: 5, delay: 50 }) {
-        if (!movies || movies.length === 0) {
-            return movies;
-        }
+        if (!movies || movies.length === 0) return movies;
 
         const { maxConcurrent, delay } = options;
         
@@ -598,21 +616,31 @@ export class SwipeTab {
             
             await Promise.all(
                 batch.map(async (movie) => {
+                    // ✅ NEW: Check cache
+                    if (this.platformCache.has(movie.id)) {
+                        const cached = this.platformCache.get(movie.id);
+                        movie.availableOn = cached.availableOn;
+                        movie.platform = cached.platform;
+                        return;
+                    }
+
                     if (tmdbService.getWatchProviders) {
                         movie.availableOn = await tmdbService.getWatchProviders(movie.id);
                         
                         if (movie.availableOn && movie.availableOn.length > 0) {
                             movie.platform = movie.availableOn[0];
                         } else {
-                            const year = movie.releaseDate?.split('-')[0] || movie.year;
+                            const year = movie.releaseDate?.split('-')[0];
                             const currentYear = new Date().getFullYear();
-                            
-                            if (year && parseInt(year) > currentYear) {
-                                movie.platform = 'Coming Soon';
-                            } else {
-                                movie.platform = 'In Cinemas';
-                            }
+                            movie.platform = (year && parseInt(year) > currentYear) ? 'Coming Soon' : 'In Cinemas';
                         }
+
+                        // ✅ NEW: Cache result
+                        this.platformCache.set(movie.id, {
+                            availableOn: movie.availableOn,
+                            platform: movie.platform
+                        });
+                        this.enrichedCount++;
                     } else {
                         movie.availableOn = [];
                         movie.platform = 'Not Available';
@@ -625,18 +653,26 @@ export class SwipeTab {
             }
         }
         
-        console.log(`[SwipeTab] ✅ Platform data fetched for ${movies.length} movies`);
+        console.log(`[SwipeTab] ✅ Platform data: ${movies.length} movies`);
+        console.log(`[SwipeTab] 📊 Cache: ${this.platformCache.size} entries, ${this.enrichedCount} enriched`);
         return movies;
+    }
+
+    // ✅ NEW: Memory cleanup
+    cleanupEnrichedMovies() {
+        if (this.platformCache.size > 100) {
+            const excess = this.platformCache.size - 100;
+            const keys = Array.from(this.platformCache.keys()).slice(0, excess);
+            keys.forEach(key => this.platformCache.delete(key));
+            console.log(`[SwipeTab] 🧹 Cleaned ${excess} cache entries`);
+        }
     }
 
     showCompletedState() {
         const container = this.container?.querySelector("#swipe-container");
         const completed = this.container?.querySelector("#swipe-completed");
         
-        if (!container || !completed) {
-            console.warn('[SwipeTab] Completed state elements not found');
-            return;
-        }
+        if (!container || !completed) return;
         
         console.log('[SwipeTab] Showing completed state');
         container.innerHTML = "";
@@ -648,38 +684,29 @@ export class SwipeTab {
         const container = this.container?.querySelector("#swipe-container");
         const completed = this.container?.querySelector("#swipe-completed");
 
-        if (!container) {
-            console.warn('[SwipeTab] Container not found');
-            return;
-        }
+        if (!container) return;
 
-        // ✅ NEW: Load more movies when queue is running low
-        if (this.movieQueue.length < 10 && this.hasMorePages && !this.isLoading) {
-            console.log('[SwipeTab] Queue running low, loading more movies...');
+        // ✅ OPTIMIZED: Load at 15 (not 10)
+        if (this.movieQueue.length < 15 && this.hasMorePages && !this.isLoading) {
+            console.log('[SwipeTab] Queue low (< 15), loading more...');
             this.loadMoviesWithRetry();
         }
 
         if (this.movieQueue.length === 0) {
-            console.log('[SwipeTab] No more movies - showing completed state');
+            console.log('[SwipeTab] No more movies');
             container.innerHTML = "";
-            if (completed) {
-                completed.style.display = "flex";
-            }
+            if (completed) completed.style.display = "flex";
             celebrate.center();
             return;
         }
 
-        if (completed) {
-            completed.style.display = "none";
-        }
+        if (completed) completed.style.display = "none";
 
         const movie = this.movieQueue.shift();
         console.log('[SwipeTab] Showing movie:', movie.title);
         
         container.innerHTML = "";
         this.currentCard = new SwipeCard(container, movie);
-        
-        // ✅ NEW: Initialize watched buttons after card is created
         setTimeout(() => initWatchedButtons(), 100);
     }
 
@@ -693,17 +720,11 @@ export class SwipeTab {
 
         Object.entries(ACTION_MAP).forEach(([id, action]) => {
             const btn = this.container?.querySelector(`#${id}`);
-            if (btn) {
-                btn.addEventListener("click", () => this.handleButtonAction(action));
-            }
+            if (btn) btn.addEventListener("click", () => this.handleButtonAction(action));
         });
 
         this.swipeHandler = () => {
-            console.log('[SwipeTab] Swipe action detected, syncing to Firestore...');
-            
-            // ✅ CRITICAL FIX: Sync to Firestore after every swipe
             this.syncSwipeHistory();
-            
             setTimeout(() => this.showNextCard(), 400);
         };
         document.addEventListener("swipe-action", this.swipeHandler);
@@ -711,143 +732,85 @@ export class SwipeTab {
         const gotoLibrary = this.container?.querySelector("#goto-library");
         if (gotoLibrary) {
             gotoLibrary.addEventListener("click", () => {
-                console.log('[SwipeTab] Navigating to library');
-                document.dispatchEvent(new CustomEvent("navigate-tab", { 
-                    detail: { tab: "library" } 
-                }));
+                document.dispatchEvent(new CustomEvent("navigate-tab", { detail: { tab: "library" } }));
             });
         }
     }
 
-    // ✅ UPDATED: Sync swipe history AND track badge progress
     async syncSwipeHistory() {
         try {
             const state = store.getState();
             const swipeHistory = state.swipeHistory || [];
-            
-            if (swipeHistory.length === 0) {
-                console.log('[SwipeTab] No swipe history to sync');
-                return;
-            }
+            if (swipeHistory.length === 0) return;
 
-            console.log(`[SwipeTab] Syncing ${swipeHistory.length} swipes to Firestore...`);
             await authService.syncSwipeHistory(swipeHistory);
-            console.log('[SwipeTab] ✅ Swipe history synced to Firestore');
-            
-            // ✅ NEW: Track badge progress
             await this.trackBadgeProgress();
         } catch (error) {
-            console.error('[SwipeTab] Failed to sync swipe history:', error);
+            console.error('[SwipeTab] Sync failed:', error);
         }
     }
 
-    // ✅ NEW METHOD: Track badge progress after swipe
     async trackBadgeProgress() {
         try {
             const user = authService.getCurrentUser();
             if (!user) return;
             
             const state = store.getState();
-            const swipeHistory = state.swipeHistory || [];
-            const lastSwipe = swipeHistory[swipeHistory.length - 1];
-            
+            const lastSwipe = state.swipeHistory?.[state.swipeHistory.length - 1];
             if (!lastSwipe) return;
             
-            // Get movie object
-            const movie = lastSwipe.movie || {};
-            const genres = movie.genres || movie.genre_ids || [];
-            
-            // Track swipe for badges
             const newBadges = await badgeService.checkBadges(user.uid, {
                 type: 'swipe',
                 action: lastSwipe.action,
-                genres: genres
+                genres: lastSwipe.movie?.genres || []
             });
             
             if (newBadges.length > 0) {
-                console.log('[SwipeTab] 🏆 Unlocked badges:', newBadges.map(b => b.name));
+                console.log('[SwipeTab] 🏆 Badges:', newBadges.map(b => b.name));
             }
         } catch (error) {
-            console.error('[SwipeTab] Error tracking badge progress:', error);
+            console.error('[SwipeTab] Badge tracking failed:', error);
         }
     }
 
-    // ========================================================================
-    // ✅ NEW: WATCHED MOVIES FEATURE METHODS
-    // ========================================================================
-
-    /**
-     * Filter out watched movies from queue
-     */
     filterWatchedMovies(movies) {
-        if (!this.hideWatched || !authService || !authService.getWatchedMovies) {
-            return movies;
-        }
+        if (!this.hideWatched || !authService?.getWatchedMovies) return movies;
         
-        const watchedIds = new Set(
-            authService.getWatchedMovies().map(w => w.movieId)
-        );
-        
-        const filtered = movies.filter(m => !watchedIds.has(m.id));
-        console.log(`[SwipeTab] Watched filter: ${movies.length} → ${filtered.length} movies`);
-        
-        return filtered;
+        const watchedIds = new Set(authService.getWatchedMovies().map(w => w.movieId));
+        return movies.filter(m => !watchedIds.has(m.id));
     }
 
-    /**
-     * Load hide watched setting from localStorage
-     */
     loadHideWatchedSetting() {
         try {
-            const saved = localStorage.getItem('hideWatchedMovies');
-            return saved === 'true';
-        } catch (error) {
+            return localStorage.getItem('hideWatchedMovies') === 'true';
+        } catch {
             return false;
         }
     }
 
-    /**
-     * Save hide watched setting to localStorage
-     */
     saveHideWatchedSetting(value) {
         try {
             localStorage.setItem('hideWatchedMovies', value.toString());
         } catch (error) {
-            console.error('[SwipeTab] Error saving hideWatched setting:', error);
+            console.error('[SwipeTab] Save setting failed:', error);
         }
     }
 
-    /**
-     * Toggle hide watched setting
-     */
     toggleHideWatched() {
         this.hideWatched = !this.hideWatched;
         this.saveHideWatchedSetting(this.hideWatched);
-        console.log('[SwipeTab] Hide watched:', this.hideWatched);
-        
-        // Reload movies with new filter
         this.movieQueue = [];
-        this.currentIndex = 0;
         this.currentPage = 1;
         this.loadMoviesWithRetry();
     }
 
-    // ========================================================================
-    // END: WATCHED MOVIES FEATURE
-    // ========================================================================
-
-
     handleButtonAction(action) {
-        console.log('[SwipeTab] Button action:', action);
-        if (this.currentCard) {
-            this.currentCard.handleAction(action);
-        }
+        if (this.currentCard) this.currentCard.handleAction(action);
     }
 
     destroy() {
         console.log('[SwipeTab] Destroying...');
         
-        // ✅ Sync one final time before destroying
         this.syncSwipeHistory();
         
         if (this.currentCard) {
@@ -860,6 +823,9 @@ export class SwipeTab {
             this.swipeHandler = null;
         }
         
+        // ✅ NEW: Cleanup
+        this.cleanupEnrichedMovies();
+        console.log(`[SwipeTab] 📊 Cache ${this.platformCache.size} entries, ${this.enrichedCount} enriched`);
         console.log('[SwipeTab] Destroyed');
     }
 }
