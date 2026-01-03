@@ -4,6 +4,7 @@
  * ✅ FUTURE FEATURES PRESERVED: Taste Profile, Couple Mode, Swipe Rooms
  * ✅ EXISTING: Watched tracking, filters, movie wheel, badges
  * ✅ VISUAL: Better glass cards, larger stats, improved hierarchy
+ * ✅ BUILD FIX: No top-level await
  */
 
 import { tmdbService } from '../services/tmdb.js';
@@ -18,23 +19,7 @@ import { db } from '../services/firebase-config.js';
 // ✅ NEW: Import SnapshotManager for memory leak prevention
 import { snapshotManager } from '../utils/snapshot-manager.js';
 
-// ✅ FUTURE FEATURES: Import with safety checks
-let tasteProfileService, coupleService, roomService;
-try {
-    const tasteModule = await import('../services/taste-profile.js').catch(() => null);
-    tasteProfileService = tasteModule?.tasteProfileService;
-} catch (e) { /* Service not yet implemented */ }
-
-try {
-    const coupleModule = await import('../services/couple-service.js').catch(() => null);
-    coupleService = coupleModule?.coupleService;
-} catch (e) { /* Service not yet implemented */ }
-
-try {
-    const roomModule = await import('../services/room-service.js').catch(() => null);
-    roomService = roomModule?.roomService;
-} catch (e) { /* Service not yet implemented */ }
-
+// ✅ FIXED: No top-level await - services loaded dynamically
 class MatchesTab {
     constructor() {
         this.container = null;
@@ -54,6 +39,59 @@ class MatchesTab {
             tasteExpanded: false,
             roomsExpanded: false
         };
+        
+        // ✅ FIXED: Cache for dynamically loaded services
+        this.services = {
+            taste: null,
+            couple: null,
+            room: null,
+            tasteLoaded: false,
+            coupleLoaded: false,
+            roomLoaded: false
+        };
+    }
+
+    // ✅ FIXED: Lazy load services when needed (no top-level await)
+    async loadTasteProfileService() {
+        if (this.services.tasteLoaded) return this.services.taste;
+        
+        try {
+            const module = await import('../services/taste-profile.js');
+            this.services.taste = module.tasteProfileService;
+        } catch (e) {
+            console.log('[Matches] Taste profile service not available');
+        }
+        
+        this.services.tasteLoaded = true;
+        return this.services.taste;
+    }
+
+    async loadCoupleService() {
+        if (this.services.coupleLoaded) return this.services.couple;
+        
+        try {
+            const module = await import('../services/couple-service.js');
+            this.services.couple = module.coupleService;
+        } catch (e) {
+            console.log('[Matches] Couple service not available');
+        }
+        
+        this.services.coupleLoaded = true;
+        return this.services.couple;
+    }
+
+    async loadRoomService() {
+        if (this.services.roomLoaded) return this.services.room;
+        
+        try {
+            const module = await import('../services/room-service.js');
+            this.services.room = module.roomService;
+        } catch (e) {
+            console.log('[Matches] Room service not available');
+        }
+        
+        this.services.roomLoaded = true;
+        return this.services.room;
     }
 
     async init(container) {
@@ -66,6 +104,13 @@ class MatchesTab {
         this.injectStyles();
         
         try {
+            // ✅ FIXED: Try to load services first
+            await Promise.all([
+                this.loadTasteProfileService(),
+                this.loadCoupleService(),
+                this.loadRoomService()
+            ]);
+            
             await this.render();
             
             // Load all sections (FUTURE + existing)
@@ -357,11 +402,16 @@ class MatchesTab {
             return;
         }
         
+        // ✅ FIXED: Check if services are loaded
+        const hasTasteService = !!this.services.taste;
+        const hasCoupleService = !!this.services.couple;
+        const hasRoomService = !!this.services.room;
+        
         this.container.innerHTML = `
             <div class="matches-content" style="width: 100%; padding: 1rem; padding-bottom: 6rem;">
                 
                 <!-- FUTURE SECTION 1: TASTE PROFILE -->
-                <div id="taste-profile-section" class="glass-card" style="margin-bottom: 1.5rem; overflow: hidden; display: ${tasteProfileService ? 'block' : 'none'};">
+                <div id="taste-profile-section" class="glass-card" style="margin-bottom: 1.5rem; overflow: hidden; display: ${hasTasteService ? 'block' : 'none'};">
                     <div class="section-header" data-section="taste">
                         <div style="display: flex; align-items: center; gap: 0.75rem;">
                             <span style="font-size: 1.5rem;">🎭</span>
@@ -376,10 +426,10 @@ class MatchesTab {
                 </div>
 
                 <!-- FUTURE SECTION 2: COUPLE MODE -->
-                <div id="couple-section" class="glass-card" style="margin-bottom: 1.5rem; display: ${coupleService ? 'block' : 'none'};"></div>
+                <div id="couple-section" class="glass-card" style="margin-bottom: 1.5rem; display: ${hasCoupleService ? 'block' : 'none'};"></div>
 
                 <!-- FUTURE SECTION 3: SWIPE ROOMS -->
-                <div id="rooms-section" class="glass-card" style="margin-bottom: 1.5rem; overflow: hidden; display: ${roomService ? 'block' : 'none'};">
+                <div id="rooms-section" class="glass-card" style="margin-bottom: 1.5rem; overflow: hidden; display: ${hasRoomService ? 'block' : 'none'};">
                     <div class="section-header" data-section="rooms">
                         <div style="display: flex; align-items: center; gap: 0.75rem;">
                             <span style="font-size: 1.5rem;">🎪</span>
@@ -449,6 +499,7 @@ class MatchesTab {
     // ===========================================
 
     async loadTasteProfile() {
+        const tasteProfileService = this.services.taste;
         if (!tasteProfileService) {
             console.log('[Matches] Taste profile service not available yet');
             return;
@@ -466,7 +517,7 @@ class MatchesTab {
     }
 
     renderTasteProfile() {
-        if (!tasteProfileService) return;
+        if (!this.services.taste) return;
         
         const summary = document.getElementById('taste-summary');
         const content = document.getElementById('taste-content');
@@ -522,6 +573,7 @@ class MatchesTab {
     // ===========================================
 
     async loadCoupleData() {
+        const coupleService = this.services.couple;
         if (!coupleService) {
             console.log('[Matches] Couple service not available yet');
             return;
@@ -548,7 +600,7 @@ class MatchesTab {
     }
 
     renderCoupleSection() {
-        if (!coupleService) return;
+        if (!this.services.couple) return;
         
         const section = document.getElementById('couple-section');
         if (!section) return;
@@ -619,6 +671,7 @@ class MatchesTab {
     // ===========================================
 
     async loadUserRooms() {
+        const roomService = this.services.room;
         if (!roomService) {
             console.log('[Matches] Room service not available yet');
             return;
@@ -636,6 +689,7 @@ class MatchesTab {
     }
 
     renderRoomsSection() {
+        const roomService = this.services.room;
         if (!roomService) return;
         
         const summary = document.getElementById('rooms-summary');
@@ -1167,20 +1221,20 @@ class MatchesTab {
             }
 
             // FUTURE: Couple link button
-            if (e.target.id === 'link-couple-btn' && coupleService) {
+            if (e.target.id === 'link-couple-btn' && this.services.couple) {
                 const email = prompt('Enter your partner\'s email address:');
                 if (email && email.trim()) {
-                    coupleService.sendCoupleInvite(email.trim());
+                    this.services.couple.sendCoupleInvite(email.trim());
                 }
                 return;
             }
 
             // FUTURE: Unlink couple
-            if (e.target.id === 'unlink-couple-btn' && coupleService) {
+            if (e.target.id === 'unlink-couple-btn' && this.services.couple) {
                 if (confirm('Unlink couple? This cannot be undone.')) {
                     const currentUser = authService.getCurrentUser();
                     if (currentUser) {
-                        coupleService.unlinkCouple(currentUser.uid).then(() => {
+                        this.services.couple.unlinkCouple(currentUser.uid).then(() => {
                             this.coupleData = null;
                             this.renderCoupleSection();
                         });
@@ -1196,24 +1250,24 @@ class MatchesTab {
             }
 
             // FUTURE: Create room
-            if (e.target.id === 'create-room-btn' && roomService) {
+            if (e.target.id === 'create-room-btn' && this.services.room) {
                 const name = prompt('Enter room name:', 'Movie Night');
                 if (name && name.trim()) {
                     const currentUser = authService.getCurrentUser();
                     if (currentUser) {
-                        roomService.createRoom(currentUser.uid, name.trim()).then(() => this.loadUserRooms());
+                        this.services.room.createRoom(currentUser.uid, name.trim()).then(() => this.loadUserRooms());
                     }
                 }
                 return;
             }
 
             // FUTURE: Join room
-            if (e.target.id === 'join-room-btn' && roomService) {
+            if (e.target.id === 'join-room-btn' && this.services.room) {
                 const code = prompt('Enter 6-digit room code:');
                 if (code && code.trim()) {
                     const currentUser = authService.getCurrentUser();
                     if (currentUser) {
-                        roomService.joinRoom(currentUser.uid, code.trim()).then(() => this.loadUserRooms());
+                        this.services.room.joinRoom(currentUser.uid, code.trim()).then(() => this.loadUserRooms());
                     }
                 }
                 return;
@@ -1319,8 +1373,12 @@ class MatchesTab {
         console.log('[Matches] Cleaned up all listeners via SnapshotManager');
         
         // FUTURE: Cleanup new services
-        if (coupleService && coupleService.cleanup) coupleService.cleanup();
-        if (roomService && roomService.cleanup) roomService.cleanup();
+        if (this.services.couple && this.services.couple.cleanup) {
+            this.services.couple.cleanup();
+        }
+        if (this.services.room && this.services.room.cleanup) {
+            this.services.room.cleanup();
+        }
         
         this.friends = [];
         this.matches = [];
